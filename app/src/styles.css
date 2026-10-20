@@ -1366,6 +1366,7 @@ input[type='checkbox'], input[type='radio'], input[type='range'] { accent-color:
 
 /* ---------- Tag management ---------- */
 .tag-manage { display: flex; align-items: center; gap: 8px; margin: 2px 0 4px; }
+.tag-manage .mini, .tag-manage .tag-rename input { min-height: 36px; padding-top: 6px; padding-bottom: 6px; }
 .tag-rename { display: flex; gap: 6px; align-items: center; }
 .tag-rename input { font: inherit; color: var(--text); background: var(--surface); border: 1px solid var(--control); border-radius: var(--radius-btn, 8px); padding: 4px 8px; max-width: 180px; }
 .tag-rename input:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
