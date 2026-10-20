@@ -8,6 +8,7 @@ export interface Task {
   projectId: string;
   parentId: string | null;
   goalId: string | null;
+  noteId: string | null; // note this task was extracted from, if any
   status: TaskStatus;
   pinned: boolean;
   priority: number; // 0 none, 1 high, 2 medium, 3 low

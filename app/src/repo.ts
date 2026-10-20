@@ -18,6 +18,7 @@ export async function addTask(input: {
   priority?: number;
   parentId?: string | null;
   goalId?: string | null;
+  noteId?: string | null;
   tags?: string[];
 }): Promise<Task> {
   const now = Date.now();
@@ -29,6 +30,7 @@ export async function addTask(input: {
     projectId: input.projectId,
     parentId: input.parentId ?? null,
     goalId: input.goalId ?? null,
+    noteId: input.noteId ?? null,
     status: 'active',
     pinned: false,
     priority: input.priority ?? 0,
@@ -250,6 +252,7 @@ export async function importTasks(
         note: '',
         noteDoc: null,
         goalId: null,
+        noteId: null,
         projectId,
         priority: 0,
         parentId: indent > 0 ? stack[indent - 1] : null,
