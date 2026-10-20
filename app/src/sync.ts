@@ -7,6 +7,28 @@ import { db } from './db';
  * stay local until the protocol grows blob storage.
  */
 
+export interface SyncStatus {
+  at: number;
+  ok: boolean;
+  summary: string;
+}
+
+const STATUS_KEY = 'lifedash-sync-status';
+
+export function loadSyncStatus(): SyncStatus | null {
+  try {
+    const raw = localStorage.getItem(STATUS_KEY);
+    return raw ? (JSON.parse(raw) as SyncStatus) : null;
+  } catch {
+    return null;
+  }
+}
+
+function saveSyncStatus(s: SyncStatus): void {
+  localStorage.setItem(STATUS_KEY, JSON.stringify(s));
+  window.dispatchEvent(new Event('lifedash-sync-status'));
+}
+
 export interface SyncSettings {
   url: string;
   username: string;
@@ -91,10 +113,18 @@ async function runAutoSync(): Promise<void> {
   const settings = loadSyncSettings();
   if (!settings || syncing || !navigator.onLine) return;
   try {
-    await syncNow(settings); // syncNow owns the in-flight guard
+    const r = await syncNow(settings); // syncNow owns the in-flight guard
+    saveSyncStatus({ at: Date.now(), ok: true, summary: summaryOf(r) });
   } catch (e) {
+    saveSyncStatus({ at: Date.now(), ok: false, summary: e instanceof Error ? e.message : String(e) });
     console.warn('auto-sync failed', e);
   }
+}
+
+function summaryOf(r: SyncResult): string {
+  const parts = [`pushed ${r.pushed}`, `pulled ${r.pulled}`];
+  if (r.conflicts) parts.push(`${r.conflicts} conflict${r.conflicts === 1 ? '' : 's'} (server won)`);
+  return parts.join(', ');
 }
 
 /** Focus/online/interval sync plus debounced push after local edits. */
@@ -154,7 +184,9 @@ export async function syncNow(settings: SyncSettings): Promise<SyncResult> {
   if (syncing) return { pushed: 0, conflicts: 0, pulled: 0, cursor: await getCursor() };
   syncing = true;
   try {
-    return await syncNowInner(settings);
+    const r = await syncNowInner(settings);
+    saveSyncStatus({ at: Date.now(), ok: true, summary: summaryOf(r) });
+    return r;
   } finally {
     syncing = false;
   }

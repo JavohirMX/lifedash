@@ -1,8 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
 import { X } from 'lucide-react';
 import {
-  dirtyCount,
   loadSyncSettings,
+  loadSyncStatus,
   login,
   register,
   saveSyncSettings,
@@ -18,6 +18,7 @@ export default function SyncDialog(props: { onClose: () => void }) {
   const [password, setPassword] = useState('');
   const [settings, setSettings] = useState<SyncSettings | null>(existing);
   const [status, setStatus] = useState('');
+  const last = loadSyncStatus();
   const [busy, setBusy] = useState(false);
   const urlRef = useRef<HTMLInputElement>(null);
 
@@ -114,6 +115,12 @@ export default function SyncDialog(props: { onClose: () => void }) {
           </>
         )}
         {status && <p className="sync-status" role="status">{status}</p>}
+        {!status && last && (
+          <p className="sync-status">
+            Last synced {new Date(last.at).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+            {last.ok ? ` - ${last.summary}` : ` - failed: ${last.summary}`}
+          </p>
+        )}
       </div>
     </div>
   );
