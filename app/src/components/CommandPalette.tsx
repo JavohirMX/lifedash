@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   Sun, CalendarDays, Archive, Clock, CalendarRange, Repeat, CheckCircle2,
-  Search, Plus, Moon, Check, Pin,
+  Search, Plus, Moon, Check, Pin, Home, Target, StickyNote, BookOpen, Calendar,
 } from 'lucide-react';
 import type { Task } from '../types';
 import type { Selection } from './Sidebar';
@@ -42,12 +42,17 @@ export default function CommandPalette(props: {
     });
     const base: Action[] = [
       { id: 'new', label: 'New task', hint: 'n', Icon: Plus, run: () => { props.onNewTask(); props.onClose(); } },
+      nav('home', 'Home', Home),
       nav('today', 'Today', Sun),
       nav('upcoming', 'Upcoming', CalendarDays),
       nav('backlog', 'Backlog', Archive),
       nav('planner', 'Planner', Clock),
       nav('week', 'Week', CalendarRange),
+      nav('calendar', 'Calendar', Calendar),
       nav('habits', 'Habits', Repeat),
+      nav('goals', 'Goals', Target),
+      nav('notes', 'Notes', StickyNote),
+      nav('journal', 'Journal', BookOpen),
       nav('completed', 'Completed', CheckCircle2),
       { id: 'theme', label: 'Toggle theme', Icon: Moon, run: () => { props.onToggleTheme(); props.onClose(); } },
     ];
