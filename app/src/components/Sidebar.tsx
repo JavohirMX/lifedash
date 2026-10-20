@@ -52,6 +52,7 @@ export default function Sidebar(props: {
   selection: Selection;
   onSelect: (s: Selection) => void;
   counts: { today: number; backlog: number };
+  activeByProject?: Record<string, number>;
   onScheduleToday?: (taskId: string) => void;
   onImport: () => void;
   onAutomation: () => void;
@@ -146,6 +147,9 @@ export default function Sidebar(props: {
         >
           <span className="dot" style={{ background: p.color }} />
           <span>{p.name}</span>
+          {(props.activeByProject?.[p.id] ?? 0) > 0 && (
+            <span className="proj-count num">{props.activeByProject![p.id]}</span>
+          )}
         </button>
       ))}
       {adding && (

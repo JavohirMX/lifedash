@@ -59,6 +59,11 @@ export default function App() {
 
   const today = todayStr();
 
+  const activeByProject = (tasks ?? []).reduce<Record<string, number>>((acc, t) => {
+    if (t.status === 'active' && t.parentId === null) acc[t.projectId] = (acc[t.projectId] ?? 0) + 1;
+    return acc;
+  }, {});
+
   const counts = useMemo(() => {
     const all = tasks ?? [];
     return {
@@ -177,10 +182,19 @@ export default function App() {
   } else if (selection.kind === 'project') {
     const project = projects.find((p) => p.id === selection.id);
     const list = projectTasks(tasks, selection.id);
+    const projAll = tasks.filter((t) => t.projectId === selection.id && t.parentId === null && t.status !== 'archived');
+    const projDone = projAll.filter((t) => t.status === 'done').length;
+    const projPct = projAll.length ? Math.round((projDone / projAll.length) * 100) : 0;
     body = (
       <section>
         <h1>
           <span className="dot" style={{ background: project?.color }} /> {project?.name ?? 'Project'}
+          {projAll.length > 0 && (
+            <span className="proj-progress">
+              <span className="progress proj-bar"><span className="progress-fill" style={{ width: `${projPct}%` }} /></span>
+              <span className="date-sub num">{projDone} of {projAll.length}</span>
+            </span>
+          )}
         </h1>
         {list.length === 0 && <p className="empty">No active tasks in this project.</p>}
         <TaskList tasks={list} allTasks={tasks} showDate onOpen={setOpenId}
@@ -191,7 +205,7 @@ export default function App() {
 
   return (
     <div className="app">
-      <Sidebar projects={projects} selection={selection} onSelect={setSelection} counts={counts}
+      <Sidebar projects={projects} selection={selection} onSelect={setSelection} counts={counts} activeByProject={activeByProject}
         onScheduleToday={(id) => void updateTask(id, { dueDate: today })}
         onImport={() => setImportOpen(true)} onAutomation={() => setAutomationOpen(true)} onSync={() => setSyncOpen(true)} />
       <main>
