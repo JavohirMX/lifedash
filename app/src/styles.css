@@ -1125,3 +1125,15 @@ button.cal-more:hover { color: var(--accent); }
 
 /* Notes filter */
 .notes-filter { max-width: 420px; margin-bottom: 12px; }
+
+/* Week nav + overdue strip */
+.week-nav { display: inline-flex; align-items: center; gap: 4px; margin-left: auto; }
+.week-overdue {
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--danger, #be123c);
+  border-radius: var(--radius-control);
+  padding: 8px 10px 4px;
+  margin-bottom: 10px;
+  background: var(--surface);
+}
+.week-overdue h2 { margin: 0 0 6px; }
