@@ -1,9 +1,12 @@
 # LifeDash - Task App Spec
 
-**Status:** Active | **Last updated:** 2026-10-20
+**Status:** Active | **Last updated:** 2026-10-20 (evening)
 
-Scope: the centralized task app (Phases 1-2 of the roadmap), plus the data model
-habits and the day planner will build on. Single user. Local-first.
+Scope: the centralized task app, plus the data model habits, goals, notes and
+the journal build on. Single user. Local-first.
+
+Phases 1-3 of the roadmap are shipped; where this spec and the code disagree,
+the code wins. Phase tags below mark what has landed.
 
 ## 1. Concepts
 
@@ -24,18 +27,30 @@ habits and the day planner will build on. Single user. Local-first.
 Task {
   id:            uuid
   title:         string (required)
-  note:          rich text (Phase 2; plain string in MVP)
-  projectId:     uuid | null        (null = Inbox)
+  note:          plain-text mirror of noteDoc, used by search
+  noteDoc:       ProseMirror JSON | null   (null = plain/empty)
+  projectId:     uuid               ('inbox' = Inbox)
   parentId:      uuid | null        (set for subtasks)
+  goalId:        uuid | null        (linked goal)
+  noteId:        uuid | null        (note this task was extracted from)
   status:        active | done | archived
   pinned:        bool
+  priority:      0 none | 1 high | 2 medium | 3 low
   dueDate:       date | null        (null = backlog)
-  dueTime:       time | null
+  dueTime:       'HH:MM' | null     (null = anytime)
   recurrence:    rrule string | null
-  blockedBy:     uuid[]             (Phase 2)
-  order:         number             (manual sort within a list)
+  blockedBy:     uuid[]
+  tags:          string[]           (lowercase, no '#')
+  order:         number             (fractional manual sort within a list)
+  seriesId:      uuid | null        (links recurring occurrences)
   createdAt / updatedAt / completedAt: timestamps
 }
+
+Goal { id, title, targetDate: date | null, status: active | done | archived, order }
+Habit { id, name, color, weekdays: number[] | null (null = daily), order, archived }
+HabitLog { id: '<habitId>:<date>', habitId, date, doneAt }   (idempotent per day)
+Note { id, title, note (plain-text mirror), noteDoc, pinned, createdAt, updatedAt }
+JournalEntry { id, date (one per day), note, noteDoc, mood: 1-5 | null }
 
 Project {
   id: uuid
@@ -53,12 +68,21 @@ blob, caption }`, stored locally alongside the task data.
 
 | View | Contents |
 |------|----------|
+| **Home** | Today's summary, a suggested next task, habit and goal widgets. |
 | **Today** | Due today + overdue, pinned first, then manual order. |
 | **Upcoming** | Grouped by date, next 14 days. |
-| **Backlog** | All no-date tasks, drag into Today to schedule. |
-| **Project** | Tasks in one project, subtasks nested. |
+| **Backlog** | All no-date tasks; drag or "Today" button to schedule. |
+| **Planner** | Hourly timeline of today; drag or tap to schedule tasks. |
+| **Week** | Seven columns with overdue strip and week navigation. |
+| **Calendar** | Month grid; click a day to drill in. |
+| **Habits** | Streaks, completion rate, week grid with per-day toggles. |
+| **Goals** | Progress bars over linked tasks, target dates. |
+| **Notes** | Rich-text notes with pinning and filtering. |
+| **Journal** | One entry per day with mood and jump-to-date. |
+| **Project** | Tasks in one project, subtasks nested, progress bar. |
 | **Inbox** | Default project for unsorted capture. |
-| **Completed log** | What was done, when (simple reverse-chron list). |
+| **Completed** | Grouped by completion day with counts. |
+| **Search** | Global across tasks, notes, journal and goals, with scopes. |
 
 Every list: pinned tasks on top, clearly marked.
 
@@ -83,30 +107,31 @@ Every list: pinned tasks on top, clearly marked.
 - Pin/unpin from the task row. Pinned tasks sort above unpinned within any
   view, then by manual order.
 
-### Dependencies (Phase 2)
+### Dependencies (shipped)
 - "Blocked by" picker on a task.
 - A blocked task is shown greyed with the blocker named; completing it while
   blocked asks for confirmation.
 - No cycle: picking a blocker that would create a loop is refused.
 
-### Rich text + checklists (Phase 2)
+### Rich text + checklists (shipped)
 - Notes support bold/italic, bullet and numbered lists, links, and checkbox
   lists. Stored as structured JSON (ProseMirror document).
 
-### Media (Phase 2)
+### Media (shipped)
 - Attach images/files from device; stored locally, synced later.
 - Images show a thumbnail in the task detail.
 
-### Backlog (Phase 2 view polish; basic version in MVP)
+### Backlog (shipped)
 - No-date tasks live here. Drag (or long-press menu on touch) onto a day.
 
-### Suggestions (Phase 5)
-- "Up next" strip: overdue, due soon, stale backlog items, broken recurrence.
+### Suggestions (first version shipped on Home)
+- Suggested next task from deadlines, pinning and order.
 - Honest heuristics only; no fake intelligence claims.
 
-### Automation (Phase 5)
-- Simple rules: trigger (task completes, date arrives) -> action (create task,
-  move to project, pin). User-defined, visible and editable in one place.
+### Automation (first rules shipped)
+- Shipped rules: roll overdue tasks into Today; complete a parent task when
+  its subtasks finish. Both are user toggles in the Automation dialog.
+- Further rules (create task, move to project, pin) remain planned.
 
 ## 5. Non-functional requirements
 
@@ -119,10 +144,12 @@ Every list: pinned tasks on top, clearly marked.
 - **Timezone-aware:** dates and recurrence honor the device timezone
   (Asia/Makassar default), correct across travel.
 
-## 6. Explicitly not in MVP
+## 6. Explicitly out of scope
 
 - Collaboration, sharing, comments
-- Sync between devices
-- Notifications
-- Habits, day planner, TV surface (own phases)
+- Notifications (Phase 4)
+- TV surface (Phase 5)
 - Calendar integration
+
+(Sync between devices shipped as a Phase 4 add-on; the app never requires it.
+Habits, goals, notes, journal and the day planner shipped in Phase 3.)
