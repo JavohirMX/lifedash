@@ -1219,9 +1219,9 @@ button.cal-more:hover { color: var(--accent); }
 :root[data-style='terminal'] {
   --font: ui-monospace, 'JetBrains Mono', 'SF Mono', 'Cascadia Mono', Menlo, Consolas, monospace;
   --ground: #f2f5ef; --surface: #fbfdf9; --surface-2: #e6ece1; --active: #d9e3d3;
-  --border: #b9c8b3; --rule: #cfdac9; --control: #8fa588;
-  --text: #14211a; --muted: #3f5446; --faint: #526659;
-  --accent: #0b7a33; --accent-strong: #08591f; --accent-soft: #d3ecd9; --accent-ink: #fff;
+  --border: #b9c8b3; --rule: #cfdac9; --control: #788c73;
+  --text: #14211a; --muted: #3f5446; --faint: #455a4c;
+  --accent: #086a2b; --accent-strong: #08591f; --accent-soft: #d3ecd9; --accent-ink: #fff;
   --primary-btn: #14211a; --primary-btn-ink: #e9f5ea;
   --radius-card: 2px; --radius-control: 2px; --radius-panel: 4px;
   --fs-title: 20px; --fs-section: 14px; --fs-body: 13px; --fs-small: 11.5px;
@@ -1230,7 +1230,7 @@ button.cal-more:hover { color: var(--accent); }
 }
 :root[data-style='terminal'][data-theme='dark'] {
   --ground: #0b0f0c; --surface: #101712; --surface-2: #17211a; --active: #1e2d22;
-  --border: #25402c; --rule: #1b2d20; --control: #3a6045;
+  --border: #25402c; --rule: #1b2d20; --control: #4d7258;
   --text: #cfeed6; --muted: #8fb89a; --faint: #75a083;
   --accent: #4ade80; --accent-strong: #86efac; --accent-soft: #12301c; --accent-ink: #04140a;
   --primary-btn: #4ade80; --primary-btn-ink: #04140a;
@@ -1248,7 +1248,7 @@ button.cal-more:hover { color: var(--accent); }
   --font: 'Charter', 'Iowan Old Style', 'Palatino Linotype', Palatino, Georgia, serif;
   --font-display: 'Charter', 'Iowan Old Style', Georgia, 'Times New Roman', serif;
   --ground: #f6f0e4; --surface: #fffaf0; --surface-2: #efe6d2; --active: #e8dcc2;
-  --border: #d8c9a9; --rule: #e6dbc3; --control: #bba982;
+  --border: #d8c9a9; --rule: #e6dbc3; --control: #918263;
   --text: #2a2118; --muted: #5e5240; --faint: #6e6149;
   --accent: #8c2f39; --accent-strong: #6e2029; --accent-soft: #f3dcd9; --accent-ink: #fff;
   --primary-btn: #2a2118; --primary-btn-ink: #fffaf0;
@@ -1260,7 +1260,7 @@ button.cal-more:hover { color: var(--accent); }
 }
 :root[data-style='editorial'][data-theme='dark'] {
   --ground: #1a1612; --surface: #231e18; --surface-2: #2c261e; --active: #352d23;
-  --border: #3d3427; --rule: #2f281f; --control: #5a4d3a;
+  --border: #3d3427; --rule: #2f281f; --control: #7b6f5c;
   --text: #f1e8d6; --muted: #bdb097; --faint: #a39679;
   --accent: #e08a8f; --accent-strong: #f0a8ac; --accent-soft: #3a2326; --accent-ink: #1a0c0d;
   --primary-btn: #f1e8d6; --primary-btn-ink: #1a1612;
@@ -1278,7 +1278,7 @@ button.cal-more:hover { color: var(--accent); }
 :root[data-style='soft'] {
   --font: ui-rounded, 'SF Pro Rounded', 'Nunito', 'Segoe UI Variable', system-ui, -apple-system, sans-serif;
   --ground: #f5f3fb; --surface: #ffffff; --surface-2: #eeeaf8; --active: #e5e0f5;
-  --border: #e3ddf3; --rule: #ece8f7; --control: #cfc7e8;
+  --border: #e3ddf3; --rule: #ece8f7; --control: #8983a1;
   --text: #25213a; --muted: #5d5878; --faint: #6c6788;
   --accent: #5b49c8; --accent-strong: #4637a8; --accent-soft: #e6e1fa; --accent-ink: #fff;
   --primary-btn: #5b49c8; --primary-btn-ink: #fff;
@@ -1291,7 +1291,7 @@ button.cal-more:hover { color: var(--accent); }
 }
 :root[data-style='soft'][data-theme='dark'] {
   --ground: #16151f; --surface: #201e2d; --surface-2: #2a2739; --active: #332f47;
-  --border: #302d44; --rule: #282538; --control: #4b4668;
+  --border: #302d44; --rule: #282538; --control: #74708c;
   --text: #efedfa; --muted: #b6b1d0; --faint: #9a95b8;
   --accent: #a99bff; --accent-strong: #c2b8ff; --accent-soft: #2e2850; --accent-ink: #15112e;
   --primary-btn: #a99bff; --primary-btn-ink: #15112e;
@@ -1331,6 +1331,9 @@ button.cal-more:hover { color: var(--accent); }
 :root[data-style='contrast'] .task-row { border-width: 2px; }
 :root[data-style='contrast'] .nav.active { background: var(--text); color: var(--ground); }
 :root[data-style='contrast'] .nav.active svg { color: var(--ground); }
+:root[data-style='contrast'] .nav.active .count { color: var(--ground); }
 :root[data-style='contrast'] :focus-visible { outline-width: 3px; outline-offset: 3px; }
 :root[data-style='contrast'] .checkbox { border-width: 2.5px; }
 :root[data-style='contrast'] .task-row.done { opacity: 0.75; }
+
+.nav.active .count { color: var(--muted); }
