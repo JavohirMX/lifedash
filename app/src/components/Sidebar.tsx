@@ -4,7 +4,7 @@ import { addProject, exportJson } from '../repo';
 import { INBOX_ID } from '../db';
 
 export type Selection =
-  | { kind: 'today' | 'upcoming' | 'backlog' | 'completed' | 'habits' | 'planner' }
+  | { kind: 'today' | 'upcoming' | 'backlog' | 'completed' | 'habits' | 'planner' | 'week' }
   | { kind: 'project'; id: string }
   | { kind: 'search'; query: string };
 
@@ -71,6 +71,7 @@ export default function Sidebar(props: {
       {item('upcoming', 'Upcoming')}
       {item('backlog', 'Backlog', props.counts.backlog)}
       {item('planner', 'Planner')}
+      {item('week', 'Week')}
       {item('habits', 'Habits')}
       {item('completed', 'Completed')}
       <div className="nav-section">

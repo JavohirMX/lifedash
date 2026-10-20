@@ -453,3 +453,30 @@ h2 { font-size: 1.05rem; margin: 1.5rem 0 0.5rem; }
 .hour-body .task-row { margin-bottom: 0.3rem; }
 .drop-hot { background: rgba(99, 102, 241, 0.12); border-radius: 8px; }
 .anytime.drop-hot { border-color: var(--primary); }
+
+/* Phase 3b: week view */
+.week-grid {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(120px, 1fr));
+  gap: 0.5rem;
+  align-items: start;
+}
+.week-col {
+  min-height: 200px;
+  background: var(--surface);
+  border-radius: 8px;
+  padding: 0.5rem;
+  border: 1px solid transparent;
+}
+.week-col.today-col { border-color: rgba(99, 102, 241, 0.4); }
+.week-head { display: flex; justify-content: space-between; padding: 0.1rem 0.2rem 0.5rem; }
+.week-dayname { color: var(--dim); font-size: 0.75rem; text-transform: uppercase; }
+.week-date { font-size: 0.8rem; color: var(--muted); }
+.week-date.today { color: var(--primary); font-weight: 700; }
+.week-col .task-row { padding: 0.4rem 0.5rem; }
+.week-col .task-title { font-size: 0.82rem; }
+.week-col .task-meta { display: none; }
+.week-col .pin { display: none; }
+@media (max-width: 720px) {
+  .week-grid { grid-template-columns: repeat(2, 1fr); }
+}
