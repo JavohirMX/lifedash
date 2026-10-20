@@ -114,14 +114,34 @@ export async function deleteProject(project: Project): Promise<void> {
 }
 
 export async function exportJson(): Promise<string> {
-  const [tasks, projects, attachments] = await Promise.all([
+  const [tasks, projects, attachments, habits, habitLogs, goals, notes, journal] = await Promise.all([
     db.tasks.toArray(),
     db.projects.toArray(),
     db.attachments.toArray(),
+    db.habits.toArray(),
+    db.habitLogs.toArray(),
+    db.goals.toArray(),
+    db.notes.toArray(),
+    db.journal.toArray(),
   ]);
   // Attachment binaries stay on-device; metadata is exported for reference.
   const attachmentMeta = attachments.map(({ blob: _blob, ...meta }) => meta);
-  return JSON.stringify({ exportedAt: new Date().toISOString(), projects, tasks, attachments: attachmentMeta }, null, 2);
+  return JSON.stringify(
+    {
+      exportedAt: new Date().toISOString(),
+      version: 2,
+      projects,
+      tasks,
+      attachments: attachmentMeta,
+      habits,
+      habitLogs,
+      goals,
+      notes,
+      journal,
+    },
+    null,
+    2,
+  );
 }
 
 export async function addAttachment(taskId: string, file: File): Promise<void> {
@@ -282,4 +302,22 @@ export async function getOrCreateJournalEntry(date: string): Promise<JournalEntr
 
 export async function updateJournalEntry(id: string, patch: Partial<JournalEntry>): Promise<void> {
   await db.journal.update(id, { ...patch, updatedAt: Date.now() });
+}
+
+// Restore a full backup (exportJson v2). Merges by id - existing rows with
+// the same id are overwritten, nothing is deleted.
+export async function importBackup(json: string): Promise<{ restored: Record<string, number> }> {
+  const data = JSON.parse(json) as Record<string, unknown>;
+  const tables = ['projects', 'tasks', 'habits', 'habitLogs', 'goals', 'notes', 'journal'] as const;
+  const restored: Record<string, number> = {};
+  await db.transaction('rw', tables.map((t) => db.table(t)), async () => {
+    for (const t of tables) {
+      const rows = data[t];
+      if (Array.isArray(rows) && rows.length > 0) {
+        await db.table(t).bulkPut(rows);
+        restored[t] = rows.length;
+      }
+    }
+  });
+  return { restored };
 }

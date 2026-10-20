@@ -4,7 +4,7 @@ import {
   Search, Plus, Menu, X, Download, Upload, Moon, Monitor, Zap, Cloud, House, Target, StickyNote, BookOpen,
 } from 'lucide-react';
 import type { Project } from '../types';
-import { addProject, exportJson } from '../repo';
+import { addProject, exportJson, importBackup } from '../repo';
 import { cycleTheme, getTheme, type Theme } from '../theme';
 
 export type Selection =
@@ -186,6 +186,34 @@ export default function Sidebar(props: {
     </button>
   );
 
+  const restoreBtn = (
+    <button
+      className="nav foot-action"
+      onClick={() => {
+        const input = document.createElement('input');
+        input.type = 'file';
+        input.accept = 'application/json';
+        input.onchange = () => {
+          const file = input.files?.[0];
+          if (!file) return;
+          void file.text().then(async (text) => {
+            try {
+              const { restored } = await importBackup(text);
+              const total = Object.values(restored).reduce((a, b) => a + b, 0);
+              window.alert(`Backup restored: ${total} records merged.`);
+            } catch {
+              window.alert('That file is not a valid Lifedash backup.');
+            }
+          });
+        };
+        input.click();
+      }}
+    >
+      <Upload size={16} strokeWidth={1.75} aria-hidden="true" />
+      <span>Restore backup</span>
+    </button>
+  );
+
   const importBtn = (
     <>
       <button className="nav foot-action" onClick={props.onSync}>
@@ -221,7 +249,7 @@ export default function Sidebar(props: {
         {searchBox}
         {MAIN_ITEMS.map(({ kind, label, Icon }) => item(kind, label, Icon))}
         {projectsBlock}
-        <div className="sidebar-foot">{importBtn}{themeBtn}{exportBtn}</div>
+        <div className="sidebar-foot">{importBtn}{themeBtn}{exportBtn}{restoreBtn}</div>
       </nav>
 
       <div className="mobile-topbar">
@@ -260,7 +288,7 @@ export default function Sidebar(props: {
           {searchBox}
           {MAIN_ITEMS.map(({ kind, label, Icon }) => item(kind, label, Icon, () => setSheet(false)))}
           {projectsBlock}
-          <div className="sidebar-foot">{importBtn}{themeBtn}{exportBtn}</div>
+          <div className="sidebar-foot">{importBtn}{themeBtn}{exportBtn}{restoreBtn}</div>
         </div>
       )}
     </>
