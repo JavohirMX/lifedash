@@ -13,6 +13,7 @@ import GoalsView from './views/GoalsView';
 import NotesView from './views/NotesView';
 import JournalView from './views/JournalView';
 import SearchView from './views/SearchView';
+import CalendarView from './views/CalendarView';
 import TaskDetail from './components/TaskDetail';
 import CommandPalette, { useGlobalKeys } from './components/CommandPalette';
 import ImportDialog from './components/ImportDialog';
@@ -81,7 +82,7 @@ export default function App() {
     if (selection.kind === 'project') return { projectId: selection.id, dueDate: null };
     return { projectId: INBOX_ID, dueDate: null };
   })();
-  const showQuickAdd = selection.kind !== 'completed' && selection.kind !== 'search' && selection.kind !== 'habits' && selection.kind !== 'planner' && selection.kind !== 'week' && selection.kind !== 'home' && selection.kind !== 'goals' && selection.kind !== 'notes' && selection.kind !== 'journal';
+  const showQuickAdd = selection.kind !== 'completed' && selection.kind !== 'search' && selection.kind !== 'habits' && selection.kind !== 'planner' && selection.kind !== 'week' && selection.kind !== 'home' && selection.kind !== 'goals' && selection.kind !== 'notes' && selection.kind !== 'journal' && selection.kind !== 'calendar';
 
   let body;
   if (selection.kind === 'home') {
@@ -148,6 +149,8 @@ export default function App() {
         <TaskList tasks={list.slice(0, 100)} allTasks={tasks} showDate onOpen={setOpenId} />
       </section>
     );
+  } else if (selection.kind === 'calendar') {
+    body = <CalendarView tasks={tasks} onOpen={setOpenId} />;
   } else if (selection.kind === 'journal') {
     body = <JournalView />;
   } else if (selection.kind === 'notes') {

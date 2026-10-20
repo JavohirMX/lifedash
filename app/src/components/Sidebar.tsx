@@ -8,7 +8,7 @@ import { addProject, exportJson } from '../repo';
 import { cycleTheme, getTheme, type Theme } from '../theme';
 
 export type Selection =
-  | { kind: 'home' | 'today' | 'upcoming' | 'backlog' | 'completed' | 'habits' | 'planner' | 'week' | 'goals' | 'notes' | 'journal' }
+  | { kind: 'home' | 'today' | 'upcoming' | 'backlog' | 'completed' | 'habits' | 'planner' | 'week' | 'goals' | 'notes' | 'journal' | 'calendar' }
   | { kind: 'project'; id: string }
   | { kind: 'search'; query: string; status?: 'all' | 'open' | 'done'; projectId?: string | null; scope?: 'all' | 'tasks' | 'notes' | 'journal' | 'goals' };
 
@@ -34,6 +34,7 @@ const MAIN_ITEMS = [
   { kind: 'goals', label: 'Goals', Icon: Target },
   { kind: 'notes', label: 'Notes', Icon: StickyNote },
   { kind: 'journal', label: 'Journal', Icon: BookOpen },
+  { kind: 'calendar', label: 'Calendar', Icon: CalendarDays },
   { kind: 'completed', label: 'Completed', Icon: CheckCircle2 },
 ] as const;
 
