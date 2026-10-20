@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
-import { ChevronLeft, ChevronRight } from 'lucide-react';
-import { todayStr, addDays } from '../dates';
+import { Check, ChevronLeft, ChevronRight } from 'lucide-react';
+import { todayStr, addDays, friendlyDate, weekdayLabel } from '../dates';
+import { toggleComplete } from '../repo';
 import type { Task } from '../types';
 
 function monthKey(dateStr: string): string {
@@ -36,6 +37,7 @@ const WEEKDAYS = ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'];
 export default function CalendarView(props: { tasks: Task[]; onOpen: (id: string) => void }) {
   const today = todayStr();
   const [month, setMonth] = useState(monthKey(today));
+  const [day, setDay] = useState<string | null>(null);
 
   const byDate = useMemo(() => {
     const map = new Map<string, Task[]>();
@@ -78,9 +80,16 @@ export default function CalendarView(props: { tasks: Task[]; onOpen: (id: string
             <div
               key={date}
               role="gridcell"
-              className={`cal-cell${inMonth ? '' : ' outside'}${date === today ? ' today' : ''}`}
+              className={`cal-cell${inMonth ? '' : ' outside'}${date === today ? ' today' : ''}${day === date ? ' selected' : ''}`}
             >
-              <span className="cal-day num">{Number(date.slice(8))}</span>
+              <button
+                className="cal-day num"
+                aria-label={`${dayTasks.length} due ${weekdayLabel(date)} ${date}`}
+                aria-pressed={day === date}
+                onClick={() => setDay(day === date ? null : date)}
+              >
+                {Number(date.slice(8))}
+              </button>
               <div className="cal-tasks">
                 {dayTasks.slice(0, 3).map((t) => (
                   <button
@@ -92,12 +101,39 @@ export default function CalendarView(props: { tasks: Task[]; onOpen: (id: string
                     {t.title}
                   </button>
                 ))}
-                {dayTasks.length > 3 && <span className="cal-more num">+{dayTasks.length - 3} more</span>}
+                {dayTasks.length > 3 && (
+                  <button className="cal-more num" onClick={() => setDay(day === date ? null : date)}>
+                    +{dayTasks.length - 3} more
+                  </button>
+                )}
               </div>
             </div>
           );
         })}
       </div>
+      {day !== null && (
+        <div className="load-drill cal-drill">
+          <p className="widget-meta num">{weekdayLabel(day)} · {friendlyDate(day, today)} · {(byDate.get(day) ?? []).length} due</p>
+          {(byDate.get(day) ?? []).length === 0 ? (
+            <p className="widget-empty">Nothing due.</p>
+          ) : (
+            <ul className="widget-list">
+              {(byDate.get(day) ?? []).map((t) => (
+                <li key={t.id}>
+                  <button
+                    className={`checkbox ${t.status === 'done' ? 'checked' : ''}`}
+                    aria-label={t.status === 'done' ? 'Mark not done' : 'Mark done'}
+                    onClick={() => void toggleComplete(t)}
+                  >
+                    {t.status === 'done' ? <Check size={13} strokeWidth={2.5} aria-hidden="true" /> : null}
+                  </button>
+                  <button className={`widget-task ${t.status === 'done' ? 'done' : ''}`} onClick={() => props.onOpen(t.id)}>{t.title}</button>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      )}
     </section>
   );
 }

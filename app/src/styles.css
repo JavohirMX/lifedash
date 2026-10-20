@@ -972,6 +972,13 @@ button.load-col:focus-visible { outline: 2px solid var(--accent); outline-offset
 .swatch.on { border-color: var(--ink); }
 .mini.danger { color: var(--danger, #be123c); }
 .proj-del-hint { font-size: 12.5px; color: var(--faint); margin-left: auto; }
+button.cal-day { background: none; border: 0; font: inherit; cursor: pointer; padding: 0 3px; border-radius: 4px; color: inherit; }
+button.cal-day:hover { color: var(--accent); }
+button.cal-day:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.cal-cell.selected { outline: 2px solid var(--accent); outline-offset: -2px; border-radius: 8px; }
+button.cal-more { background: none; border: 0; font: inherit; cursor: pointer; color: var(--faint); padding: 0; }
+button.cal-more:hover { color: var(--accent); }
+.cal-drill { max-width: 480px; }
 @media (max-width: 640px) {
   .widget-grid { grid-template-columns: 1fr; }
 }
