@@ -1,6 +1,6 @@
 import { loadRules, rolloverTargets, shouldCompleteParent } from './automation';
 import { db, newId } from './db';
-import type { Task, Project, Goal, Note } from './types';
+import type { Task, Project, Goal, Note, JournalEntry } from './types';
 import { completeTask, wouldCreateCycle, normalizeTag, normalizeTask, reorderedPosition } from './logic';
 import { todayStr } from './dates';
 
@@ -269,4 +269,17 @@ export async function updateNote(id: string, patch: Partial<Note>): Promise<void
 
 export async function deleteNote(id: string): Promise<void> {
   await db.notes.delete(id);
+}
+
+export async function getOrCreateJournalEntry(date: string): Promise<JournalEntry> {
+  const existing = await db.journal.where('date').equals(date).first();
+  if (existing) return existing;
+  const now = Date.now();
+  const entry: JournalEntry = { id: newId(), date, note: '', noteDoc: null, mood: null, createdAt: now, updatedAt: now };
+  await db.journal.add(entry);
+  return entry;
+}
+
+export async function updateJournalEntry(id: string, patch: Partial<JournalEntry>): Promise<void> {
+  await db.journal.update(id, { ...patch, updatedAt: Date.now() });
 }

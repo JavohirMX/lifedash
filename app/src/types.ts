@@ -39,6 +39,16 @@ export interface HabitLog {
   doneAt: number;
 }
 
+export interface JournalEntry {
+  id: string;
+  date: string; // YYYY-MM-DD, one entry per day
+  note: string;
+  noteDoc: unknown | null;
+  mood: number | null; // 1-5
+  createdAt: number;
+  updatedAt: number;
+}
+
 export interface Note {
   id: string;
   title: string;
