@@ -12,9 +12,11 @@ import TaskDetail from './components/TaskDetail';
 import CommandPalette, { useGlobalKeys } from './components/CommandPalette';
 import ImportDialog from './components/ImportDialog';
 import AutomationDialog from './components/AutomationDialog';
+import SyncDialog from './components/SyncDialog';
 import { cycleTheme } from './theme';
 import { loadRules, saveRules, type AutomationRules } from './automation';
 import { applyRollover } from './repo';
+import { installSyncHooks } from './sync';
 import {
   todayTasks,
   upcomingTasks,
@@ -34,6 +36,7 @@ export default function App() {
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
   const [automationOpen, setAutomationOpen] = useState(false);
+  const [syncOpen, setSyncOpen] = useState(false);
   const [rules, setRules] = useState<AutomationRules>(loadRules);
   const quickAddFocus = () => document.querySelector<HTMLInputElement>('.quick-add input')?.focus();
   useGlobalKeys({
@@ -44,6 +47,7 @@ export default function App() {
 
   useEffect(() => {
     void ensureSeed();
+    installSyncHooks();
     if (loadRules().rollover) void applyRollover(todayStr());
   }, []);
 
@@ -171,7 +175,7 @@ export default function App() {
     <div className="app">
       <Sidebar projects={projects} selection={selection} onSelect={setSelection} counts={counts}
         onScheduleToday={(id) => void updateTask(id, { dueDate: today })}
-        onImport={() => setImportOpen(true)} onAutomation={() => setAutomationOpen(true)} />
+        onImport={() => setImportOpen(true)} onAutomation={() => setAutomationOpen(true)} onSync={() => setSyncOpen(true)} />
       <main>
         {showQuickAdd && (
           <QuickAdd
@@ -184,6 +188,7 @@ export default function App() {
       {openId && <TaskDetail taskId={openId} onClose={() => setOpenId(null)} />}
       {importOpen && <ImportDialog projects={projects} onClose={() => setImportOpen(false)} />}
       {automationOpen && <AutomationDialog rules={rules} onChange={changeRules} onClose={() => setAutomationOpen(false)} />}
+      {syncOpen && <SyncDialog onClose={() => setSyncOpen(false)} />}
       <CommandPalette
         open={paletteOpen}
         tasks={tasks}

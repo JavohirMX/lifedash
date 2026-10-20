@@ -861,3 +861,20 @@ h2 { font-size: var(--fs-section); font-weight: 600; letter-spacing: -0.01em; ma
   display: flex; align-items: center; gap: 8px; margin-top: 14px;
   font-size: var(--fs-small); color: var(--muted);
 }
+
+/* ---------- Sync dialog ---------- */
+.sync-actions { display: flex; gap: 10px; }
+.sync-status { margin: 0; font-size: var(--fs-small); color: var(--muted); }
+.sync-panel .field input {
+  background: var(--surface); border: 1px solid var(--control);
+  border-radius: var(--radius-control); padding: 7px 10px;
+  font-size: var(--fs-body); color: var(--text); font-family: var(--font);
+}
+.btn-secondary {
+  background: transparent; color: var(--text); border: 1px solid var(--control);
+  border-radius: var(--radius-control); padding: 8px 14px;
+  font-size: var(--fs-body); font-weight: 500; cursor: pointer;
+  transition: background 160ms ease;
+}
+.btn-secondary:hover:not(:disabled) { background: var(--surface-2); }
+.btn-secondary:disabled { opacity: 0.5; cursor: default; }

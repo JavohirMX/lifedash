@@ -4,6 +4,7 @@ import type { Task, Project, Attachment, Habit, HabitLog } from './types';
 export const INBOX_ID = 'inbox';
 
 export class LifeDashDB extends Dexie {
+  syncmeta!: Table<{ key: string; value: unknown }, string>;
   tasks!: Table<Task, string>;
   projects!: Table<Project, string>;
   attachments!: Table<Attachment, string>;
@@ -60,6 +61,14 @@ export class LifeDashDB extends Dexie {
             t.dueTime ??= null;
           }),
       );
+    this.version(5).stores({
+      tasks: 'id, status, projectId, parentId, dueDate, seriesId',
+      projects: 'id, order',
+      attachments: 'id, taskId',
+      habits: 'id, order',
+      habitLogs: 'id, habitId, date',
+      syncmeta: 'key',
+    });
   }
 }
 

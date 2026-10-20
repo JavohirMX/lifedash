@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import {
   Sun, CalendarDays, Archive, Clock, CalendarRange, Repeat, CheckCircle2,
-  Search, Plus, Menu, X, Download, Upload, Moon, Monitor, Zap,
+  Search, Plus, Menu, X, Download, Upload, Moon, Monitor, Zap, Cloud,
 } from 'lucide-react';
 import type { Project } from '../types';
 import { addProject, exportJson } from '../repo';
@@ -48,6 +48,7 @@ export default function Sidebar(props: {
   onScheduleToday?: (taskId: string) => void;
   onImport: () => void;
   onAutomation: () => void;
+  onSync: () => void;
 }) {
   const [adding, setAdding] = useState(false);
   const [name, setName] = useState('');
@@ -177,6 +178,10 @@ export default function Sidebar(props: {
 
   const importBtn = (
     <>
+      <button className="nav foot-action" onClick={props.onSync}>
+        <Cloud size={16} strokeWidth={1.75} aria-hidden="true" />
+        Sync
+      </button>
       <button className="nav foot-action" onClick={props.onAutomation}>
         <Zap size={16} strokeWidth={1.75} aria-hidden="true" />
         Automation
