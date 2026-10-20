@@ -11,6 +11,7 @@ import {
   backlogTasks,
   projectTasks,
   completedTasks,
+  searchTasks,
 } from './logic';
 import { todayStr, friendlyDate, weekdayLabel } from './dates';
 import { updateTask } from './repo';
@@ -40,6 +41,7 @@ export default function App() {
     if (selection.kind === 'project') return { projectId: selection.id, dueDate: null };
     return { projectId: INBOX_ID, dueDate: null };
   })();
+  const showQuickAdd = selection.kind !== 'completed' && selection.kind !== 'search';
 
   let body;
   if (selection.kind === 'today') {
@@ -96,6 +98,17 @@ export default function App() {
         ))}
       </section>
     );
+  } else if (selection.kind === 'search') {
+    const results = searchTasks(tasks, selection.query);
+    body = (
+      <section>
+        <h1>Search <span className="date-sub">{results.length} result{results.length === 1 ? '' : 's'}</span></h1>
+        {results.length === 0 && <p className="empty">No tasks match. Tip: #tag filters by tag.</p>}
+        {results.map((t) => (
+          <TaskRow key={t.id} task={t} allTasks={tasks} showDate onOpen={setOpenId} />
+        ))}
+      </section>
+    );
   } else if (selection.kind === 'project') {
     const project = projects.find((p) => p.id === selection.id);
     const list = projectTasks(tasks, selection.id);
@@ -116,7 +129,7 @@ export default function App() {
     <div className="app">
       <Sidebar projects={projects} selection={selection} onSelect={setSelection} counts={counts} />
       <main>
-        {selection.kind !== 'completed' && (
+        {showQuickAdd && (
           <QuickAdd
             projectId={quickAddContext.projectId}
             dueDate={quickAddContext.dueDate}

@@ -1,6 +1,6 @@
 import type { Task } from '../types';
 import { toggleComplete, togglePin } from '../repo';
-import { describeRecurrence, subtaskProgress } from '../logic';
+import { describeRecurrence, subtaskProgress, activeBlockers, normalizeTask } from '../logic';
 import { friendlyDate, todayStr } from '../dates';
 
 export default function TaskRow(props: {
@@ -15,13 +15,24 @@ export default function TaskRow(props: {
   const overdue = !done && task.dueDate !== null && task.dueDate < today;
   const progress = subtaskProgress(allTasks, task.id);
   const rec = describeRecurrence(task.recurrence);
+  const blockers = activeBlockers(allTasks.map(normalizeTask), normalizeTask(task));
+  const blocked = !done && blockers.length > 0;
+  const tags = task.tags ?? [];
+
+  function onCheck() {
+    if (!done && blocked) {
+      const names = blockers.map((b) => `"${b.title}"`).join(', ');
+      if (!window.confirm(`This task is blocked by ${names}. Complete it anyway?`)) return;
+    }
+    void toggleComplete(task);
+  }
 
   return (
-    <div className={`task-row ${done ? 'done' : ''} ${task.pinned ? 'pinned' : ''}`}>
+    <div className={`task-row ${done ? 'done' : ''} ${task.pinned ? 'pinned' : ''} ${blocked ? 'blocked' : ''}`}>
       <button
         className={`checkbox ${done ? 'checked' : ''}`}
         aria-label={done ? 'Mark not done' : 'Mark done'}
-        onClick={() => void toggleComplete(task)}
+        onClick={onCheck}
       >
         {done ? '✓' : ''}
       </button>
@@ -34,6 +45,12 @@ export default function TaskRow(props: {
             </span>
           )}
           {rec && <span className="rec">↻ {rec}</span>}
+          {blocked && (
+            <span className="blocked-by">blocked by {blockers[0].title}{blockers.length > 1 ? ` +${blockers.length - 1}` : ''}</span>
+          )}
+          {tags.map((t) => (
+            <span key={t} className="tag">#{t}</span>
+          ))}
           {progress.total > 0 && (
             <span className="subs">
               {progress.done}/{progress.total}

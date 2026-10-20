@@ -13,6 +13,20 @@ export class LifeDashDB extends Dexie {
       tasks: 'id, status, projectId, parentId, dueDate, seriesId',
       projects: 'id, order',
     });
+    this.version(2)
+      .stores({
+        tasks: 'id, status, projectId, parentId, dueDate, seriesId',
+        projects: 'id, order',
+      })
+      .upgrade((tx) =>
+        tx
+          .table('tasks')
+          .toCollection()
+          .modify((t: { blockedBy?: string[]; tags?: string[] }) => {
+            t.blockedBy ??= [];
+            t.tags ??= [];
+          }),
+      );
   }
 }
 

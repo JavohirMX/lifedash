@@ -10,6 +10,8 @@ export interface Task {
   pinned: boolean;
   dueDate: string | null; // local YYYY-MM-DD
   recurrence: string | null; // RRULE string with DTSTART
+  blockedBy: string[]; // task ids that gate this task
+  tags: string[]; // lowercase, no '#'
   order: number;
   seriesId: string | null; // links recurring occurrences
   createdAt: number;

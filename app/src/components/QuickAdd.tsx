@@ -1,22 +1,18 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { addTask } from '../repo';
 
 export default function QuickAdd(props: { projectId: string; dueDate?: string | null; placeholder?: string }) {
   const [title, setTitle] = useState('');
-  const [busy, setBusy] = useState(false);
+  // Serialize writes so rapid entries never drop and order stays monotonic.
+  const chain = useRef<Promise<unknown>>(Promise.resolve());
 
-  async function submit() {
+  function submit() {
     const t = title.trim();
-    if (!t || busy) return;
-    // Clear before the async write: a fast follow-up entry must never be
-    // wiped by the previous entry's cleanup.
-    setTitle('');
-    setBusy(true);
-    try {
-      await addTask({ title: t, projectId: props.projectId, dueDate: props.dueDate ?? null });
-    } finally {
-      setBusy(false);
-    }
+    if (!t) return;
+    setTitle(''); // clear before the async write; fast follow-ups start fresh
+    chain.current = chain.current.then(() =>
+      addTask({ title: t, projectId: props.projectId, dueDate: props.dueDate ?? null }),
+    );
   }
 
   return (
@@ -26,7 +22,7 @@ export default function QuickAdd(props: { projectId: string; dueDate?: string | 
         placeholder={props.placeholder ?? 'Add a task... (Enter to save, keep typing)'}
         onChange={(e) => setTitle(e.target.value)}
         onKeyDown={(e) => {
-          if (e.key === 'Enter') void submit();
+          if (e.key === 'Enter') submit();
         }}
       />
     </div>

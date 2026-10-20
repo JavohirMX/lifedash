@@ -1,8 +1,8 @@
 import { useState } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db, INBOX_ID } from '../db';
-import { addTask, deleteTask, toggleComplete, updateTask } from '../repo';
-import { makeRecurrence, describeRecurrence } from '../logic';
+import { addTask, deleteTask, toggleComplete, updateTask, addBlocker, removeBlocker, addTag, removeTag } from '../repo';
+import { makeRecurrence, describeRecurrence, blockersOf, normalizeTask } from '../logic';
 import { todayStr } from '../dates';
 import type { Task } from '../types';
 
@@ -24,8 +24,12 @@ export default function TaskDetail(props: { taskId: string; onClose: () => void 
     () => db.tasks.where('parentId').equals(props.taskId).filter((t) => t.status !== 'archived').toArray(),
     [props.taskId],
   );
+  const allTasks = useLiveQuery(() => db.tasks.toArray(), []);
   const [newSub, setNewSub] = useState('');
   const [nDays, setNDays] = useState(3);
+  const [blockerPick, setBlockerPick] = useState('');
+  const [blockerError, setBlockerError] = useState('');
+  const [newTag, setNewTag] = useState('');
 
   if (!task || !projects) return null;
   const choice = currentChoice(task);
@@ -116,6 +120,65 @@ export default function TaskDetail(props: { taskId: string; onClose: () => void 
         />
         <span>Pinned to top</span>
       </label>
+
+      <div className="subs">
+        <h3>Blocked by</h3>
+        {blockersOf((allTasks ?? []).map(normalizeTask), normalizeTask(task)).map((b) => (
+          <div key={b.id} className={`sub-row ${b.status === 'done' ? 'done' : ''}`}>
+            <span className={`dep-dot ${b.status}`} />
+            <span style={{ flex: 1 }}>{b.title}</span>
+            <button className="mini" onClick={() => void removeBlocker(task.id, b.id)}>×</button>
+          </div>
+        ))}
+        <div className="dep-add">
+          <select value={blockerPick} onChange={(e) => setBlockerPick(e.target.value)}>
+            <option value="">Add a blocker...</option>
+            {(allTasks ?? [])
+              .filter((t) => t.status === 'active' && t.id !== task.id && !(task.blockedBy ?? []).includes(t.id))
+              .slice(0, 200)
+              .map((t) => (
+                <option key={t.id} value={t.id}>{t.title}</option>
+              ))}
+          </select>
+          <button
+            className="mini"
+            disabled={!blockerPick}
+            onClick={() => {
+              void addBlocker(task.id, blockerPick).then((r) => {
+                setBlockerError(r.ok ? '' : (r.reason ?? 'Could not add blocker.'));
+                if (r.ok) setBlockerPick('');
+              });
+            }}
+          >
+            Add
+          </button>
+        </div>
+        {blockerError && <p className="dep-error">{blockerError}</p>}
+      </div>
+
+      <div className="subs">
+        <h3>Tags</h3>
+        <div className="chips">
+          {(task.tags ?? []).map((t) => (
+            <span key={t} className="chip">
+              #{t}
+              <button onClick={() => void removeTag(task.id, t)}>×</button>
+            </span>
+          ))}
+          <input
+            className="chip-input"
+            value={newTag}
+            placeholder="Add tag"
+            onChange={(e) => setNewTag(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' && newTag.trim()) {
+                void addTag(task.id, newTag);
+                setNewTag('');
+              }
+            }}
+          />
+        </div>
+      </div>
 
       <div className="subs">
         <h3>Subtasks</h3>

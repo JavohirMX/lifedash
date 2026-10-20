@@ -1,6 +1,6 @@
 import { db, newId } from './db';
 import type { Task, Project } from './types';
-import { completeTask } from './logic';
+import { completeTask, wouldCreateCycle, normalizeTag, normalizeTask } from './logic';
 import { todayStr } from './dates';
 
 async function nextOrder(projectId: string): Promise<number> {
@@ -25,6 +25,8 @@ export async function addTask(input: {
     pinned: false,
     dueDate: input.dueDate ?? null,
     recurrence: null,
+    blockedBy: [],
+    tags: [],
     order: await nextOrder(input.projectId),
     seriesId: null,
     createdAt: now,
@@ -87,4 +89,36 @@ export async function deleteProject(project: Project): Promise<void> {
 export async function exportJson(): Promise<string> {
   const [tasks, projects] = await Promise.all([db.tasks.toArray(), db.projects.toArray()]);
   return JSON.stringify({ exportedAt: new Date().toISOString(), projects, tasks }, null, 2);
+}
+
+export async function addBlocker(taskId: string, blockerId: string): Promise<{ ok: boolean; reason?: string }> {
+  const all = (await db.tasks.toArray()).map(normalizeTask);
+  if (wouldCreateCycle(all, taskId, blockerId)) {
+    return { ok: false, reason: 'That would create a dependency loop.' };
+  }
+  const task = all.find((t) => t.id === taskId);
+  if (!task) return { ok: false, reason: 'Task not found.' };
+  const blockedBy = [...new Set([...(task.blockedBy ?? []), blockerId])];
+  await updateTask(taskId, { blockedBy });
+  return { ok: true };
+}
+
+export async function removeBlocker(taskId: string, blockerId: string): Promise<void> {
+  const task = await db.tasks.get(taskId);
+  if (!task) return;
+  await updateTask(taskId, { blockedBy: (task.blockedBy ?? []).filter((id) => id !== blockerId) });
+}
+
+export async function addTag(taskId: string, raw: string): Promise<void> {
+  const tag = normalizeTag(raw);
+  if (!tag) return;
+  const task = await db.tasks.get(taskId);
+  if (!task) return;
+  await updateTask(taskId, { tags: [...new Set([...(task.tags ?? []), tag])] });
+}
+
+export async function removeTag(taskId: string, tag: string): Promise<void> {
+  const task = await db.tasks.get(taskId);
+  if (!task) return;
+  await updateTask(taskId, { tags: (task.tags ?? []).filter((t) => t !== tag) });
 }

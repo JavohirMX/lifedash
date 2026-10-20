@@ -77,6 +77,8 @@ export function completeTask(task: Task, today: string, now: number): Completion
       pinned: task.pinned,
       dueDate: nextDate,
       recurrence: task.recurrence,
+      blockedBy: [...(task.blockedBy ?? [])],
+      tags: [...(task.tags ?? [])],
       order: task.order,
       seriesId: task.seriesId ?? task.id,
       completedAt: null,
@@ -138,4 +140,66 @@ export function subtasksOf(tasks: Task[], parentId: string): Task[] {
 export function subtaskProgress(tasks: Task[], parentId: string): { done: number; total: number } {
   const subs = tasks.filter((t) => t.parentId === parentId && t.status !== 'archived');
   return { done: subs.filter((t) => t.status === 'done').length, total: subs.length };
+}
+
+// --- Dependencies ---
+
+export function normalizeTask(t: Task): Task {
+  return { ...t, blockedBy: t.blockedBy ?? [], tags: t.tags ?? [] };
+}
+
+export function blockersOf(tasks: Task[], t: Task): Task[] {
+  const ids = new Set(t.blockedBy ?? []);
+  return tasks.filter((x) => ids.has(x.id));
+}
+
+export function activeBlockers(tasks: Task[], t: Task): Task[] {
+  return blockersOf(tasks, t).filter((x) => x.status === 'active');
+}
+
+export function isBlocked(tasks: Task[], t: Task): boolean {
+  return t.status === 'active' && activeBlockers(tasks, t).length > 0;
+}
+
+// True if making `blockerId` a blocker of `taskId` would create a cycle
+// (or is a self-block). Walks the existing blockedBy graph from blockerId.
+export function wouldCreateCycle(tasks: Task[], taskId: string, blockerId: string): boolean {
+  if (taskId === blockerId) return true;
+  const byId = new Map(tasks.map((t) => [t.id, t]));
+  const seen = new Set<string>();
+  const queue = [blockerId];
+  while (queue.length > 0) {
+    const cur = queue.pop()!;
+    if (cur === taskId) return true;
+    if (seen.has(cur)) continue;
+    seen.add(cur);
+    const t = byId.get(cur);
+    for (const next of t?.blockedBy ?? []) queue.push(next);
+  }
+  return false;
+}
+
+// --- Tags + search ---
+
+export function normalizeTag(raw: string): string {
+  return raw.trim().replace(/^#+/, '').toLowerCase().replace(/\s+/g, '-');
+}
+
+// Tokens: "#tag" filters by tag, other tokens substring-match title/note.
+// All tokens must match (AND). Matches active and done tasks.
+export function searchTasks(tasks: Task[], query: string): Task[] {
+  const tokens = query.trim().toLowerCase().split(/\s+/).filter(Boolean);
+  if (tokens.length === 0) return [];
+  const tagTokens = tokens.filter((t) => t.startsWith('#')).map((t) => normalizeTag(t));
+  const textTokens = tokens.filter((t) => !t.startsWith('#'));
+  return sortTasks(
+    tasks.filter((t) => {
+      const norm = normalizeTask(t);
+      if (t.status === 'archived') return false;
+      const hay = `${t.title}\n${t.note}`.toLowerCase();
+      if (!textTokens.every((tok) => hay.includes(tok))) return false;
+      if (!tagTokens.every((tag) => norm.tags.includes(tag))) return false;
+      return true;
+    }),
+  );
 }

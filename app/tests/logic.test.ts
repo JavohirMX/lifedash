@@ -23,6 +23,8 @@ function task(partial: Partial<Task>): Task {
     pinned: false,
     dueDate: null,
     recurrence: null,
+    blockedBy: [],
+    tags: [],
     order: 0,
     seriesId: null,
     createdAt: 0,
@@ -163,5 +165,70 @@ describe('sorting and views', () => {
       task({ id: 's3', parentId: 'p', status: 'archived' }),
     ];
     expect(subtaskProgress(all, 'p')).toEqual({ done: 1, total: 2 });
+  });
+});
+
+describe('dependencies', () => {
+  const mk = (id: string, blockedBy: string[] = []) =>
+    task({ id, blockedBy });
+
+  it('detects direct and transitive cycles, and self-block', async () => {
+    const { wouldCreateCycle } = await import('../src/logic');
+    // A blocked by B, B blocked by C
+    const all = [mk('A', ['B']), mk('B', ['C']), mk('C')];
+    expect(wouldCreateCycle(all, 'C', 'A')).toBe(true);  // C <- A would loop A->B->C->A
+    expect(wouldCreateCycle(all, 'B', 'A')).toBe(true);  // B <- A loops A->B->A
+    expect(wouldCreateCycle(all, 'A', 'A')).toBe(true);  // self
+    expect(wouldCreateCycle(all, 'C', 'B')).toBe(true);  // C <- B loops B->C->B
+    expect(wouldCreateCycle(all, 'A', 'C')).toBe(false);      // A <- C is fine (A already blocked by B)
+    expect(wouldCreateCycle(all, 'D', 'A')).toBe(false); // new task blocked by A is fine
+  });
+
+  it('isBlocked only counts active blockers', async () => {
+    const { isBlocked, activeBlockers } = await import('../src/logic');
+    const blocker = task({ id: 'B' });
+    const t = task({ id: 'A', blockedBy: ['B'] });
+    expect(isBlocked([t, blocker], t)).toBe(true);
+    expect(activeBlockers([t, blocker], t).map((x) => x.id)).toEqual(['B']);
+    const doneBlocker = task({ id: 'B', status: 'done' });
+    expect(isBlocked([t, doneBlocker], t)).toBe(false);
+    // done tasks are never "blocked"
+    expect(isBlocked([task({ id: 'A', blockedBy: ['B'], status: 'done' }), blocker], task({ id: 'A', blockedBy: ['B'], status: 'done' }))).toBe(false);
+  });
+});
+
+describe('tags and search', () => {
+  it('normalizes tags', async () => {
+    const { normalizeTag } = await import('../src/logic');
+    expect(normalizeTag('#Work Stuff')).toBe('work-stuff');
+    expect(normalizeTag('  Urgent ')).toBe('urgent');
+  });
+
+  it('searches text tokens across title and note, AND semantics', async () => {
+    const { searchTasks } = await import('../src/logic');
+    const all = [
+      task({ id: 'a', title: 'Buy milk', note: 'from the corner shop' }),
+      task({ id: 'b', title: 'Buy eggs', note: '' }),
+      task({ id: 'c', title: 'Fix bike', note: 'buy chain lube' }),
+    ];
+    expect(searchTasks(all, 'buy').map((t) => t.id).sort()).toEqual(['a', 'b', 'c']);
+    expect(searchTasks(all, 'buy shop').map((t) => t.id)).toEqual(['a']);
+    expect(searchTasks(all, 'nothing-matches')).toEqual([]);
+  });
+
+  it('filters by #tag and combines with text', async () => {
+    const { searchTasks } = await import('../src/logic');
+    const all = [
+      task({ id: 'a', title: 'Buy milk', tags: ['shopping'] }),
+      task({ id: 'b', title: 'Buy tools', tags: ['shopping', 'home'] }),
+      task({ id: 'c', title: 'Buy book', tags: [] }),
+    ];
+    expect(searchTasks(all, '#shopping').map((t) => t.id).sort()).toEqual(['a', 'b']);
+    expect(searchTasks(all, 'buy #home').map((t) => t.id)).toEqual(['b']);
+  });
+
+  it('archived tasks never match', async () => {
+    const { searchTasks } = await import('../src/logic');
+    expect(searchTasks([task({ id: 'a', title: 'ghost', status: 'archived' })], 'ghost')).toEqual([]);
   });
 });

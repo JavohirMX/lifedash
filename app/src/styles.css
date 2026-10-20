@@ -266,3 +266,56 @@ h2 { font-size: 1.05rem; margin: 1.5rem 0 0.5rem; }
     z-index: 10;
   }
 }
+
+/* Phase 2: dependencies, tags, search */
+.task-row.blocked { opacity: 0.65; }
+.blocked-by { color: var(--warning); }
+.tag { color: var(--accent); }
+.dep-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--dim); flex-shrink: 0; }
+.dep-dot.done { background: var(--success); }
+.dep-add { display: flex; gap: 0.4rem; margin-top: 0.35rem; }
+.dep-add select {
+  flex: 1;
+  background: var(--surface-2);
+  border: 1px solid rgba(255,255,255,0.1);
+  border-radius: 8px;
+  color: var(--text);
+  padding: 0.4rem 0.5rem;
+  max-width: 100%;
+}
+.dep-error { color: var(--danger); font-size: 0.8rem; margin: 0.3rem 0 0; }
+.chips { display: flex; flex-wrap: wrap; gap: 0.35rem; align-items: center; }
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  background: var(--surface-2);
+  border: 1px solid rgba(139, 92, 246, 0.4);
+  color: var(--accent);
+  border-radius: 999px;
+  padding: 0.15rem 0.55rem;
+  font-size: 0.8rem;
+}
+.chip button { background: none; border: 0; color: var(--muted); cursor: pointer; padding: 0; font-size: 0.9rem; }
+.chip-input {
+  background: var(--surface-2);
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 999px;
+  color: var(--text);
+  padding: 0.2rem 0.6rem;
+  font-size: 0.8rem;
+  width: 90px;
+}
+.search-box {
+  width: calc(100% - 1.2rem);
+  margin: 0 0.6rem 0.6rem;
+  background: var(--surface-2);
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 8px;
+  color: var(--text);
+  padding: 0.45rem 0.6rem;
+  font-size: 0.85rem;
+}
+@media (max-width: 720px) {
+  .search-box { width: 140px; margin: 0 0.3rem; }
+}
