@@ -125,6 +125,6 @@ first, as with anything that holds your data.
 - **Nothing syncs** - check `/api/health` from the device's network,
   then the browser console (auto-sync failures log there). The app
   needs to reach the server URL exactly as entered, including scheme.
-- **Attachments/habits missing on the second device** - protocol v1
-  syncs tasks and projects only; attachment blobs and habits are still
-  local to each device. This is called out in the app dialog too.
+- **Attachments missing on the second device** - attachment blobs stay
+  local to each device in v1 (metadata syncs). Tasks, projects, habits
+  and habit logs all sync.

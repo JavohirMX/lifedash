@@ -137,3 +137,15 @@ def test_unknown_collection_reported_not_applied(client):
 def test_password_validation(client):
     r = client.post("/api/register", json={"username": "x", "password": "short"})
     assert r.status_code == 422
+
+
+def test_habits_collections_accepted(client):
+    _, token = register(client)
+    r = client.post("/api/changes", headers=auth(token), json={"changes": [
+        {"collection": "habits", "id": uuid.uuid4().hex, "base_rev": 0, "data": {"name": "Read"}},
+        {"collection": "habitLogs", "id": uuid.uuid4().hex, "base_rev": 0, "data": {"habitId": "h1", "date": "2026-10-20"}},
+    ]})
+    statuses = [x["status"] for x in r.json()["results"]]
+    assert statuses == ["ok", "ok"]
+    body = client.get("/api/changes?since=0", headers=auth(token)).json()
+    assert {c["collection"] for c in body["changes"]} == {"habits", "habitLogs"}
