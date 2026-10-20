@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { parseQuickAdd, groupCompletedByDay } from './logic';
+import { parseQuickAdd, groupCompletedByDay, renamedTags } from './logic';
 import type { Task } from './types';
 
 describe('parseQuickAdd', () => {
@@ -51,5 +51,17 @@ describe('groupCompletedByDay', () => {
 
   it('returns no groups for an empty list', () => {
     expect(groupCompletedByDay([], '2026-10-20')).toEqual([]);
+  });
+});
+
+describe('renamedTags', () => {
+  it('swaps the tag and keeps order', () => {
+    expect(renamedTags(['home', 'work'], 'home', 'house')).toEqual(['house', 'work']);
+  });
+  it('merges into an existing tag without duplicating', () => {
+    expect(renamedTags(['home', 'house'], 'home', 'house')).toEqual(['house']);
+  });
+  it('leaves other tags alone', () => {
+    expect(renamedTags(['a', 'b'], 'x', 'y')).toEqual(['a', 'b']);
   });
 });

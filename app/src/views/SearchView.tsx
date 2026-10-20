@@ -1,7 +1,9 @@
+import { useState } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { BookOpen, StickyNote, Target, X } from 'lucide-react';
 import { db } from '../db';
-import { searchTasks, searchNotes, searchJournal, searchGoals } from '../logic';
+import { searchTasks, searchNotes, searchJournal, searchGoals, normalizeTag } from '../logic';
+import { renameTag } from '../repo';
 import TaskList from '../components/TaskList';
 import type { Task, Project } from '../types';
 import type { Selection } from '../components/Sidebar';
@@ -19,6 +21,12 @@ export default function SearchView(props: {
 }) {
   const { selection } = props;
   const notes = useLiveQuery(() => db.notes.toArray(), []);
+  const [renaming, setRenaming] = useState(false);
+  const [newTag, setNewTag] = useState('');
+  const [renamed, setRenamed] = useState<string | null>(null);
+  // A query that is exactly one #tag enables tag management.
+  const tagMatch = selection.query.trim().match(/^#([\w-]+)$/);
+  const onlyTag = tagMatch ? normalizeTag(tagMatch[1]) : null;
   const journal = useLiveQuery(() => db.journal.toArray(), []);
   const goals = useLiveQuery(() => db.goals.toArray(), []);
 
@@ -49,6 +57,32 @@ export default function SearchView(props: {
   return (
     <section>
       <h1>Search <span className="date-sub">{total} result{total === 1 ? '' : 's'}</span></h1>
+      {onlyTag && (
+        <div className="tag-manage">
+          {!renaming ? (
+            <button className="mini" onClick={() => { setRenaming(true); setNewTag(onlyTag); setRenamed(null); }}>Rename #{onlyTag}</button>
+          ) : (
+            <form
+              className="tag-rename"
+              onSubmit={(e) => {
+                e.preventDefault();
+                const to = normalizeTag(newTag);
+                if (!to || to === onlyTag) { setRenaming(false); return; }
+                void renameTag(onlyTag, to).then((n) => {
+                  setRenaming(false);
+                  setRenamed(`Renamed #${onlyTag} to #${to} on ${n} task${n === 1 ? '' : 's'}.`);
+                  props.onPatch({ query: `#${to}` });
+                });
+              }}
+            >
+              <input value={newTag} onChange={(e) => setNewTag(e.target.value)} aria-label="New tag name" autoFocus />
+              <button className="mini" type="submit">Save</button>
+              <button className="mini" type="button" onClick={() => setRenaming(false)}>Cancel</button>
+            </form>
+          )}
+          {renamed && <span className="date-sub">{renamed}</span>}
+        </div>
+      )}
       <div className="filter-chips" role="group" aria-label="Search scope">
         {(['all', 'tasks', 'notes', 'journal', 'goals'] as const).map((sc) => (
           <button

@@ -1363,3 +1363,9 @@ input[type='checkbox'], input[type='radio'], input[type='range'] { accent-color:
 .mood-dot.mood-4 { color: var(--prio-3); }
 .mood-dot.mood-5 { color: var(--accent); }
 .mood-dot-day { font-size: 10px; line-height: 1; color: var(--faint); }
+
+/* ---------- Tag management ---------- */
+.tag-manage { display: flex; align-items: center; gap: 8px; margin: 2px 0 4px; }
+.tag-rename { display: flex; gap: 6px; align-items: center; }
+.tag-rename input { font: inherit; color: var(--text); background: var(--surface); border: 1px solid var(--control); border-radius: var(--radius-btn, 8px); padding: 4px 8px; max-width: 180px; }
+.tag-rename input:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }

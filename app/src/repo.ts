@@ -1,7 +1,7 @@
 import { loadRules, rolloverTargets, shouldCompleteParent } from './automation';
 import { db, newId } from './db';
 import type { Task, Project, Goal, Note, JournalEntry } from './types';
-import { completeTask, wouldCreateCycle, normalizeTag, normalizeTask, reorderedPosition } from './logic';
+import { completeTask, wouldCreateCycle, normalizeTag, normalizeTask, reorderedPosition, renamedTags } from './logic';
 import { todayStr } from './dates';
 
 async function nextOrder(projectId: string): Promise<number> {
@@ -203,6 +203,19 @@ export async function removeTag(taskId: string, tag: string): Promise<void> {
   const task = await db.tasks.get(taskId);
   if (!task) return;
   await updateTask(taskId, { tags: (task.tags ?? []).filter((t) => t !== tag) });
+}
+
+/** Rename a tag everywhere. Renaming onto an existing tag merges them. */
+export async function renameTag(from: string, to: string): Promise<number> {
+  if (!from || !to || from === to) return 0;
+  const affected = await db.tasks.filter((t) => (t.tags ?? []).includes(from)).toArray();
+  await db.transaction('rw', db.tasks, async () => {
+    const now = Date.now();
+    for (const t of affected) {
+      await db.tasks.update(t.id, { tags: renamedTags(t.tags ?? [], from, to), updatedAt: now });
+    }
+  });
+  return affected.length;
 }
 
 export async function moveTask(taskId: string, targetId: string, after: boolean, list: Task[]): Promise<void> {

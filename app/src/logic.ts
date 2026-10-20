@@ -339,3 +339,8 @@ export function extractChecklistItems(doc: unknown): string[] {
   walk(doc);
   return out;
 }
+
+/** Rename/merge a tag inside one tag list: swaps `from` for `to`, dedupes. */
+export function renamedTags(tags: string[], from: string, to: string): string[] {
+  return [...new Set(tags.map((t) => (t === from ? to : t)))];
+}
