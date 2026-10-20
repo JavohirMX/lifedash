@@ -9,6 +9,8 @@ import HabitsView from './views/HabitsView';
 import PlannerView from './views/PlannerView';
 import WeekView from './views/WeekView';
 import TaskDetail from './components/TaskDetail';
+import CommandPalette, { useGlobalKeys } from './components/CommandPalette';
+import { cycleTheme } from './theme';
 import {
   todayTasks,
   upcomingTasks,
@@ -25,6 +27,13 @@ export default function App() {
   const projects = useLiveQuery(() => db.projects.orderBy('order').toArray(), []);
   const [selection, setSelection] = useState<Selection>({ kind: 'today' });
   const [openId, setOpenId] = useState<string | null>(null);
+  const [paletteOpen, setPaletteOpen] = useState(false);
+  const quickAddFocus = () => document.querySelector<HTMLInputElement>('.quick-add input')?.focus();
+  useGlobalKeys({
+    onPalette: () => setPaletteOpen((o) => !o),
+    onNewTask: quickAddFocus,
+    onSelect: setSelection,
+  });
 
   useEffect(() => {
     void ensureSeed();
@@ -152,6 +161,15 @@ export default function App() {
         {body}
       </main>
       {openId && <TaskDetail taskId={openId} onClose={() => setOpenId(null)} />}
+      <CommandPalette
+        open={paletteOpen}
+        tasks={tasks}
+        onClose={() => setPaletteOpen(false)}
+        onSelect={setSelection}
+        onOpenTask={setOpenId}
+        onNewTask={quickAddFocus}
+        onToggleTheme={() => cycleTheme()}
+      />
     </div>
   );
 }
