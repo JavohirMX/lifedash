@@ -20,6 +20,7 @@ import CommandPalette, { useGlobalKeys } from './components/CommandPalette';
 import ImportDialog from './components/ImportDialog';
 import AutomationDialog from './components/AutomationDialog';
 import SyncDialog from './components/SyncDialog';
+import AppearanceDialog from './components/AppearanceDialog';
 import { cycleTheme } from './theme';
 import { loadRules, saveRules, type AutomationRules } from './automation';
 import { remindersEnabled, setRemindersEnabled, startReminders } from './reminders';
@@ -52,6 +53,7 @@ export default function App() {
   const [automationOpen, setAutomationOpen] = useState(false);
   const [syncOpen, setSyncOpen] = useState(false);
   const [aiOpen, setAiOpen] = useState(false);
+  const [appearanceOpen, setAppearanceOpen] = useState(false);
   const [rules, setRules] = useState<AutomationRules>(loadRules);
   const [remindOn, setRemindOn] = useState(remindersEnabled);
   const tasksRef = useRef<Task[]>([]);
@@ -298,7 +300,7 @@ export default function App() {
           });
         }}
         onScheduleToday={(id) => void updateTask(id, { dueDate: today })}
-        onAI={() => setAiOpen(true)} onImport={() => setImportOpen(true)} onAutomation={() => setAutomationOpen(true)} onSync={() => setSyncOpen(true)} />
+        onAI={() => setAiOpen(true)} onImport={() => setImportOpen(true)} onAutomation={() => setAutomationOpen(true)} onSync={() => setSyncOpen(true)} onAppearance={() => setAppearanceOpen(true)} />
       <main>
         {showQuickAdd && (
           <QuickAdd
@@ -319,6 +321,7 @@ export default function App() {
       {automationOpen && <AutomationDialog rules={rules} onChange={changeRules} onClose={() => setAutomationOpen(false)} />}
       {aiOpen && <AssistantDialog tasks={tasks} onClose={() => setAiOpen(false)} />}
       {syncOpen && <SyncDialog onClose={() => setSyncOpen(false)} />}
+      {appearanceOpen && <AppearanceDialog onClose={() => setAppearanceOpen(false)} />}
       <CommandPalette
         open={paletteOpen}
         tasks={tasks}
@@ -327,6 +330,7 @@ export default function App() {
         onOpenTask={setOpenId}
         onNewTask={quickAddFocus}
         onToggleTheme={() => cycleTheme()}
+        onAppearance={() => setAppearanceOpen(true)}
       />
     </div>
   );

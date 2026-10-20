@@ -1,11 +1,10 @@
 import { useEffect, useState } from 'react';
 import { Bell, BellRing,
   Sun, CalendarDays, Archive, Clock, CalendarRange, Repeat, CheckCircle2,
-  Search, Plus, Menu, X, Download, Upload, Moon, Monitor, Zap, Cloud, House, Target, StickyNote, BookOpen,
+  Search, Plus, Menu, X, Download, Upload, Palette, Zap, Cloud, House, Target, StickyNote, BookOpen,
 } from 'lucide-react';
 import type { Project } from '../types';
 import { addProject, exportJson, importBackup } from '../repo';
-import { cycleTheme, getTheme, type Theme } from '../theme';
 
 export type Selection =
   | { kind: 'home' | 'today' | 'upcoming' | 'backlog' | 'completed' | 'habits' | 'planner' | 'week' | 'goals' | 'calendar' }
@@ -60,6 +59,7 @@ export default function Sidebar(props: {
   onAI?: () => void;
   reminders: 'on' | 'off' | 'blocked' | 'unsupported';
   onToggleReminders: () => void;
+  onAppearance: () => void;
 }) {
   const [adding, setAdding] = useState(false);
   const [name, setName] = useState('');
@@ -69,9 +69,7 @@ export default function Sidebar(props: {
     setQuery(props.selection.kind === 'search' ? props.selection.query : '');
   }, [props.selection]);
   const [sheet, setSheet] = useState(false);
-  const [theme, setTheme] = useState<Theme>(getTheme());
-
-  const ThemeIcon = theme === 'light' ? Sun : theme === 'dark' ? Moon : Monitor;
+  const ThemeIcon = Palette;
 
   const countFor = (kind: string) =>
     kind === 'today' ? props.counts.today : kind === 'backlog' ? props.counts.backlog : 0;
@@ -266,11 +264,11 @@ export default function Sidebar(props: {
   const themeBtn = (
     <button
       className="nav foot-action"
-      title={`Theme: ${theme} (click to change)`}
-      onClick={() => setTheme(cycleTheme())}
+      title="Appearance: style and mode"
+      onClick={props.onAppearance}
     >
       <ThemeIcon size={16} strokeWidth={1.75} aria-hidden="true" />
-      <span>Theme: {theme}</span>
+      <span>Appearance</span>
     </button>
   );
 
@@ -286,7 +284,7 @@ export default function Sidebar(props: {
 
       <div className="mobile-topbar">
         <div className="brand"><Mark /><span>Lifedash</span></div>
-        <button className="icon-btn" title={`Theme: ${theme}`} aria-label="Change theme" onClick={() => setTheme(cycleTheme())}>
+        <button className="icon-btn" title="Appearance" aria-label="Appearance" onClick={props.onAppearance}>
           <ThemeIcon size={18} strokeWidth={1.75} />
         </button>
       </div>
