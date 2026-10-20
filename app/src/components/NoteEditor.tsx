@@ -4,14 +4,18 @@ import StarterKit from '@tiptap/starter-kit';
 import TaskList from '@tiptap/extension-task-list';
 import TaskItem from '@tiptap/extension-task-item';
 import Link from '@tiptap/extension-link';
-import { updateTask } from '../repo';
-import type { Task } from '../types';
 
 // Rich-text notes: ProseMirror JSON in noteDoc, plain-text mirror in note
 // (search reads `note`). Debounced saves so typing isn't a write storm.
-export default function NoteEditor(props: { task: Task }) {
+export default function NoteEditor(props: {
+  docKey: string;
+  note: string;
+  noteDoc: unknown | null;
+  onSave: (doc: unknown, text: string) => void;
+}) {
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const taskIdRef = useRef(props.task.id);
+  const saveRef = useRef(props.onSave);
+  saveRef.current = props.onSave;
 
   const editor = useEditor({
     extensions: [
@@ -20,14 +24,11 @@ export default function NoteEditor(props: { task: Task }) {
       TaskItem.configure({ nested: true }),
       Link.configure({ openOnClick: false }),
     ],
-    content: (props.task.noteDoc as object | null) ?? (props.task.note ? `<p>${escapeHtml(props.task.note).replace(/\n/g, '<br>')}</p>` : ''),
+    content: (props.noteDoc as object | null) ?? (props.note ? `<p>${escapeHtml(props.note).replace(/\n/g, '<br>')}</p>` : ''),
     onUpdate: ({ editor }) => {
       if (saveTimer.current) clearTimeout(saveTimer.current);
       saveTimer.current = setTimeout(() => {
-        void updateTask(taskIdRef.current, {
-          noteDoc: editor.getJSON(),
-          note: editor.getText(),
-        });
+        saveRef.current(editor.getJSON(), editor.getText());
       }, 500);
     },
   });
@@ -38,7 +39,7 @@ export default function NoteEditor(props: { task: Task }) {
       if (saveTimer.current) {
         clearTimeout(saveTimer.current);
         if (editor) {
-          void updateTask(taskIdRef.current, { noteDoc: editor.getJSON(), note: editor.getText() });
+          saveRef.current(editor.getJSON(), editor.getText());
         }
       }
     };
@@ -57,9 +58,9 @@ export default function NoteEditor(props: { task: Task }) {
       <div className="ed-toolbar">
         {btn('B', editor.isActive('bold'), () => editor.chain().focus().toggleBold().run(), 'Bold')}
         {btn('I', editor.isActive('italic'), () => editor.chain().focus().toggleItalic().run(), 'Italic')}
-        {btn('• List', editor.isActive('bulletList'), () => editor.chain().focus().toggleBulletList().run(), 'Bullet list')}
-        {btn('1. List', editor.isActive('orderedList'), () => editor.chain().focus().toggleOrderedList().run(), 'Numbered list')}
-        {btn('☑ List', editor.isActive('taskList'), () => editor.chain().focus().toggleTaskList().run(), 'Checklist')}
+        {btn('Bullets', editor.isActive('bulletList'), () => editor.chain().focus().toggleBulletList().run(), 'Bullet list')}
+        {btn('Numbered', editor.isActive('orderedList'), () => editor.chain().focus().toggleOrderedList().run(), 'Numbered list')}
+        {btn('Checklist', editor.isActive('taskList'), () => editor.chain().focus().toggleTaskList().run(), 'Checklist')}
         {btn('Link', editor.isActive('link'), () => {
           if (editor.isActive('link')) {
             editor.chain().focus().unsetLink().run();

@@ -39,6 +39,16 @@ export interface HabitLog {
   doneAt: number;
 }
 
+export interface Note {
+  id: string;
+  title: string;
+  note: string; // plain-text mirror for search/excerpts
+  noteDoc: unknown | null; // ProseMirror JSON
+  pinned: boolean;
+  createdAt: number;
+  updatedAt: number;
+}
+
 export interface Goal {
   id: string;
   title: string;

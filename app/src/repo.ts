@@ -1,6 +1,6 @@
 import { loadRules, rolloverTargets, shouldCompleteParent } from './automation';
 import { db, newId } from './db';
-import type { Task, Project, Goal } from './types';
+import type { Task, Project, Goal, Note } from './types';
 import { completeTask, wouldCreateCycle, normalizeTag, normalizeTask, reorderedPosition } from './logic';
 import { todayStr } from './dates';
 
@@ -254,4 +254,19 @@ export async function addGoal(title: string, targetDate: string | null): Promise
 
 export async function updateGoal(id: string, patch: Partial<Goal>): Promise<void> {
   await db.goals.update(id, { ...patch, updatedAt: Date.now() });
+}
+
+export async function addNote(): Promise<Note> {
+  const now = Date.now();
+  const note: Note = { id: newId(), title: '', note: '', noteDoc: null, pinned: false, createdAt: now, updatedAt: now };
+  await db.notes.add(note);
+  return note;
+}
+
+export async function updateNote(id: string, patch: Partial<Note>): Promise<void> {
+  await db.notes.update(id, { ...patch, updatedAt: Date.now() });
+}
+
+export async function deleteNote(id: string): Promise<void> {
+  await db.notes.delete(id);
 }

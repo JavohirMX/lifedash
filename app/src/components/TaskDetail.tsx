@@ -62,7 +62,7 @@ export default function TaskDetail(props: { taskId: string; onClose: () => void 
         value={task.title}
         onChange={(e) => void updateTask(task.id, { title: e.target.value })}
       />
-      <NoteEditor key={task.id} task={task} />
+      <NoteEditor key={task.id} docKey={task.id} note={task.note} noteDoc={task.noteDoc} onSave={(doc, text) => void updateTask(task.id, { noteDoc: doc, note: text })} />
       <label className="field">
         <span>Due date</span>
         <input
