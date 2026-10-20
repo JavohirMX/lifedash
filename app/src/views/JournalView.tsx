@@ -67,7 +67,7 @@ export default function JournalView(props: { initialDate?: string }) {
           return (
             <button
               key={d}
-              className={`mood-dot${d === date ? ' current' : ''}${e?.mood ? ` mood-${e.mood}` : ''}`}
+              className={`mood-dot${d === date ? ' viewing' : ''}${e?.mood ? ` mood-${e.mood}` : ''}`}
               title={friendlyDate(d, today) + (e?.mood ? ` - ${MOODS.find((m) => m.v === e.mood)?.label}` : hasText ? ' - entry' : ' - no entry')}
               aria-label={`${friendlyDate(d, today)}${e?.mood ? `, mood ${MOODS.find((m) => m.v === e.mood)?.label}` : hasText ? ', entry' : ', no entry'}`}
               onClick={() => setDate(d)}

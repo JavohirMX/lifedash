@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Bell, BellRing,
   Sun, CalendarDays, Archive, Clock, CalendarRange, Repeat, CheckCircle2,
   Search, Plus, Menu, X, Download, Upload, Palette, Zap, Cloud, House, Target, StickyNote, BookOpen,
@@ -70,6 +70,7 @@ export default function Sidebar(props: {
     setQuery(props.selection.kind === 'search' ? props.selection.query : '');
   }, [props.selection]);
   const [sheet, setSheet] = useState(false);
+  const prevSelection = useRef<Selection | null>(null);
   const ThemeIcon = Palette;
 
   const countFor = (kind: string) =>
@@ -117,13 +118,15 @@ export default function Sidebar(props: {
         value={query}
         onChange={(e) => {
           setQuery(e.target.value);
-          if (e.target.value.trim()) props.onSelect({ kind: 'search', query: e.target.value });
-          else props.onSelect({ kind: 'today' });
+          if (e.target.value.trim()) {
+            if (props.selection.kind !== 'search') prevSelection.current = props.selection;
+            props.onSelect({ kind: 'search', query: e.target.value });
+          } else props.onSelect(prevSelection.current ?? { kind: 'today' });
         }}
         onKeyDown={(e) => {
           if (e.key === 'Escape') {
             setQuery('');
-            props.onSelect({ kind: 'today' });
+            props.onSelect(prevSelection.current ?? { kind: 'today' });
           }
         }}
       />

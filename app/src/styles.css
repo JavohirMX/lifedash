@@ -1351,9 +1351,10 @@ input[type='checkbox'], input[type='radio'], input[type='range'] { accent-color:
 
 /* ---------- Journal mood strip ---------- */
 .mood-strip { display: flex; gap: 2px; margin: 4px 0 14px; flex-wrap: wrap; }
-.mood-dot { display: flex; flex-direction: column; align-items: center; gap: 2px; width: 30px; padding: 5px 0 3px; border: 1px solid transparent; border-radius: var(--radius-btn, 8px); background: none; cursor: pointer; color: var(--muted); }
+.mood-dot { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; min-width: 36px; min-height: 44px; padding: 4px 0; border: 1px solid transparent; border-radius: var(--radius-btn, 8px); background: none; cursor: pointer; color: var(--muted); }
 .mood-dot:hover { border-color: var(--control); color: var(--text); }
-.mood-dot.current { border-color: var(--accent); color: var(--accent); }
+.mood-dot.viewing { border-color: var(--accent); color: var(--accent); }
+.mood-dot:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
 .mood-dot-inner { width: 13px; height: 13px; border-radius: 50%; border: 1px solid var(--control); display: block; }
 .mood-dot-inner.has-text { background: var(--control); }
 .mood-dot.mood-1 { color: var(--prio-1); }
