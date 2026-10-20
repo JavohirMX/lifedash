@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { parseQuickAdd, groupCompletedByDay, renamedTags, completeTask, describeRecurrence } from './logic';
+import { parseQuickAdd, groupCompletedByDay, renamedTags, completeTask, describeRecurrence, isRecurrenceValid } from './logic';
 import type { Task } from './types';
 
 describe('parseQuickAdd', () => {
@@ -147,6 +147,14 @@ describe('describeRecurrence', () => {
 
   it('returns empty for no rule and a fallback for a malformed one', () => {
     expect(describeRecurrence(null)).toBe('');
-    expect(describeRecurrence('GARBAGE-NOT-A-RULE')).toBe('Repeats');
+    expect(describeRecurrence('GARBAGE-NOT-A-RULE')).toBe('Invalid repeat rule');
+  });
+});
+
+describe('isRecurrenceValid', () => {
+  it('accepts null and parseable rules, rejects garbage', () => {
+    expect(isRecurrenceValid(null)).toBe(true);
+    expect(isRecurrenceValid('DTSTART:20261022T120000Z\nRRULE:FREQ=DAILY;INTERVAL=1')).toBe(true);
+    expect(isRecurrenceValid('GARBAGE-NOT-A-RULE')).toBe(false);
   });
 });

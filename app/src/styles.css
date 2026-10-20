@@ -872,6 +872,9 @@ h2 { font-family: var(--font-display); font-size: var(--fs-section); font-weight
 
 /* ---------- Automation dialog ---------- */
 .automation-panel .rule-note { margin: 0 0 14px; font-size: var(--fs-small); color: var(--muted); }
+.invalid-rule-note { margin: 0 0 14px; font-size: var(--fs-small); color: var(--muted); }
+.invalid-rule-note code { display: block; margin: 6px 0; padding: 6px 8px; border-radius: 6px; background: var(--surface-2); font-size: 12px; word-break: break-all; color: var(--text); }
+
 .rule-row {
   display: flex; align-items: center; justify-content: space-between; gap: 16px;
   padding: 12px 0; border-top: 1px solid var(--line);

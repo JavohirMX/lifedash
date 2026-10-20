@@ -5,13 +5,14 @@ import Attachments from './Attachments';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db, INBOX_ID } from '../db';
 import { addTask, deleteTask, toggleComplete, updateTask, addBlocker, removeBlocker, addTag, removeTag } from '../repo';
-import { makeRecurrence, describeRecurrence, blockersOf, normalizeTask } from '../logic';
+import { makeRecurrence, describeRecurrence, isRecurrenceValid, blockersOf, normalizeTask } from '../logic';
 import { todayStr } from '../dates';
 import type { Task } from '../types';
 
-type RecChoice = 'none' | 'daily' | 'weekly' | 'monthly' | 'ndays';
+type RecChoice = 'none' | 'daily' | 'weekly' | 'monthly' | 'ndays' | 'invalid';
 
 function currentChoice(t: Task): RecChoice {
+  if (t.recurrence && !isRecurrenceValid(t.recurrence)) return 'invalid';
   const d = describeRecurrence(t.recurrence);
   if (!d) return 'none';
   if (d === 'Daily') return 'daily';
@@ -57,7 +58,7 @@ export default function TaskDetail(props: { taskId: string; onClose: () => void;
   if (!task || !projects) return null;
   const choice = currentChoice(task);
 
-  async function setRecurrence(c: RecChoice, interval = nDays) {
+  async function setRecurrence(c: Exclude<RecChoice, 'invalid'>, interval = nDays) {
     if (!task) return;
     if (c === 'none') {
       await updateTask(task.id, { recurrence: null });
@@ -145,7 +146,8 @@ export default function TaskDetail(props: { taskId: string; onClose: () => void;
       </label>
       <label className="field">
         <span>Repeats</span>
-        <select value={choice} onChange={(e) => void setRecurrence(e.target.value as RecChoice)}>
+        <select value={choice} onChange={(e) => void setRecurrence(e.target.value as Exclude<RecChoice, 'invalid'>)}>
+          {choice === 'invalid' && <option value="invalid" disabled>Unreadable saved rule</option>}
           <option value="none">Does not repeat</option>
           <option value="daily">Daily</option>
           <option value="weekly">Weekly (same weekday)</option>
@@ -153,6 +155,13 @@ export default function TaskDetail(props: { taskId: string; onClose: () => void;
           <option value="ndays">Every N days</option>
         </select>
       </label>
+      {choice === 'invalid' && task.recurrence && (
+        <p className="rule-note invalid-rule-note" role="alert">
+          This saved repeat rule can't be read, so completing the task won't schedule a next
+          occurrence. Stored rule: <code>{task.recurrence}</code> Pick a repeat above to replace
+          it, or choose "Does not repeat" to clear it.
+        </p>
+      )}
       {choice === 'ndays' && (
         <label className="field">
           <span>Every</span>

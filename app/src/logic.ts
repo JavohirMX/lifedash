@@ -30,14 +30,24 @@ export function makeRecurrence(kind: RecurrenceKind, dueDate: string, intervalDa
   return rule.toString();
 }
 
+export function isRecurrenceValid(rule: string | null): boolean {
+  if (!rule) return true;
+  try {
+    RRule.fromString(rule);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 export function describeRecurrence(rule: string | null): string {
   if (!rule) return '';
   let o: { interval?: number; freq?: Frequency };
   try {
     o = RRule.fromString(rule).origOptions;
   } catch {
-    // Keep list rendering alive on a malformed rule (restored/synced row).
-    return 'Repeats';
+    // Malformed rule (restored/synced row): say so instead of promising repeats.
+    return 'Invalid repeat rule';
   }
   const n = o.interval ?? 1;
   switch (o.freq) {
