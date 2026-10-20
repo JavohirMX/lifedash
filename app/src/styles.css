@@ -954,6 +954,12 @@ h2 { font-size: var(--fs-section); font-weight: 600; letter-spacing: -0.01em; ma
 .load-bar { width: 100%; max-width: 26px; border-radius: 4px 4px 2px 2px; background: var(--surface-2); }
 .load-col.today .load-bar { background: var(--accent); }
 .load-label { font-size: 10px; color: var(--faint); }
+button.load-col { background: none; border: 0; padding: 0; cursor: pointer; font: inherit; border-radius: 6px; }
+button.load-col:hover .load-bar { background: var(--accent-soft, var(--surface-2)); }
+button.load-col.selected .load-bar { background: var(--accent); }
+button.load-col.selected .load-label { color: var(--ink); font-weight: 600; }
+button.load-col:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.load-drill { margin-top: 10px; border-top: 1px solid var(--line); padding-top: 8px; }
 @media (max-width: 640px) {
   .widget-grid { grid-template-columns: 1fr; }
 }

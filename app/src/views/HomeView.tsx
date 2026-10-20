@@ -20,6 +20,7 @@ export default function HomeView(props: { tasks: Task[]; onSelect: (kind: string
   const widgetPref = useLiveQuery(() => db.syncmeta.get('home.widgets'), []);
   const hidden: string[] = (widgetPref?.value as string[] | undefined) ?? [];
   const [customizing, setCustomizing] = useState(false);
+  const [drillDate, setDrillDate] = useState<string | null>(null);
   const toggleWidget = (id: string) => {
     const next = hidden.includes(id) ? hidden.filter((w) => w !== id) : [...hidden, id];
     void db.syncmeta.put({ key: 'home.widgets', value: next });
@@ -46,6 +47,10 @@ export default function HomeView(props: { tasks: Task[]; onSelect: (kind: string
     return { date: d, label: weekdayLabel(d).slice(0, 2), count };
   });
   const maxLoad = Math.max(1, ...weekLoad.map((d) => d.count));
+  const dayTasks = (d: string): Task[] =>
+    d === today
+      ? [...dueTodayAll].sort((a, b) => (a.status === 'done' ? 1 : 0) - (b.status === 'done' ? 1 : 0))
+      : (upcoming.get(d) ?? []);
 
   const upNext = Array.from(upcoming.entries())
     .filter(([d]) => d > today)
@@ -184,14 +189,37 @@ export default function HomeView(props: { tasks: Task[]; onSelect: (kind: string
               Open <ArrowRight size={13} strokeWidth={2} aria-hidden="true" />
             </button>
           </div>
-          <div className="load-chart" role="img" aria-label={`Tasks due per day this week: ${weekLoad.map((d) => `${d.label} ${d.count}`).join(', ')}`}>
+          <div className="load-chart" role="group" aria-label="Tasks due per day this week">
             {weekLoad.map((d, i) => (
-              <div key={d.date} className={`load-col ${i === 0 ? 'today' : ''}`}>
-                <div className="load-bar" style={{ height: `${Math.max(6, (d.count / maxLoad) * 56)}px` }} title={`${d.count} due`} />
+              <button key={d.date} type="button"
+                className={`load-col ${i === 0 ? 'today' : ''} ${drillDate === d.date ? 'selected' : ''}`}
+                aria-pressed={drillDate === d.date}
+                aria-label={`${d.count} due ${weekdayLabel(d.date)}`}
+                onClick={() => setDrillDate(drillDate === d.date ? null : d.date)}>
+                <div className="load-bar" style={{ height: `${Math.max(6, (d.count / maxLoad) * 56)}px` }} />
                 <span className="load-label">{d.label}</span>
-              </div>
+              </button>
             ))}
           </div>
+          {drillDate !== null && (
+            <div className="load-drill">
+              <p className="widget-meta num">{friendlyDate(drillDate, today)} · {dayTasks(drillDate).length} due</p>
+              {dayTasks(drillDate).length === 0 ? (
+                <p className="widget-empty">Nothing due.</p>
+              ) : (
+                <ul className="widget-list">
+                  {dayTasks(drillDate).map((t) => (
+                    <li key={t.id}>
+                      <button className={`checkbox ${t.status === 'done' ? 'checked' : ''}`} aria-label={t.status === 'done' ? 'Mark not done' : 'Mark done'} onClick={() => void toggleComplete(t)}>
+                        {t.status === 'done' ? <Check size={13} strokeWidth={2.5} aria-hidden="true" /> : null}
+                      </button>
+                      <button className={`widget-task ${t.status === 'done' ? 'done' : ''}`} onClick={() => props.onOpen(t.id)}>{t.title}</button>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          )}
         </div>
         )}
 
