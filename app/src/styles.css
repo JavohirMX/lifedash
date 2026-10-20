@@ -1373,6 +1373,7 @@ input[type='checkbox'], input[type='radio'], input[type='range'] { accent-color:
 
 /* ---------- Shortcuts dialog ---------- */
 .shortcuts-panel { max-width: 440px; }
+.shortcuts-panel .import-head { position: sticky; top: -16px; margin: -16px -20px 0; padding: 16px 20px 8px; background: var(--surface); border-bottom: 1px solid var(--border); z-index: 1; }
 .shortcut-group h3 { font-size: var(--fs-section); color: var(--muted); margin: 12px 0 6px; font-weight: 600; }
 .shortcut-row { display: flex; align-items: baseline; gap: 10px; padding: 3px 0; font-size: var(--fs-body); }
 .shortcut-row kbd { flex: none; min-width: 64px; text-align: center; }
