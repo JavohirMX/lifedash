@@ -1,8 +1,9 @@
 import { useState } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
-import { Check, Pencil, Plus, Target, X } from 'lucide-react';
+import { Check, ChevronDown, ChevronRight, Pencil, Plus, Target, X } from 'lucide-react';
 import { db } from '../db';
 import { addGoal, updateGoal } from '../repo';
+import TaskList from '../components/TaskList';
 import { todayStr, friendlyDate } from '../dates';
 import type { Goal, Task } from '../types';
 
@@ -11,12 +12,13 @@ function goalProgress(tasks: Task[], goalId: string): { done: number; total: num
   return { done: linked.filter((t) => t.status === 'done').length, total: linked.length };
 }
 
-export default function GoalsView(props: { tasks: Task[]; onOpenGoalTasks: (goalId: string) => void }) {
+export default function GoalsView(props: { tasks: Task[]; onOpen: (id: string) => void }) {
   const goals = useLiveQuery(() => db.goals.orderBy('order').toArray(), []);
   const [adding, setAdding] = useState(false);
   const [title, setTitle] = useState('');
   const [target, setTarget] = useState('');
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [expandedId, setExpandedId] = useState<string | null>(null);
   const [editTitle, setEditTitle] = useState('');
   const [editTarget, setEditTarget] = useState('');
 
@@ -115,11 +117,36 @@ export default function GoalsView(props: { tasks: Task[]; onOpenGoalTasks: (goal
                 <>
                   <div className="progress"><div className="progress-fill" style={{ width: `${pct}%` }} /></div>
                   <div className="goal-meta">
-                    <span className="num">{p.total ? `${pct}% - ${p.done} of ${p.total} tasks` : 'No linked tasks yet'}</span>
+                    {p.total > 0 ? (
+                      <button
+                        className="goal-tasks-toggle num"
+                        aria-expanded={expandedId === g.id}
+                        onClick={() => setExpandedId((cur) => (cur === g.id ? null : g.id))}
+                      >
+                        {expandedId === g.id
+                          ? <ChevronDown size={13} strokeWidth={2} aria-hidden="true" />
+                          : <ChevronRight size={13} strokeWidth={2} aria-hidden="true" />}
+                        {pct}% - {p.done} of {p.total} tasks
+                      </button>
+                    ) : (
+                      <span className="num">No linked tasks yet</span>
+                    )}
                     {g.targetDate && (
                       <span className={overdue ? 'goal-when overdue' : 'goal-when'}>{friendlyDate(g.targetDate, today)}</span>
                     )}
                   </div>
+                  {expandedId === g.id && p.total > 0 && (
+                    <div className="goal-tasks">
+                      <TaskList
+                        tasks={props.tasks
+                          .filter((t) => t.goalId === g.id && t.status !== 'archived')
+                          .sort((a, b) => (a.status === 'done' ? 1 : 0) - (b.status === 'done' ? 1 : 0) || a.order - b.order)}
+                        allTasks={props.tasks}
+                        showDate
+                        onOpen={props.onOpen}
+                      />
+                    </div>
+                  )}
                 </>
               )}
             </div>

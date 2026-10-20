@@ -173,7 +173,7 @@ export default function App() {
   } else if (selection.kind === 'notes') {
     body = <NotesView key={selection.openId ?? ''} initialOpenId={selection.openId} />;
   } else if (selection.kind === 'goals') {
-    body = <GoalsView tasks={tasks} onOpenGoalTasks={() => {}} />;
+    body = <GoalsView tasks={tasks} onOpen={setOpenId} />;
   } else if (selection.kind === 'habits') {
     body = <HabitsView />;
   } else if (selection.kind === 'planner') {
