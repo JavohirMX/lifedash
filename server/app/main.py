@@ -16,7 +16,7 @@ from pydantic import BaseModel, Field
 from .auth import current_user, hash_password, new_token, verify_password
 from .db import get_conn, init_db
 
-COLLECTIONS = {"tasks", "projects", "tags", "habits", "habitLogs"}
+COLLECTIONS = {"tasks", "projects", "tags", "habits", "habitLogs", "goals"}
 
 
 @asynccontextmanager
