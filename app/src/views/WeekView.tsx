@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { ChevronLeft, ChevronRight } from 'lucide-react';
+import { ArrowRight, ChevronLeft, ChevronRight } from 'lucide-react';
 import { updateTask } from '../repo';
 import TaskRow from '../components/TaskRow';
 import { TASK_DRAG_MIME } from '../components/TaskList';
@@ -76,15 +76,20 @@ export default function WeekView(props: { tasks: Task[]; onOpen: (id: string) =>
         >
           <h2>Overdue <span className="date-sub num">{overdue.length}</span></h2>
           {overdue.map((t) => (
-            <div
-              key={t.id}
-              draggable
-              onDragStart={(e) => {
-                e.dataTransfer.setData(TASK_DRAG_MIME, t.id);
-                e.dataTransfer.effectAllowed = 'move';
-              }}
-            >
-              <TaskRow task={t} allTasks={props.tasks} onOpen={props.onOpen} />
+            <div key={t.id} className="backlog-row">
+              <div
+                className="backlog-task"
+                draggable
+                onDragStart={(e) => {
+                  e.dataTransfer.setData(TASK_DRAG_MIME, t.id);
+                  e.dataTransfer.effectAllowed = 'move';
+                }}
+              >
+                <TaskRow task={t} allTasks={props.tasks} onOpen={props.onOpen} />
+              </div>
+              <button className="mini" onClick={() => void updateTask(t.id, { dueDate: today })}>
+                <ArrowRight size={12} strokeWidth={1.75} aria-hidden="true" /> Today
+              </button>
             </div>
           ))}
         </div>
