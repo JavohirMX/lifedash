@@ -3,7 +3,7 @@ import { useLiveQuery } from 'dexie-react-hooks';
 import { db, INBOX_ID } from './db';
 import Sidebar, { type Selection } from './components/Sidebar';
 import QuickAdd from './components/QuickAdd';
-import TaskRow from './components/TaskRow';
+import TaskList, { TASK_DRAG_MIME } from './components/TaskList';
 import TaskDetail from './components/TaskDetail';
 import {
   todayTasks,
@@ -14,7 +14,7 @@ import {
   searchTasks,
 } from './logic';
 import { todayStr, friendlyDate, weekdayLabel } from './dates';
-import { updateTask } from './repo';
+import { updateTask, moveTask } from './repo';
 
 export default function App() {
   const tasks = useLiveQuery(() => db.tasks.toArray(), []);
@@ -50,9 +50,8 @@ export default function App() {
       <section>
         <h1>Today <span className="date-sub">{friendlyDate(today, today)} · {weekdayLabel(today)}</span></h1>
         {list.length === 0 && <p className="empty">Nothing due today. Enjoy, or pull something in from Backlog.</p>}
-        {list.map((t) => (
-          <TaskRow key={t.id} task={t} allTasks={tasks} showDate onOpen={setOpenId} />
-        ))}
+        <TaskList tasks={list} allTasks={tasks} showDate onOpen={setOpenId}
+          onReorder={(dragId, targetId, after) => void moveTask(dragId, targetId, after, list)} />
       </section>
     );
   } else if (selection.kind === 'upcoming') {
@@ -64,9 +63,7 @@ export default function App() {
         {[...groups.entries()].map(([date, list]) => (
           <div key={date} className="day-group">
             <h2>{friendlyDate(date, today)} <span className="date-sub">{weekdayLabel(date)}</span></h2>
-            {list.map((t) => (
-              <TaskRow key={t.id} task={t} allTasks={tasks} onOpen={setOpenId} />
-            ))}
+            <TaskList tasks={list} allTasks={tasks} onOpen={setOpenId} />
           </div>
         ))}
       </section>
@@ -79,7 +76,14 @@ export default function App() {
         {list.length === 0 && <p className="empty">Backlog is empty. Quick-add below to park something here.</p>}
         {list.map((t) => (
           <div key={t.id} className="backlog-row">
-            <TaskRow task={t} allTasks={tasks} onOpen={setOpenId} />
+            <div className="backlog-task"
+              draggable
+              onDragStart={(e) => {
+                e.dataTransfer.setData(TASK_DRAG_MIME, t.id);
+                e.dataTransfer.effectAllowed = 'move';
+              }}>
+              <TaskList tasks={[t]} allTasks={tasks} onOpen={setOpenId} />
+            </div>
             <button className="mini" onClick={() => void updateTask(t.id, { dueDate: today })}>
               → Today
             </button>
@@ -93,9 +97,7 @@ export default function App() {
       <section>
         <h1>Completed</h1>
         {list.length === 0 && <p className="empty">Nothing completed yet.</p>}
-        {list.slice(0, 100).map((t) => (
-          <TaskRow key={t.id} task={t} allTasks={tasks} showDate onOpen={setOpenId} />
-        ))}
+        <TaskList tasks={list.slice(0, 100)} allTasks={tasks} showDate onOpen={setOpenId} />
       </section>
     );
   } else if (selection.kind === 'search') {
@@ -104,9 +106,7 @@ export default function App() {
       <section>
         <h1>Search <span className="date-sub">{results.length} result{results.length === 1 ? '' : 's'}</span></h1>
         {results.length === 0 && <p className="empty">No tasks match. Tip: #tag filters by tag.</p>}
-        {results.map((t) => (
-          <TaskRow key={t.id} task={t} allTasks={tasks} showDate onOpen={setOpenId} />
-        ))}
+        <TaskList tasks={results} allTasks={tasks} showDate onOpen={setOpenId} />
       </section>
     );
   } else if (selection.kind === 'project') {
@@ -118,16 +118,16 @@ export default function App() {
           <span className="dot" style={{ background: project?.color }} /> {project?.name ?? 'Project'}
         </h1>
         {list.length === 0 && <p className="empty">No active tasks in this project.</p>}
-        {list.map((t) => (
-          <TaskRow key={t.id} task={t} allTasks={tasks} showDate onOpen={setOpenId} />
-        ))}
+        <TaskList tasks={list} allTasks={tasks} showDate onOpen={setOpenId}
+          onReorder={(dragId, targetId, after) => void moveTask(dragId, targetId, after, list)} />
       </section>
     );
   }
 
   return (
     <div className="app">
-      <Sidebar projects={projects} selection={selection} onSelect={setSelection} counts={counts} />
+      <Sidebar projects={projects} selection={selection} onSelect={setSelection} counts={counts}
+        onScheduleToday={(id) => void updateTask(id, { dueDate: today })} />
       <main>
         {showQuickAdd && (
           <QuickAdd

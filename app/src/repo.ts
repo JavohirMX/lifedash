@@ -1,6 +1,6 @@
 import { db, newId } from './db';
 import type { Task, Project } from './types';
-import { completeTask, wouldCreateCycle, normalizeTag, normalizeTask } from './logic';
+import { completeTask, wouldCreateCycle, normalizeTag, normalizeTask, reorderedPosition } from './logic';
 import { todayStr } from './dates';
 
 async function nextOrder(projectId: string): Promise<number> {
@@ -146,4 +146,10 @@ export async function removeTag(taskId: string, tag: string): Promise<void> {
   const task = await db.tasks.get(taskId);
   if (!task) return;
   await updateTask(taskId, { tags: (task.tags ?? []).filter((t) => t !== tag) });
+}
+
+export async function moveTask(taskId: string, targetId: string, after: boolean, list: Task[]): Promise<void> {
+  const order = reorderedPosition(list, taskId, targetId, after);
+  if (order === null) return;
+  await updateTask(taskId, { order });
 }

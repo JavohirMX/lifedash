@@ -366,3 +366,10 @@ h2 { font-size: 1.05rem; margin: 1.5rem 0 0.5rem; }
 .att-icon { font-size: 1.1rem; }
 .att-name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 0.85rem; }
 .att-size { color: var(--dim); font-size: 0.75rem; }
+
+/* Phase 2c: drag and drop */
+.drop-before > .task-row { box-shadow: 0 -2px 0 0 var(--primary); }
+.drop-after > .task-row { box-shadow: 0 2px 0 0 var(--primary); }
+.backlog-task { flex: 1; }
+[draggable="true"] { cursor: grab; }
+[draggable="true"]:active { cursor: grabbing; }

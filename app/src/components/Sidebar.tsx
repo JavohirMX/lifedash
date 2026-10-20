@@ -15,6 +15,7 @@ export default function Sidebar(props: {
   selection: Selection;
   onSelect: (s: Selection) => void;
   counts: { today: number; backlog: number };
+  onScheduleToday?: (taskId: string) => void;
 }) {
   const [adding, setAdding] = useState(false);
   const [name, setName] = useState('');
@@ -24,6 +25,24 @@ export default function Sidebar(props: {
     <button
       className={`nav ${props.selection.kind === kind ? 'active' : ''}`}
       onClick={() => props.onSelect({ kind } as Selection)}
+      onDragOver={
+        kind === 'today' && props.onScheduleToday
+          ? (e) => {
+              if (e.dataTransfer.types.includes('application/x-lifedash-task')) e.preventDefault();
+            }
+          : undefined
+      }
+      onDrop={
+        kind === 'today' && props.onScheduleToday
+          ? (e) => {
+              const id = e.dataTransfer.getData('application/x-lifedash-task');
+              if (id) {
+                e.preventDefault();
+                props.onScheduleToday!(id);
+              }
+            }
+          : undefined
+      }
     >
       <span>{label}</span>
       {count !== undefined && count > 0 && <span className="count">{count}</span>}

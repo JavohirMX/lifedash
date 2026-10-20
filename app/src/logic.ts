@@ -204,3 +204,24 @@ export function searchTasks(tasks: Task[], query: string): Task[] {
     }),
   );
 }
+
+// --- Ordering ---
+
+// Fractional ordering: midpoint between neighbors, no reindex needed.
+export function orderBetween(prev: number | undefined, next: number | undefined): number {
+  if (prev === undefined && next === undefined) return 1;
+  if (prev === undefined) return (next as number) - 1;
+  if (next === undefined) return prev + 1;
+  return (prev + next) / 2;
+}
+
+// Compute the new order for `taskId` dropped before/after `targetId`
+// within `list` (the currently displayed, sorted list).
+export function reorderedPosition(list: Task[], taskId: string, targetId: string, after: boolean): number | null {
+  if (taskId === targetId) return null;
+  const without = list.filter((t) => t.id !== taskId);
+  const tIdx = without.findIndex((t) => t.id === targetId);
+  if (tIdx < 0) return null;
+  const insertIdx = tIdx + (after ? 1 : 0);
+  return orderBetween(without[insertIdx - 1]?.order, without[insertIdx]?.order);
+}

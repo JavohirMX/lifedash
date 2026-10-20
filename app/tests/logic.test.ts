@@ -233,3 +233,28 @@ describe('tags and search', () => {
     expect(searchTasks([task({ id: 'a', title: 'ghost', status: 'archived' })], 'ghost')).toEqual([]);
   });
 });
+
+describe('ordering', () => {
+  it('orderBetween handles empty, head, tail and middle', async () => {
+    const { orderBetween } = await import('../src/logic');
+    expect(orderBetween(undefined, undefined)).toBe(1);
+    expect(orderBetween(undefined, 5)).toBe(4);
+    expect(orderBetween(5, undefined)).toBe(6);
+    expect(orderBetween(2, 4)).toBe(3);
+  });
+
+  it('reorderedPosition drops before/after target, ignoring the dragged row', async () => {
+    const { reorderedPosition } = await import('../src/logic');
+    const list = [task({ id: 'a', order: 1 }), task({ id: 'b', order: 2 }), task({ id: 'c', order: 3 })];
+    // move c before a -> before order 1
+    expect(reorderedPosition(list, 'c', 'a', false)).toBe(0);
+    // move a after c -> tail
+    expect(reorderedPosition(list, 'a', 'c', true)).toBe(4);
+    // move a after b -> between 2 and 3
+    expect(reorderedPosition(list, 'a', 'b', true)).toBe(2.5);
+    // drop on itself is a no-op
+    expect(reorderedPosition(list, 'a', 'a', true)).toBeNull();
+    // target not in list
+    expect(reorderedPosition(list, 'a', 'zzz', true)).toBeNull();
+  });
+});
