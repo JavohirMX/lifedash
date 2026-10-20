@@ -38,7 +38,7 @@ export default function Attachments(props: { taskId: string }) {
           <button className="mini" title="Remove" onClick={() => void deleteAttachment(a.id)}>×</button>
         </div>
       ))}
-      <input
+      <input aria-label="Attach files"
         ref={inputRef}
         type="file"
         style={{ display: 'none' }}

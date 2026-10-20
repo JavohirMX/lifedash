@@ -53,10 +53,11 @@ export default function TaskDetail(props: { taskId: string; onClose: () => void 
   return (
     <aside className="detail">
       <div className="detail-head">
-        <button className="close" onClick={props.onClose}>×</button>
+        <button className="close" aria-label="Close task details" onClick={props.onClose}>×</button>
       </div>
       <input
         className="detail-title"
+        aria-label="Task title"
         value={task.title}
         onChange={(e) => void updateTask(task.id, { title: e.target.value })}
       />
@@ -138,7 +139,7 @@ export default function TaskDetail(props: { taskId: string; onClose: () => void 
           </div>
         ))}
         <div className="dep-add">
-          <select value={blockerPick} onChange={(e) => setBlockerPick(e.target.value)}>
+          <select aria-label="Add a blocker" value={blockerPick} onChange={(e) => setBlockerPick(e.target.value)}>
             <option value="">Add a blocker...</option>
             {(allTasks ?? [])
               .filter((t) => t.status === 'active' && t.id !== task.id && !(task.blockedBy ?? []).includes(t.id))

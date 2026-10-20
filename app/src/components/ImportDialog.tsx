@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { X } from 'lucide-react';
 import type { Project } from '../types';
 import { INBOX_ID } from '../db';
@@ -21,6 +21,17 @@ export default function ImportDialog(props: { projects: Project[]; onClose: () =
   const [imported, setImported] = useState<number | null>(null);
   const [busy, setBusy] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
+  const areaRef = useRef<HTMLTextAreaElement>(null);
+
+  useEffect(() => {
+    areaRef.current?.focus();
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') props.onClose();
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   async function loadFile(f: File) {
     const t = await f.text();
@@ -67,7 +78,7 @@ export default function ImportDialog(props: { projects: Project[]; onClose: () =
 
   return (
     <div className="palette-overlay" onClick={props.onClose}>
-      <div className="import-panel" role="dialog" aria-label="Import tasks" onClick={(e) => e.stopPropagation()}>
+      <div className="import-panel" role="dialog" aria-modal="true" aria-label="Import tasks" onClick={(e) => e.stopPropagation()}>
         <div className="import-head">
           <h2>Import tasks</h2>
           <button className="icon-btn" aria-label="Close" onClick={props.onClose}><X size={18} strokeWidth={1.75} /></button>
@@ -82,7 +93,7 @@ export default function ImportDialog(props: { projects: Project[]; onClose: () =
           <>
             <div className="field">
               <span>Source file</span>
-              <input
+              <input aria-label="Source file"
                 ref={fileRef}
                 type="file"
                 accept=".csv,.md,.markdown,.txt,.json"
@@ -91,7 +102,7 @@ export default function ImportDialog(props: { projects: Project[]; onClose: () =
             </div>
             <div className="field">
               <span>or paste text {filename && `(loaded: ${filename})`}</span>
-              <textarea
+              <textarea ref={areaRef}
                 rows={5}
                 value={text}
                 placeholder={'- [ ] A task\n- [x] A finished one'}
@@ -106,7 +117,7 @@ export default function ImportDialog(props: { projects: Project[]; onClose: () =
             </div>
             <div className="field">
               <span>Format</span>
-              <select value={source ?? ''} onChange={(e) => reparse(e.target.value as ImportSource)}>
+              <select aria-label="Import format" value={source ?? ''} onChange={(e) => reparse(e.target.value as ImportSource)}>
                 <option value="" disabled>Pick a format</option>
                 {SOURCES.map((s) => <option key={s.id} value={s.id}>{s.label}</option>)}
               </select>
