@@ -22,6 +22,7 @@ export default function CommandPalette(props: {
   onOpenTask: (id: string) => void;
   onNewTask: () => void;
   onToggleTheme: () => void;
+  onAppearance: () => void;
 }) {
   const [query, setQuery] = useState('');
   const [index, setIndex] = useState(0);
@@ -54,7 +55,8 @@ export default function CommandPalette(props: {
       nav('notes', 'Notes', StickyNote),
       nav('journal', 'Journal', BookOpen),
       nav('completed', 'Completed', CheckCircle2),
-      { id: 'theme', label: 'Toggle theme', Icon: Moon, run: () => { props.onToggleTheme(); props.onClose(); } },
+      { id: 'appearance', label: 'Appearance: choose style', Icon: Moon, run: () => { props.onAppearance(); props.onClose(); } },
+      { id: 'theme', label: 'Toggle light/dark', Icon: Moon, run: () => { props.onToggleTheme(); props.onClose(); } },
     ];
     const q = query.trim().toLowerCase();
     if (!q) return base;
