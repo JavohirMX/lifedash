@@ -217,6 +217,13 @@ export async function addHabit(name: string, color: string, weekdays: number[] |
   });
 }
 
+export async function updateHabit(id: string, patch: { name?: string; weekdays?: number[] | null }): Promise<void> {
+  const clean: { name?: string; weekdays?: number[] | null } = {};
+  if (patch.name !== undefined) clean.name = patch.name.trim();
+  if (patch.weekdays !== undefined) clean.weekdays = patch.weekdays;
+  await db.habits.update(id, clean);
+}
+
 export async function archiveHabit(id: string): Promise<void> {
   await db.habits.update(id, { archived: true });
 }

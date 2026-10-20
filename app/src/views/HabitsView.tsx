@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Flame } from 'lucide-react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db } from '../db';
-import { addHabit, archiveHabit, restoreHabit, toggleHabitForDate } from '../repo';
+import { addHabit, archiveHabit, restoreHabit, toggleHabitForDate, updateHabit } from '../repo';
 import { currentStreak, bestStreak, completionRate, weekGrid, logsByDate, isScheduledOn } from '../habits';
 import { todayStr, weekdayLabel } from '../dates';
 
@@ -20,6 +20,27 @@ export default function HabitsView() {
   const active = (habits ?? []).filter((h) => !h.archived);
   const archived = (habits ?? []).filter((h) => h.archived);
   const [showArchived, setShowArchived] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editName, setEditName] = useState('');
+  const [editWeekdays, setEditWeekdays] = useState<number[] | null>(null);
+
+  function startEdit(h: { id: string; name: string; weekdays: number[] | null }) {
+    setEditingId(h.id);
+    setEditName(h.name);
+    setEditWeekdays(h.weekdays);
+  }
+
+  function toggleEditWd(d: number) {
+    const cur = editWeekdays ?? [0, 1, 2, 3, 4, 5, 6];
+    const next = cur.includes(d) ? cur.filter((x) => x !== d) : [...cur, d].sort();
+    setEditWeekdays(next.length === 7 ? null : next);
+  }
+
+  function saveEdit() {
+    if (!editingId || !editName.trim()) return;
+    void updateHabit(editingId, { name: editName, weekdays: editWeekdays });
+    setEditingId(null);
+  }
 
   function toggleWd(d: number) {
     const cur = weekdays ?? [0, 1, 2, 3, 4, 5, 6];
@@ -92,10 +113,39 @@ export default function HabitsView() {
                     {total} total
                   </span>
                 )}
+                <button className="mini" title="Edit habit" onClick={() => (editingId === h.id ? setEditingId(null) : startEdit(h))}>
+                  {editingId === h.id ? 'Close' : 'Edit'}
+                </button>
                 <button className="mini" title="Archive habit" onClick={() => void archiveHabit(h.id)}>
                   Archive
                 </button>
               </div>
+              {editingId === h.id && (
+                <div className="habit-add habit-edit">
+                  <input
+                    autoFocus
+                    value={editName}
+                    aria-label="Habit name"
+                    onChange={(e) => setEditName(e.target.value)}
+                    onKeyDown={(e) => { if (e.key === 'Enter') saveEdit(); if (e.key === 'Escape') setEditingId(null); }}
+                  />
+                  <div className="wd-picker">
+                    {DAY_LETTERS.map((l, i) => {
+                      const on = (editWeekdays ?? [0, 1, 2, 3, 4, 5, 6]).includes(i);
+                      return (
+                        <button key={i} className={`wd ${on ? 'on' : ''}`} onClick={() => toggleEditWd(i)}>
+                          {l}
+                        </button>
+                      );
+                    })}
+                    <span className="wd-hint">{editWeekdays === null ? 'every day' : 'custom days'}</span>
+                  </div>
+                  <div className="habit-edit-actions">
+                    <button className="mini" onClick={saveEdit} disabled={!editName.trim()}>Save</button>
+                    <button className="mini" onClick={() => setEditingId(null)}>Cancel</button>
+                  </div>
+                </div>
+              )}
               <div className="habit-body">
                 <div className="grid7">
                   {grid.map((c) => (
