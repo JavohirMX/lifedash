@@ -1,5 +1,5 @@
 import { useLiveQuery } from 'dexie-react-hooks';
-import { Check, Flame, ArrowRight } from 'lucide-react';
+import { Check, Flame, ArrowRight, Target } from 'lucide-react';
 import { db } from '../db';
 import { toggleComplete, toggleHabitForDate } from '../repo';
 import { todayTasks, upcomingTasks } from '../logic';
@@ -17,6 +17,7 @@ function greeting(hour: number): string {
 export default function HomeView(props: { tasks: Task[]; onSelect: (kind: string) => void; onOpen: (id: string) => void }) {
   const habits = useLiveQuery(() => db.habits.orderBy('order').toArray(), []);
   const logs = useLiveQuery(() => db.habitLogs.toArray(), []);
+  const goals = useLiveQuery(() => db.goals.orderBy('order').toArray(), []);
   const today = todayStr();
   const now = new Date();
 
@@ -131,6 +132,33 @@ export default function HomeView(props: { tasks: Task[]; onSelect: (kind: string
               </div>
             ))}
           </div>
+        </div>
+
+        <div className="widget">
+          <div className="widget-head">
+            <h2>Goals</h2>
+            <button className="widget-link" onClick={() => props.onSelect('goals')}>
+              Open <ArrowRight size={13} strokeWidth={2} aria-hidden="true" />
+            </button>
+          </div>
+          {(goals ?? []).filter((g) => g.status === 'active').length === 0 ? (
+            <p className="widget-empty">No active goals. Set one from the Goals view.</p>
+          ) : (
+            <ul className="widget-list">
+              {(goals ?? []).filter((g) => g.status === 'active').slice(0, 3).map((g) => {
+                const linked = props.tasks.filter((t) => t.goalId === g.id && t.status !== 'archived');
+                const gd = linked.filter((t) => t.status === 'done').length;
+                const pct = linked.length ? Math.round((gd / linked.length) * 100) : 0;
+                return (
+                  <li key={g.id}>
+                    <Target size={13} strokeWidth={1.75} aria-hidden="true" className="widget-goal-icon" />
+                    <span className="widget-task">{g.title}</span>
+                    <span className="widget-when num">{linked.length ? `${pct}%` : 'new'}</span>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
         </div>
 
         <div className="widget">

@@ -23,6 +23,7 @@ function currentChoice(t: Task): RecChoice {
 export default function TaskDetail(props: { taskId: string; onClose: () => void }) {
   const task = useLiveQuery(() => db.tasks.get(props.taskId), [props.taskId]);
   const projects = useLiveQuery(() => db.projects.orderBy('order').toArray(), []);
+  const goals = useLiveQuery(() => db.goals.orderBy('order').toArray(), []);
   const subtasks = useLiveQuery(
     () => db.tasks.where('parentId').equals(props.taskId).filter((t) => t.status !== 'archived').toArray(),
     [props.taskId],
@@ -88,6 +89,19 @@ export default function TaskDetail(props: { taskId: string; onClose: () => void 
         >
           {projects.map((p) => (
             <option key={p.id} value={p.id}>{p.name}</option>
+          ))}
+        </select>
+      </label>
+      <label className="field">
+        <span>Goal</span>
+        <select
+          aria-label="Goal"
+          value={task.goalId ?? ''}
+          onChange={(e) => void updateTask(task.id, { goalId: e.target.value || null })}
+        >
+          <option value="">No goal</option>
+          {(goals ?? []).filter((g) => g.status === 'active').map((g) => (
+            <option key={g.id} value={g.id}>{g.title}</option>
           ))}
         </select>
       </label>

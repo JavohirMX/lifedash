@@ -5,7 +5,7 @@ import type { Task } from './types';
 const base: Task = {
   id: 'a', title: 'A', note: '', noteDoc: null, status: 'active', pinned: false,
   projectId: 'inbox', dueDate: null, dueTime: null, recurrence: null,
-  parentId: null, seriesId: null, order: 0, blockedBy: [], tags: [],
+  parentId: null, goalId: null, seriesId: null, order: 0, blockedBy: [], tags: [],
   createdAt: 0, updatedAt: 0, completedAt: null,
 };
 const t = (patch: Partial<Task>): Task => ({ ...base, ...patch });

@@ -1,5 +1,5 @@
 import Dexie, { type Table } from 'dexie';
-import type { Task, Project, Attachment, Habit, HabitLog } from './types';
+import type { Task, Project, Attachment, Habit, HabitLog, Goal } from './types';
 
 export const INBOX_ID = 'inbox';
 
@@ -9,6 +9,7 @@ export class LifeDashDB extends Dexie {
   projects!: Table<Project, string>;
   attachments!: Table<Attachment, string>;
   habits!: Table<Habit, string>;
+  goals!: Table<Goal, string>;
   habitLogs!: Table<HabitLog, string>;
 
   constructor() {
@@ -69,6 +70,24 @@ export class LifeDashDB extends Dexie {
       habitLogs: 'id, habitId, date',
       syncmeta: 'key',
     });
+    this.version(6)
+      .stores({
+        tasks: 'id, status, projectId, parentId, dueDate, seriesId, goalId',
+        projects: 'id, order',
+        attachments: 'id, taskId',
+        habits: 'id, order',
+        habitLogs: 'id, habitId, date',
+        goals: 'id, order',
+        syncmeta: 'key',
+      })
+      .upgrade((tx) =>
+        tx
+          .table('tasks')
+          .toCollection()
+          .modify((t: { goalId?: string | null }) => {
+            t.goalId ??= null;
+          }),
+      );
   }
 }
 

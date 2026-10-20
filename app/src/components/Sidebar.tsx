@@ -1,14 +1,14 @@
 import { useEffect, useState } from 'react';
 import {
   Sun, CalendarDays, Archive, Clock, CalendarRange, Repeat, CheckCircle2,
-  Search, Plus, Menu, X, Download, Upload, Moon, Monitor, Zap, Cloud, House,
+  Search, Plus, Menu, X, Download, Upload, Moon, Monitor, Zap, Cloud, House, Target,
 } from 'lucide-react';
 import type { Project } from '../types';
 import { addProject, exportJson } from '../repo';
 import { cycleTheme, getTheme, type Theme } from '../theme';
 
 export type Selection =
-  | { kind: 'home' | 'today' | 'upcoming' | 'backlog' | 'completed' | 'habits' | 'planner' | 'week' }
+  | { kind: 'home' | 'today' | 'upcoming' | 'backlog' | 'completed' | 'habits' | 'planner' | 'week' | 'goals' }
   | { kind: 'project'; id: string }
   | { kind: 'search'; query: string; status?: 'all' | 'open' | 'done'; projectId?: string | null };
 
@@ -31,6 +31,7 @@ const MAIN_ITEMS = [
   { kind: 'planner', label: 'Planner', Icon: Clock },
   { kind: 'week', label: 'Week', Icon: CalendarRange },
   { kind: 'habits', label: 'Habits', Icon: Repeat },
+  { kind: 'goals', label: 'Goals', Icon: Target },
   { kind: 'completed', label: 'Completed', Icon: CheckCircle2 },
 ] as const;
 

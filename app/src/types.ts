@@ -7,6 +7,7 @@ export interface Task {
   noteDoc: unknown | null; // ProseMirror JSON document; null = plain/empty
   projectId: string;
   parentId: string | null;
+  goalId: string | null;
   status: TaskStatus;
   pinned: boolean;
   dueDate: string | null; // local YYYY-MM-DD
@@ -36,6 +37,17 @@ export interface HabitLog {
   habitId: string;
   date: string; // local YYYY-MM-DD
   doneAt: number;
+}
+
+export interface Goal {
+  id: string;
+  title: string;
+  note: string;
+  targetDate: string | null; // local YYYY-MM-DD
+  status: 'active' | 'done' | 'archived';
+  order: number;
+  createdAt: number;
+  updatedAt: number;
 }
 
 export interface Attachment {

@@ -945,3 +945,19 @@ h2 { font-size: var(--fs-section); font-weight: 600; letter-spacing: -0.01em; ma
 @media (max-width: 640px) {
   .widget-grid { grid-template-columns: 1fr; }
 }
+
+/* ---------- Goals ---------- */
+.goal-add { display: flex; gap: 8px; margin-bottom: 14px; flex-wrap: wrap; }
+.goal-add input { flex: 1; min-width: 160px; background: var(--surface); border: 1px solid var(--control); border-radius: var(--radius-control); padding: 7px 10px; font-size: var(--fs-body); color: var(--text); font-family: var(--font); }
+.goal-add input[type='date'] { flex: 0 0 auto; }
+.goal-list { display: flex; flex-direction: column; gap: 10px; max-width: 560px; }
+.goal-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-card); padding: 12px 14px; display: flex; flex-direction: column; gap: 8px; }
+.goal-card.done { opacity: 0.7; }
+.goal-card.done strong { text-decoration: line-through; }
+.goal-top { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.goal-actions { display: flex; gap: 2px; }
+.goal-meta { display: flex; align-items: center; justify-content: space-between; font-size: var(--fs-small); color: var(--muted); }
+.goal-when.overdue { color: var(--negative); }
+.goal-done-h { font-size: var(--fs-section); margin: 18px 0 8px; }
+.goals-empty { display: flex; flex-direction: column; align-items: flex-start; gap: 8px; color: var(--muted); }
+.widget-goal-icon { color: var(--accent); flex: none; }

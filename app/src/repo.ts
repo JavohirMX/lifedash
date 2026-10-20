@@ -1,6 +1,6 @@
 import { loadRules, rolloverTargets, shouldCompleteParent } from './automation';
 import { db, newId } from './db';
-import type { Task, Project } from './types';
+import type { Task, Project, Goal } from './types';
 import { completeTask, wouldCreateCycle, normalizeTag, normalizeTask, reorderedPosition } from './logic';
 import { todayStr } from './dates';
 
@@ -14,6 +14,7 @@ export async function addTask(input: {
   projectId: string;
   dueDate?: string | null;
   parentId?: string | null;
+  goalId?: string | null;
   tags?: string[];
 }): Promise<Task> {
   const now = Date.now();
@@ -24,6 +25,7 @@ export async function addTask(input: {
     noteDoc: null,
     projectId: input.projectId,
     parentId: input.parentId ?? null,
+    goalId: input.goalId ?? null,
     status: 'active',
     pinned: false,
     dueDate: input.dueDate ?? null,
@@ -219,6 +221,7 @@ export async function importTasks(
         title: item.title,
         note: '',
         noteDoc: null,
+        goalId: null,
         projectId,
         parentId: indent > 0 ? stack[indent - 1] : null,
         status: item.done ? 'done' : 'active',
@@ -239,4 +242,16 @@ export async function importTasks(
     }
   });
   return items.length;
+}
+
+export async function addGoal(title: string, targetDate: string | null): Promise<Goal> {
+  const count = await db.goals.count();
+  const now = Date.now();
+  const goal: Goal = { id: newId(), title: title.trim(), note: '', targetDate, status: 'active', order: count, createdAt: now, updatedAt: now };
+  await db.goals.add(goal);
+  return goal;
+}
+
+export async function updateGoal(id: string, patch: Partial<Goal>): Promise<void> {
+  await db.goals.update(id, { ...patch, updatedAt: Date.now() });
 }
