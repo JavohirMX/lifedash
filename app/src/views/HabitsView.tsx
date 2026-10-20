@@ -3,7 +3,7 @@ import { Flame } from 'lucide-react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db } from '../db';
 import { addHabit, archiveHabit, toggleHabitForDate } from '../repo';
-import { currentStreak, weekGrid, logsByDate, isScheduledOn } from '../habits';
+import { currentStreak, bestStreak, completionRate, weekGrid, logsByDate, isScheduledOn } from '../habits';
 import { todayStr, weekdayLabel } from '../dates';
 
 const COLORS = ['#6366f1', '#8b5cf6', '#22c55e', '#f59e0b', '#ef4444', '#38bdf8'];
@@ -71,6 +71,9 @@ export default function HabitsView() {
       {(logs !== undefined) &&
         active.map((h) => {
           const streak = currentStreak(h, logs, today);
+          const best = bestStreak(h, logs);
+          const rate = completionRate(h, logs, today);
+          const total = logs.filter((l) => l.habitId === h.id).length;
           const grid = weekGrid(h, logs, today);
           const doneToday = logsByDate(logs, h.id).has(today);
           const scheduledToday = isScheduledOn(h, today);
@@ -80,6 +83,11 @@ export default function HabitsView() {
                 <span className="dot" style={{ background: h.color }} />
                 <span className="habit-name">{h.name}</span>
                 {streak >= 2 && <span className="streak"><Flame size={12} strokeWidth={2} aria-hidden="true" /> {streak}</span>}
+                <span className="habit-stats num">
+                  {best > streak && <>best {best} · </>}
+                  {rate !== null && <>{Math.round(rate * 100)}% · </>}
+                  {total} total
+                </span>
                 <button className="mini" title="Archive habit" onClick={() => void archiveHabit(h.id)}>
                   Archive
                 </button>

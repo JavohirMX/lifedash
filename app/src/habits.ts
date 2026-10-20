@@ -54,3 +54,42 @@ export function weekGrid(habit: Habit, logs: HabitLog[], today: string, days = 7
   }
   return cells;
 }
+
+// Longest run of consecutive scheduled-and-done days in the habit's history.
+export function bestStreak(habit: Habit, logs: HabitLog[]): number {
+  const dates = logs.filter((l) => l.habitId === habit.id).map((l) => l.date).sort();
+  if (dates.length === 0) return 0;
+  const done = new Set(dates);
+  let best = 0;
+  let cur = 0;
+  let day = dates[0];
+  const last = dates[dates.length - 1];
+  for (let i = 0; i < 3700 && day <= last; i++) {
+    if (!isScheduledOn(habit, day)) {
+      day = addDays(day, 1);
+      continue;
+    }
+    if (done.has(day)) {
+      cur++;
+      best = Math.max(best, cur);
+    } else {
+      cur = 0;
+    }
+    day = addDays(day, 1);
+  }
+  return best;
+}
+
+// Completion rate over the last `days` days: done / scheduled (0 when unscheduled).
+export function completionRate(habit: Habit, logs: HabitLog[], today: string, days = 30): number | null {
+  const done = logsByDate(logs, habit.id);
+  let scheduled = 0;
+  let hit = 0;
+  for (let i = 0; i < days; i++) {
+    const d = addDays(today, -i);
+    if (!isScheduledOn(habit, d)) continue;
+    scheduled++;
+    if (done.has(d)) hit++;
+  }
+  return scheduled === 0 ? null : hit / scheduled;
+}

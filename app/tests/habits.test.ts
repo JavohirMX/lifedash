@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { isScheduledOn, currentStreak, weekGrid } from '../src/habits';
+import { isScheduledOn, currentStreak, weekGrid, bestStreak, completionRate } from '../src/habits';
 import type { Habit, HabitLog } from '../src/types';
 
 function habit(weekdays: number[] | null = null): Habit {
@@ -47,5 +47,32 @@ describe('habits', () => {
     expect(grid[6]).toEqual({ date: '2026-10-20', scheduled: true, done: true, isToday: true });
     expect(grid[5]).toMatchObject({ date: '2026-10-19', scheduled: false, done: false });
     expect(grid[0]).toMatchObject({ date: '2026-10-14', scheduled: true, done: false });
+  });
+});
+
+describe('bestStreak', () => {
+  it('finds the longest run, not the current one', () => {
+    // done 1-5, missed 6, done 7-8
+    const logs = ['2026-10-01','2026-10-02','2026-10-03','2026-10-04','2026-10-05','2026-10-07','2026-10-08'].map((d) => log('h1', d));
+    expect(bestStreak(habit(null), logs)).toBe(5);
+  });
+  it('skips unscheduled days without breaking the run', () => {
+    // Mon/Wed/Fri habit: 2026-10-05 Mon, 07 Wed, 09 Fri all done
+    const logs = ['2026-10-05','2026-10-07','2026-10-09'].map((d) => log('h1', d));
+    expect(bestStreak(habit([1,3,5]), logs)).toBe(3);
+  });
+  it('empty history is 0', () => {
+    expect(bestStreak(habit(null), [])).toBe(0);
+  });
+});
+
+describe('completionRate', () => {
+  it('done over scheduled in the window', () => {
+    // last 4 days, 3 done
+    const logs = ['2026-10-17','2026-10-18','2026-10-20'].map((d) => log('h1', d));
+    expect(completionRate(habit(null), logs, '2026-10-20', 4)).toBeCloseTo(0.75);
+  });
+  it('null when nothing scheduled in the window', () => {
+    expect(completionRate(habit([1]), [], '2026-10-18', 2)).toBeNull(); // Sun+Mon, habit on Mon only... 2026-10-18 is Sunday, window Sun+Mon
   });
 });
