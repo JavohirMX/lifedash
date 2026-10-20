@@ -77,6 +77,7 @@ export function completeTask(task: Task, today: string, now: number): Completion
       goalId: task.goalId,
       status: 'active',
       pinned: task.pinned,
+      priority: task.priority,
       dueDate: nextDate,
       dueTime: task.dueTime ?? null,
       recurrence: task.recurrence,
@@ -92,6 +93,7 @@ export function completeTask(task: Task, today: string, now: number): Completion
 export function sortTasks(tasks: Task[]): Task[] {
   return [...tasks].sort((a, b) => {
     if (a.pinned !== b.pinned) return a.pinned ? -1 : 1;
+    if (a.priority !== b.priority) return (a.priority || 4) - (b.priority || 4);
     if (a.order !== b.order) return a.order - b.order;
     return a.createdAt - b.createdAt;
   });

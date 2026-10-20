@@ -4,6 +4,7 @@ import type { Task } from './types';
 
 const base: Task = {
   id: 'a', title: 'A', note: '', noteDoc: null, status: 'active', pinned: false,
+  priority: 0,
   projectId: 'inbox', dueDate: null, dueTime: null, recurrence: null,
   parentId: null, goalId: null, seriesId: null, order: 0, blockedBy: [], tags: [],
   createdAt: 0, updatedAt: 0, completedAt: null,

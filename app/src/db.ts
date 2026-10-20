@@ -111,6 +111,26 @@ export class LifeDashDB extends Dexie {
       journal: 'id, date',
       syncmeta: 'key',
     });
+    this.version(9)
+      .stores({
+        tasks: 'id, status, projectId, parentId, dueDate, seriesId, goalId',
+        projects: 'id, order',
+        attachments: 'id, taskId',
+        habits: 'id, order',
+        habitLogs: 'id, habitId, date',
+        goals: 'id, order',
+        notes: 'id, updatedAt',
+        journal: 'id, date',
+        syncmeta: 'key',
+      })
+      .upgrade((tx) =>
+        tx
+          .table('tasks')
+          .toCollection()
+          .modify((t: { priority?: number }) => {
+            t.priority ??= 0;
+          }),
+      );
   }
 }
 

@@ -15,6 +15,7 @@ export async function addTask(input: {
   dueDate?: string | null;
   dueTime?: string | null;
   recurrence?: string | null;
+  priority?: number;
   parentId?: string | null;
   goalId?: string | null;
   tags?: string[];
@@ -30,6 +31,7 @@ export async function addTask(input: {
     goalId: input.goalId ?? null,
     status: 'active',
     pinned: false,
+    priority: input.priority ?? 0,
     dueDate: input.dueDate ?? null,
     dueTime: input.dueTime ?? null,
     recurrence: null,
@@ -245,6 +247,7 @@ export async function importTasks(
         noteDoc: null,
         goalId: null,
         projectId,
+        priority: 0,
         parentId: indent > 0 ? stack[indent - 1] : null,
         status: item.done ? 'done' : 'active',
         pinned: item.pinned,

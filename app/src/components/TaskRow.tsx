@@ -1,4 +1,4 @@
-import { Check, Repeat } from 'lucide-react';
+import { Flag, Check, Repeat } from 'lucide-react';
 import type { Task } from '../types';
 import { toggleComplete, togglePin } from '../repo';
 import { describeRecurrence, subtaskProgress, activeBlockers, normalizeTask } from '../logic';
@@ -40,6 +40,9 @@ export default function TaskRow(props: {
       <button className="task-main" onClick={() => props.onOpen(task.id)}>
         <span className="task-title">{task.title}</span>
         <span className="task-meta">
+          {task.priority > 0 && (
+            <Flag size={12} strokeWidth={2} aria-label={`Priority ${task.priority}`} className={`prio prio-${task.priority}`} />
+          )}
           {task.dueTime && <span className="time-chip">{task.dueTime}</span>}
           {props.showDate && task.dueDate && (
             <span className={`due ${overdue ? 'overdue' : task.dueDate === today ? 'today' : ''}`}>

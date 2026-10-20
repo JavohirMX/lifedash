@@ -25,6 +25,7 @@ export default function QuickAdd(props: { projectId: string; dueDate?: string | 
         dueDate: nat.dueDate ?? props.dueDate ?? null,
         dueTime: nat.dueTime,
         recurrence: nat.recurrence,
+        priority: nat.priority,
       }),
     );
   }
@@ -36,6 +37,7 @@ export default function QuickAdd(props: { projectId: string; dueDate?: string | 
     if (nat.dueDate) bits.push(friendlyDate(nat.dueDate, todayStr()));
     if (nat.dueTime) bits.push(nat.dueTime);
     if (nat.recurrence) bits.push(describeRecurrence(nat.recurrence));
+    if (nat.priority) bits.push(`P${nat.priority}`);
     return bits.length ? bits.join(' · ') : null;
   })();
 

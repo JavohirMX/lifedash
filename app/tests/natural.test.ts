@@ -5,7 +5,7 @@ const NOW = new Date('2026-10-20T15:00:00'); // a Tuesday
 
 describe('parseNatural', () => {
   it('passes plain titles through untouched', () => {
-    expect(parseNatural('Buy milk', NOW)).toEqual({ title: 'Buy milk', dueDate: null, dueTime: null, recurrence: null });
+    expect(parseNatural('Buy milk', NOW)).toEqual({ title: 'Buy milk', dueDate: null, dueTime: null, recurrence: null, priority: 0 });
   });
   it('today and tomorrow', () => {
     expect(parseNatural('Call bank today', NOW).dueDate).toBe('2026-10-20');
@@ -67,5 +67,15 @@ describe('parseNatural', () => {
     expect(parseNatural('Everyday carry list', NOW).title).toBe('Everyday carry list');
     expect(parseNatural('Next steps doc', NOW).title).toBe('Next steps doc');
     expect(parseNatural('Call at once', NOW).title).toBe('Call at once');
+  });
+});
+
+describe('parseNatural priority', () => {
+  it('p1/p2/p3 set priority and leave a clean title', () => {
+    expect(parseNatural('Fix leak p1', NOW)).toMatchObject({ title: 'Fix leak', priority: 1 });
+    expect(parseNatural('p2 clean garage', NOW)).toMatchObject({ title: 'clean garage', priority: 2 });
+  });
+  it('p4 and p0 are not priorities', () => {
+    expect(parseNatural('Read p4 of the report', NOW).title).toBe('Read p4 of the report');
   });
 });

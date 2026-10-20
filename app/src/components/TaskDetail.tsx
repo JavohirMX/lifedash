@@ -93,6 +93,19 @@ export default function TaskDetail(props: { taskId: string; onClose: () => void 
         </select>
       </label>
       <label className="field">
+        <span>Priority</span>
+        <select
+          aria-label="Priority"
+          value={task.priority}
+          onChange={(e) => void updateTask(task.id, { priority: Number(e.target.value) })}
+        >
+          <option value={0}>None</option>
+          <option value={1}>P1 - high</option>
+          <option value={2}>P2 - medium</option>
+          <option value={3}>P3 - low</option>
+        </select>
+      </label>
+      <label className="field">
         <span>Goal</span>
         <select
           aria-label="Goal"

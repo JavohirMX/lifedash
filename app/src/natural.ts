@@ -10,6 +10,7 @@ export interface NaturalParse {
   dueDate: string | null;
   dueTime: string | null;
   recurrence: string | null;
+  priority: number;
 }
 
 const WEEKDAYS: Record<string, number> = {
@@ -34,6 +35,7 @@ export function parseNatural(raw: string, now: Date = new Date()): NaturalParse 
   let dueDate: string | null = null;
   let dueTime: string | null = null;
   let recurrence: string | null = null;
+  let priority = 0;
 
   const words = raw.trim().split(/\s+/).filter(Boolean);
   const kept: string[] = [];
@@ -114,6 +116,10 @@ export function parseNatural(raw: string, now: Date = new Date()): NaturalParse 
       }
     }
 
+    // Priority: p1 (high) .. p3 (low)
+    const pm = lw.match(/^p([123])$/);
+    if (pm) { priority = Number(pm[1]); i++; continue; }
+
     // Times
     if (lw === 'at' && next && takeTime(next)) { i += 2; continue; }
     if (takeTime(w)) { i++; continue; }
@@ -123,5 +129,5 @@ export function parseNatural(raw: string, now: Date = new Date()): NaturalParse 
     i++;
   }
 
-  return { title: kept.join(' '), dueDate, dueTime, recurrence };
+  return { title: kept.join(' '), dueDate, dueTime, recurrence, priority };
 }

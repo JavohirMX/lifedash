@@ -10,6 +10,7 @@ export interface Task {
   goalId: string | null;
   status: TaskStatus;
   pinned: boolean;
+  priority: number; // 0 none, 1 high, 2 medium, 3 low
   dueDate: string | null; // local YYYY-MM-DD
   dueTime: string | null; // local 'HH:MM', null = anytime
   recurrence: string | null; // RRULE string with DTSTART

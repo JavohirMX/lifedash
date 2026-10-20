@@ -23,6 +23,7 @@ function task(partial: Partial<Task>): Task {
     projectId: 'inbox',
     parentId: null,
     status: 'active',
+    priority: partial.priority ?? 0,
     pinned: false,
     dueDate: null,
     dueTime: null,
@@ -293,5 +294,15 @@ describe('global search helpers', () => {
   it('searchGoals skips archived', () => {
     const goals = [mkGoal('a', 'Run a 10k'), mkGoal('b', 'Run a marathon', 'archived')];
     expect(searchGoals(goals, 'run').map((g) => g.id)).toEqual(['a']);
+  });
+});
+
+describe('priority sorting', () => {
+  it('higher priority sorts first, pinned still wins', () => {
+    const a = task({ id: 'a', priority: 3, order: 1 });
+    const b = task({ id: 'b', priority: 1, order: 2 });
+    const c = task({ id: 'c', priority: 0, order: 0 });
+    const d = task({ id: 'd', pinned: true, priority: 3, order: 9 });
+    expect(sortTasks([a, b, c, d]).map((t) => t.id)).toEqual(['d', 'b', 'a', 'c']);
   });
 });

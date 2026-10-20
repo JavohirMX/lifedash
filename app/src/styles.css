@@ -1042,3 +1042,9 @@ h2 { font-size: var(--fs-section); font-weight: 600; letter-spacing: -0.01em; ma
   .cal-task.done { opacity: 0.3; }
   .cal-more { font-size: 9.5px; padding-left: 2px; }
 }
+
+/* ---------- Priority flags ---------- */
+.prio { flex: none; }
+.prio-1 { color: #dc2626; fill: #dc2626; }
+.prio-2 { color: #d97706; fill: #d97706; }
+.prio-3 { color: #2563eb; fill: #2563eb; }
