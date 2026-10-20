@@ -1,8 +1,8 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { X } from 'lucide-react';
 import type { Project } from '../types';
 import { INBOX_ID } from '../db';
-import { addProject, importTasks } from '../repo';
+import { addProject, importTasks, importBackup } from '../repo';
 import { detectSource, parse, type ImportSource, type ParseResult } from '../import';
 
 const SOURCES: { id: ImportSource; label: string }[] = [
@@ -19,6 +19,7 @@ export default function ImportDialog(props: { projects: Project[]; onClose: () =
   const [result, setResult] = useState<ParseResult | null>(null);
   const [target, setTarget] = useState<string>(INBOX_ID);
   const [imported, setImported] = useState<number | null>(null);
+  const [restored, setRestored] = useState<Record<string, number> | null>(null);
   const [busy, setBusy] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
   const areaRef = useRef<HTMLTextAreaElement>(null);
@@ -49,6 +50,26 @@ export default function ImportDialog(props: { projects: Project[]; onClose: () =
   }
 
   const needsPerSource = result?.tasks.some((t) => t.project) ?? false;
+
+  // A Lifedash v2 export is a FULL backup, not just a task list.
+  const fullBackup = useMemo(() => {
+    if (source !== 'lifedash-json' || !text.trim()) return null;
+    try {
+      const d = JSON.parse(text) as Record<string, unknown>;
+      if (d?.version !== 2 || !Array.isArray(d.tasks)) return null;
+      return d;
+    } catch { return null; }
+  }, [source, text]);
+  const COLL_LABELS: [string, string][] = [['projects', 'projects'], ['tasks', 'tasks'], ['habits', 'habits'], ['goals', 'goals'], ['notes', 'notes'], ['journal', 'journal entries']];
+  const backupCounts = fullBackup
+    ? COLL_LABELS.map(([k, label]) => [label, Array.isArray(fullBackup[k]) ? (fullBackup[k] as unknown[]).length : 0] as const)
+    : [];
+
+  async function runFullRestore() {
+    setBusy(true);
+    try { setRestored((await importBackup(text)).restored); }
+    finally { setBusy(false); }
+  }
 
   async function run() {
     if (!result || result.tasks.length === 0) return;
@@ -84,7 +105,12 @@ export default function ImportDialog(props: { projects: Project[]; onClose: () =
           <button className="icon-btn" aria-label="Close" onClick={props.onClose}><X size={18} strokeWidth={1.75} /></button>
         </div>
 
-        {imported !== null ? (
+        {restored !== null ? (
+          <div className="import-done">
+            <p>Backup restored: {COLL_LABELS.filter(([k]) => (restored[k] ?? 0) > 0).map(([k, label]) => `${restored[k]} ${label}`).join(', ') || 'nothing found'}.</p>
+            <button className="btn-primary" onClick={props.onClose}>Done</button>
+          </div>
+        ) : imported !== null ? (
           <div className="import-done">
             <p>Imported {imported} task{imported === 1 ? '' : 's'}.</p>
             <button className="btn-primary" onClick={props.onClose}>Done</button>
@@ -123,6 +149,16 @@ export default function ImportDialog(props: { projects: Project[]; onClose: () =
               </select>
             </div>
 
+            {fullBackup && (
+              <div className="import-summary">
+                <p className="import-count">Full Lifedash backup: {backupCounts.filter(([, n]) => n > 0).map(([label, n]) => `${n} ${label}`).join(', ')}.</p>
+                <p className="import-warnings">Restoring merges by id: items in the backup overwrite matching existing items; nothing is deleted. Attachments are not part of exports.</p>
+                <button className="btn-primary" disabled={busy} onClick={() => void runFullRestore()}>
+                  {busy ? 'Restoring...' : 'Restore full backup'}
+                </button>
+                <p className="import-count" style={{ marginTop: 8 }}>Or import only the tasks:</p>
+              </div>
+            )}
             {result && (
               <div className="import-summary">
                 <p className="import-count">
