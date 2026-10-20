@@ -100,7 +100,7 @@ export default function HabitsView() {
                     className={`habit-toggle ${doneToday ? 'done' : ''}`}
                     onClick={() => void toggleHabitForDate(h.id, today)}
                   >
-                    {doneToday ? 'Done today ✓' : 'Mark done'}
+                    {doneToday ? 'Done today' : 'Mark done'}
                   </button>
                 )}
                 {!scheduledToday && <span className="att-size">not scheduled today</span>}

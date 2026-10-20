@@ -1,3 +1,4 @@
+import { Paperclip } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db } from '../db';
@@ -18,7 +19,7 @@ function Thumb(props: { att: Attachment }) {
     setUrl(u);
     return () => URL.revokeObjectURL(u);
   }, [props.att]);
-  if (!url) return <span className="att-icon">📎</span>;
+  if (!url) return <Paperclip size={16} strokeWidth={1.75} className="att-icon" aria-label="File attachment" />;
   return <img src={url} alt={props.att.name} className="att-thumb" />;
 }
 

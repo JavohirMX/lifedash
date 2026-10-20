@@ -1,3 +1,4 @@
+import { Check } from 'lucide-react';
 import { useState } from 'react';
 import NoteEditor from './NoteEditor';
 import Attachments from './Attachments';
@@ -194,7 +195,7 @@ export default function TaskDetail(props: { taskId: string; onClose: () => void 
               className={`checkbox ${s.status === 'done' ? 'checked' : ''}`}
               onClick={() => void toggleComplete(s)}
             >
-              {s.status === 'done' ? '✓' : ''}
+              {s.status === 'done' ? <Check size={12} strokeWidth={2.5} aria-hidden="true" /> : null}
             </button>
             <span>{s.title}</span>
           </div>

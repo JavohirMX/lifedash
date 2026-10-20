@@ -1,3 +1,4 @@
+import { Check, Repeat } from 'lucide-react';
 import type { Task } from '../types';
 import { toggleComplete, togglePin } from '../repo';
 import { describeRecurrence, subtaskProgress, activeBlockers, normalizeTask } from '../logic';
@@ -34,7 +35,7 @@ export default function TaskRow(props: {
         aria-label={done ? 'Mark not done' : 'Mark done'}
         onClick={onCheck}
       >
-        {done ? '✓' : ''}
+        {done ? <Check size={13} strokeWidth={2.5} aria-hidden="true" /> : null}
       </button>
       <button className="task-main" onClick={() => props.onOpen(task.id)}>
         <span className="task-title">{task.title}</span>
@@ -45,7 +46,7 @@ export default function TaskRow(props: {
               {friendlyDate(task.dueDate, today)}
             </span>
           )}
-          {rec && <span className="rec">↻ {rec}</span>}
+          {rec && <span className="rec"><Repeat size={11} strokeWidth={1.75} aria-hidden="true" /> {rec}</span>}
           {blocked && (
             <span className="blocked-by">blocked by {blockers[0].title}{blockers.length > 1 ? ` +${blockers.length - 1}` : ''}</span>
           )}

@@ -67,7 +67,7 @@ export const db = new LifeDashDB();
 
 export async function ensureSeed(): Promise<void> {
   if ((await db.projects.count()) === 0) {
-    await db.projects.add({ id: INBOX_ID, name: 'Inbox', color: '#6366f1', order: 0, archived: false });
+    await db.projects.add({ id: INBOX_ID, name: 'Inbox', color: '#0f766e', order: 0, archived: false });
   }
 }
 

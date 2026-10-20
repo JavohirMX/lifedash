@@ -1,6 +1,7 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
+import { ArrowRight } from 'lucide-react';
 import { useLiveQuery } from 'dexie-react-hooks';
-import { db, INBOX_ID } from './db';
+import { db, INBOX_ID, ensureSeed } from './db';
 import Sidebar, { type Selection } from './components/Sidebar';
 import QuickAdd from './components/QuickAdd';
 import TaskList, { TASK_DRAG_MIME } from './components/TaskList';
@@ -24,6 +25,10 @@ export default function App() {
   const projects = useLiveQuery(() => db.projects.orderBy('order').toArray(), []);
   const [selection, setSelection] = useState<Selection>({ kind: 'today' });
   const [openId, setOpenId] = useState<string | null>(null);
+
+  useEffect(() => {
+    void ensureSeed();
+  }, []);
 
   const today = todayStr();
 
@@ -88,7 +93,7 @@ export default function App() {
               <TaskList tasks={[t]} allTasks={tasks} onOpen={setOpenId} />
             </div>
             <button className="mini" onClick={() => void updateTask(t.id, { dueDate: today })}>
-              → Today
+              <ArrowRight size={12} strokeWidth={1.75} aria-hidden="true" /> Today
             </button>
           </div>
         ))}

@@ -1,4 +1,5 @@
 import { useRef, useState } from 'react';
+import { Plus } from 'lucide-react';
 import { addTask } from '../repo';
 
 export default function QuickAdd(props: { projectId: string; dueDate?: string | null; placeholder?: string }) {
@@ -17,9 +18,10 @@ export default function QuickAdd(props: { projectId: string; dueDate?: string | 
 
   return (
     <div className="quick-add">
+      <Plus size={16} strokeWidth={1.75} aria-hidden="true" className="quick-add-icon" />
       <input
         value={title}
-        placeholder={props.placeholder ?? 'Add a task... (Enter to save, keep typing)'}
+        placeholder={props.placeholder ?? 'Add a task, press Enter'}
         onChange={(e) => setTitle(e.target.value)}
         onKeyDown={(e) => {
           if (e.key === 'Enter') submit();
