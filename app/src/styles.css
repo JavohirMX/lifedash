@@ -892,3 +892,11 @@ h2 { font-size: var(--fs-section); font-weight: 600; letter-spacing: -0.01em; ma
 .chip.active { background: var(--primary-btn); border-color: var(--primary-btn); color: var(--primary-btn-ink); }
 .chip.tag { color: var(--accent-strong); border-color: var(--accent); background: var(--accent-soft); }
 .chip.select { appearance: none; padding-right: 22px; background-image: none; }
+
+/* ---------- Touch drag ---------- */
+.touch-dragging {
+  position: relative; z-index: 5; opacity: 0.85;
+  pointer-events: none; /* let elementFromPoint see the row underneath */
+  box-shadow: 0 8px 24px rgb(0 0 0 / 0.18); border-radius: var(--radius-card);
+  transition: none;
+}
