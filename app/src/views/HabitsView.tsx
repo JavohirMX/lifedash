@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { Flame } from 'lucide-react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db } from '../db';
 import { addHabit, archiveHabit, toggleHabitForDate } from '../repo';
@@ -78,7 +79,7 @@ export default function HabitsView() {
               <div className="habit-head">
                 <span className="dot" style={{ background: h.color }} />
                 <span className="habit-name">{h.name}</span>
-                {streak >= 2 && <span className="streak">🔥 {streak}</span>}
+                {streak >= 2 && <span className="streak"><Flame size={12} strokeWidth={2} aria-hidden="true" /> {streak}</span>}
                 <button className="mini" title="Archive habit" onClick={() => void archiveHabit(h.id)}>
                   Archive
                 </button>

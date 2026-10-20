@@ -1,14 +1,14 @@
 import { useEffect, useState } from 'react';
 import {
   Sun, CalendarDays, Archive, Clock, CalendarRange, Repeat, CheckCircle2,
-  Search, Plus, Menu, X, Download, Upload, Moon, Monitor, Zap, Cloud,
+  Search, Plus, Menu, X, Download, Upload, Moon, Monitor, Zap, Cloud, House,
 } from 'lucide-react';
 import type { Project } from '../types';
 import { addProject, exportJson } from '../repo';
 import { cycleTheme, getTheme, type Theme } from '../theme';
 
 export type Selection =
-  | { kind: 'today' | 'upcoming' | 'backlog' | 'completed' | 'habits' | 'planner' | 'week' }
+  | { kind: 'home' | 'today' | 'upcoming' | 'backlog' | 'completed' | 'habits' | 'planner' | 'week' }
   | { kind: 'project'; id: string }
   | { kind: 'search'; query: string; status?: 'all' | 'open' | 'done'; projectId?: string | null };
 
@@ -24,6 +24,7 @@ function Mark() {
 }
 
 const MAIN_ITEMS = [
+  { kind: 'home', label: 'Home', Icon: House },
   { kind: 'today', label: 'Today', Icon: Sun },
   { kind: 'upcoming', label: 'Upcoming', Icon: CalendarDays },
   { kind: 'backlog', label: 'Backlog', Icon: Archive },
@@ -34,6 +35,7 @@ const MAIN_ITEMS = [
 ] as const;
 
 const DOCK_ITEMS = [
+  { kind: 'home', label: 'Home', Icon: House },
   { kind: 'today', label: 'Today', Icon: Sun },
   { kind: 'planner', label: 'Planner', Icon: Clock },
   { kind: 'week', label: 'Week', Icon: CalendarRange },

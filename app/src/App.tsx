@@ -8,6 +8,7 @@ import TaskList, { TASK_DRAG_MIME } from './components/TaskList';
 import HabitsView from './views/HabitsView';
 import PlannerView from './views/PlannerView';
 import WeekView from './views/WeekView';
+import HomeView from './views/HomeView';
 import TaskDetail from './components/TaskDetail';
 import CommandPalette, { useGlobalKeys } from './components/CommandPalette';
 import ImportDialog from './components/ImportDialog';
@@ -31,7 +32,7 @@ import { updateTask, moveTask } from './repo';
 export default function App() {
   const tasks = useLiveQuery(() => db.tasks.toArray(), []);
   const projects = useLiveQuery(() => db.projects.orderBy('order').toArray(), []);
-  const [selection, setSelection] = useState<Selection>({ kind: 'today' });
+  const [selection, setSelection] = useState<Selection>({ kind: 'home' });
   const [openId, setOpenId] = useState<string | null>(null);
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
@@ -76,10 +77,12 @@ export default function App() {
     if (selection.kind === 'project') return { projectId: selection.id, dueDate: null };
     return { projectId: INBOX_ID, dueDate: null };
   })();
-  const showQuickAdd = selection.kind !== 'completed' && selection.kind !== 'search' && selection.kind !== 'habits' && selection.kind !== 'planner' && selection.kind !== 'week';
+  const showQuickAdd = selection.kind !== 'completed' && selection.kind !== 'search' && selection.kind !== 'habits' && selection.kind !== 'planner' && selection.kind !== 'week' && selection.kind !== 'home';
 
   let body;
-  if (selection.kind === 'today') {
+  if (selection.kind === 'home') {
+    body = <HomeView tasks={tasks} onSelect={(kind) => setSelection({ kind } as Selection)} onOpen={setOpenId} />;
+  } else if (selection.kind === 'today') {
     const list = todayTasks(tasks, today);
     body = (
       <section>
