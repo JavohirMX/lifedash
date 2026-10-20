@@ -347,15 +347,27 @@ export async function updateJournalEntry(id: string, patch: Partial<JournalEntry
 // the same id are overwritten, nothing is deleted.
 export async function importBackup(json: string): Promise<{ restored: Record<string, number> }> {
   const data = JSON.parse(json) as Record<string, unknown>;
+  if (data?.version !== 2) throw new Error('Not a Lifedash version 2 backup.');
   const tables = ['projects', 'tasks', 'habits', 'habitLogs', 'goals', 'notes', 'journal'] as const;
+  // Validate every row before writing anything: one bad row aborts the
+  // whole restore instead of leaving a half-import (Dexie also rolls the
+  // transaction back on any write error).
+  const valid: [string, Record<string, unknown>[]][] = [];
+  for (const t of tables) {
+    const rows = data[t];
+    if (!Array.isArray(rows) || rows.length === 0) continue;
+    for (const r of rows) {
+      if (!r || typeof r !== 'object' || typeof (r as { id?: unknown }).id !== 'string') {
+        throw new Error(`Backup row without an id in "${t}". Nothing was restored.`);
+      }
+    }
+    valid.push([t, rows as Record<string, unknown>[]]);
+  }
   const restored: Record<string, number> = {};
   await db.transaction('rw', tables.map((t) => db.table(t)), async () => {
-    for (const t of tables) {
-      const rows = data[t];
-      if (Array.isArray(rows) && rows.length > 0) {
-        await db.table(t).bulkPut(rows);
-        restored[t] = rows.length;
-      }
+    for (const [t, rows] of valid) {
+      await db.table(t).bulkPut(rows);
+      restored[t] = rows.length;
     }
   });
   return { restored };

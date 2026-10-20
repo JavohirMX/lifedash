@@ -20,6 +20,7 @@ export default function ImportDialog(props: { projects: Project[]; onClose: () =
   const [target, setTarget] = useState<string>(INBOX_ID);
   const [imported, setImported] = useState<number | null>(null);
   const [restored, setRestored] = useState<Record<string, number> | null>(null);
+  const [restoreError, setRestoreError] = useState('');
   const [busy, setBusy] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
   const areaRef = useRef<HTMLTextAreaElement>(null);
@@ -67,7 +68,9 @@ export default function ImportDialog(props: { projects: Project[]; onClose: () =
 
   async function runFullRestore() {
     setBusy(true);
+    setRestoreError('');
     try { setRestored((await importBackup(text)).restored); }
+    catch (e) { setRestoreError(e instanceof Error ? e.message : 'Restore failed. Nothing was restored.'); }
     finally { setBusy(false); }
   }
 
@@ -156,6 +159,7 @@ export default function ImportDialog(props: { projects: Project[]; onClose: () =
                 <button className="btn-primary" disabled={busy} onClick={() => void runFullRestore()}>
                   {busy ? 'Restoring...' : 'Restore full backup'}
                 </button>
+                {restoreError && <p role="alert" className="import-warnings">{restoreError}</p>}
                 <p className="import-count" style={{ marginTop: 8 }}>Or import only the tasks:</p>
               </div>
             )}
