@@ -1,9 +1,9 @@
 import { useLiveQuery } from 'dexie-react-hooks';
 import { useState } from 'react';
-import { Check, Flame, ArrowRight, Target, SlidersHorizontal } from 'lucide-react';
+import { Check, Flame, ArrowRight, Target, SlidersHorizontal, Zap } from 'lucide-react';
 import { db } from '../db';
 import { toggleComplete, toggleHabitForDate } from '../repo';
-import { todayTasks, upcomingTasks } from '../logic';
+import { todayTasks, upcomingTasks, suggestedTask } from '../logic';
 import { currentStreak, isScheduledOn, logsByDate } from '../habits';
 import { todayStr, addDays, friendlyDate, weekdayLabel } from '../dates';
 import type { Task } from '../types';
@@ -27,6 +27,7 @@ export default function HomeView(props: { tasks: Task[]; onSelect: (kind: string
   const logs = useLiveQuery(() => db.habitLogs.toArray(), []);
   const goals = useLiveQuery(() => db.goals.orderBy('order').toArray(), []);
   const today = todayStr();
+  const suggestion = suggestedTask(props.tasks, today);
   const now = new Date();
 
   // todayTasks() is active-only; the progress count needs the done ones too.
@@ -71,6 +72,7 @@ export default function HomeView(props: { tasks: Task[]; onSelect: (kind: string
       {customizing && (
         <div className="widget-settings" role="group" aria-label="Show or hide widgets">
           {[
+            ['focus', 'Focus'],
             ['today', 'Today'],
             ['habits', 'Habits'],
             ['week', 'This week'],
@@ -86,6 +88,24 @@ export default function HomeView(props: { tasks: Task[]; onSelect: (kind: string
       )}
 
       <div className="widget-grid">
+        {!hidden.includes('focus') && suggestion && (
+        <div className="widget focus-widget">
+          <div className="widget-head">
+            <h2><Zap size={14} strokeWidth={2} aria-hidden="true" className="focus-icon" /> Focus next</h2>
+            <span className="focus-reason">{suggestion.reason}</span>
+          </div>
+          <div className="focus-task">
+            <button
+              className="checkbox"
+              aria-label={`Mark ${suggestion.task.title} done`}
+              onClick={() => void toggleComplete(suggestion.task)}
+            />
+            <button className="focus-title" onClick={() => props.onOpen(suggestion.task.id)}>
+              {suggestion.task.title}
+            </button>
+          </div>
+        </div>
+        )}
         {!hidden.includes('today') && (
         <div className="widget">
           <div className="widget-head">

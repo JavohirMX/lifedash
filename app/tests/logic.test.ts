@@ -7,6 +7,7 @@ import {
   completeTask,
   sortTasks,
   todayTasks,
+  suggestedTask,
   upcomingTasks,
   backlogTasks,
   subtaskProgress,
@@ -304,5 +305,31 @@ describe('priority sorting', () => {
     const c = task({ id: 'c', priority: 0, order: 0 });
     const d = task({ id: 'd', pinned: true, priority: 3, order: 9 });
     expect(sortTasks([a, b, c, d]).map((t) => t.id)).toEqual(['d', 'b', 'a', 'c']);
+  });
+});
+
+describe('suggestedTask', () => {
+  it('overdue beats due-today regardless of priority', () => {
+    const a = task({ id: 'a', dueDate: '2026-10-20', priority: 1 });
+    const b = task({ id: 'b', dueDate: '2026-10-19', priority: 3 });
+    expect(suggestedTask([a, b], '2026-10-20')?.task.id).toBe('b');
+    expect(suggestedTask([a, b], '2026-10-20')?.reason).toBe('Overdue');
+  });
+  it('priority breaks ties within the same day', () => {
+    const a = task({ id: 'a', dueDate: '2026-10-20', priority: 0 });
+    const b = task({ id: 'b', dueDate: '2026-10-20', priority: 1 });
+    expect(suggestedTask([a, b], '2026-10-20')?.task.id).toBe('b');
+  });
+  it('earlier due time wins among equal priority', () => {
+    const a = task({ id: 'a', dueDate: '2026-10-20', dueTime: '17:00' });
+    const b = task({ id: 'b', dueDate: '2026-10-20', dueTime: '09:00' });
+    expect(suggestedTask([a, b], '2026-10-20')?.task.id).toBe('b');
+  });
+  it('skips blocked tasks and subtasks; null when nothing is due', () => {
+    const blocker = task({ id: 'x', title: 'Blocker', dueDate: '2026-10-20' });
+    const blocked = task({ id: 'y', dueDate: '2026-10-20', blockedBy: ['x'] });
+    const sub = task({ id: 'z', dueDate: '2026-10-20', parentId: 'x' });
+    expect(suggestedTask([blocker, blocked, sub], '2026-10-20')?.task.id).toBe('x');
+    expect(suggestedTask([task({ id: 'f', dueDate: '2026-10-21' })], '2026-10-20')).toBeNull();
   });
 });

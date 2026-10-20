@@ -266,3 +266,23 @@ export function searchJournal(entries: JournalEntry[], query: string): JournalEn
 export function searchGoals(goals: Goal[], query: string): Goal[] {
   return goals.filter((g) => g.status !== 'archived' && textMatch(`${g.title}\n${g.note}`, query));
 }
+
+// The one task most worth doing right now: overdue first, then priority,
+// then anything due today with a time, then earliest due. Blocked and
+// subtasks don't qualify.
+export function suggestedTask(tasks: Task[], today: string): { task: Task; reason: string } | null {
+  const candidates = tasks.filter(
+    (t) => t.status === 'active' && t.parentId === null && activeBlockers(tasks, t).length === 0 && t.dueDate !== null && t.dueDate <= today,
+  );
+  if (candidates.length === 0) return null;
+  const overdue = candidates.filter((t) => t.dueDate! < today);
+  const pool = overdue.length > 0 ? overdue : candidates;
+  pool.sort((a, b) => {
+    if (a.priority !== b.priority) return (a.priority || 4) - (b.priority || 4);
+    if ((a.dueTime ?? '99') !== (b.dueTime ?? '99')) return (a.dueTime ?? '99').localeCompare(b.dueTime ?? '99');
+    return a.createdAt - b.createdAt;
+  });
+  const top = pool[0];
+  const reason = overdue.length > 0 ? 'Overdue' : top.priority === 1 ? 'Top priority' : top.dueTime ? `Due ${top.dueTime}` : 'Due today';
+  return { task: top, reason };
+}
