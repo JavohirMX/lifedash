@@ -12,6 +12,7 @@ import HomeView from './views/HomeView';
 import GoalsView from './views/GoalsView';
 import NotesView from './views/NotesView';
 import JournalView from './views/JournalView';
+import SearchView from './views/SearchView';
 import TaskDetail from './components/TaskDetail';
 import CommandPalette, { useGlobalKeys } from './components/CommandPalette';
 import ImportDialog from './components/ImportDialog';
@@ -160,54 +161,15 @@ export default function App() {
   } else if (selection.kind === 'week') {
     body = <WeekView tasks={tasks} onOpen={setOpenId} />;
   } else if (selection.kind === 'search') {
-    const statusFilter = selection.status ?? 'all';
-    const projectFilter = selection.projectId ?? null;
-    const patchSel = (patch: Partial<Extract<Selection, { kind: 'search' }>>) =>
-      setSelection({ ...selection, ...patch });
-    let results = searchTasks(tasks, selection.query);
-    if (statusFilter === 'open') results = results.filter((t) => t.status === 'active');
-    if (statusFilter === 'done') results = results.filter((t) => t.status === 'done');
-    if (projectFilter) results = results.filter((t) => t.projectId === projectFilter);
-    const queryTags = selection.query.trim().split(/\s+/).filter((tok) => tok.startsWith('#'));
-    const removeTag = (tag: string) =>
-      patchSel({ query: selection.query.split(/\s+/).filter((tok) => tok !== tag).join(' ') });
-    const projectIdsInResults = [...new Set(results.map((t) => t.projectId))];
     body = (
-      <section>
-        <h1>Search <span className="date-sub">{results.length} result{results.length === 1 ? '' : 's'}</span></h1>
-        <div className="filter-chips" role="group" aria-label="Filter results">
-          {(['all', 'open', 'done'] as const).map((st) => (
-            <button
-              key={st}
-              className={`chip${statusFilter === st ? ' active' : ''}`}
-              aria-pressed={statusFilter === st}
-              onClick={() => patchSel({ status: st })}
-            >
-              {st === 'all' ? 'All' : st === 'open' ? 'Open' : 'Done'}
-            </button>
-          ))}
-          {queryTags.map((tag) => (
-            <button key={tag} className="chip tag" onClick={() => removeTag(tag)} title="Remove this tag filter">
-              {tag} <X size={12} strokeWidth={2} aria-hidden="true" />
-            </button>
-          ))}
-          {(projectIdsInResults.length > 1 || projectFilter) && (
-            <select
-              className="chip select"
-              aria-label="Filter by project"
-              value={projectFilter ?? ''}
-              onChange={(e) => patchSel({ projectId: e.target.value || null })}
-            >
-              <option value="">Every project</option>
-              {projectIdsInResults.map((pid) => (
-                <option key={pid} value={pid}>{projects.find((p) => p.id === pid)?.name ?? pid}</option>
-              ))}
-            </select>
-          )}
-        </div>
-        {results.length === 0 && <p className="empty">No tasks match. Tip: #tag filters by tag.</p>}
-        <TaskList tasks={results} allTasks={tasks} showDate onOpen={setOpenId} />
-      </section>
+      <SearchView
+        tasks={tasks}
+        projects={projects}
+        selection={selection}
+        onPatch={(patch) => setSelection({ ...selection, ...patch })}
+        onOpenTask={setOpenId}
+        onSelect={setSelection}
+      />
     );
   } else if (selection.kind === 'project') {
     const project = projects.find((p) => p.id === selection.id);

@@ -10,7 +10,7 @@ import { cycleTheme, getTheme, type Theme } from '../theme';
 export type Selection =
   | { kind: 'home' | 'today' | 'upcoming' | 'backlog' | 'completed' | 'habits' | 'planner' | 'week' | 'goals' | 'notes' | 'journal' }
   | { kind: 'project'; id: string }
-  | { kind: 'search'; query: string; status?: 'all' | 'open' | 'done'; projectId?: string | null };
+  | { kind: 'search'; query: string; status?: 'all' | 'open' | 'done'; projectId?: string | null; scope?: 'all' | 'tasks' | 'notes' | 'journal' | 'goals' };
 
 const COLORS = ['#0f766e', '#2563eb', '#b45309', '#be123c', '#4d7c0f', '#0e7490'];
 

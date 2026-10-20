@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import {
+  searchNotes, searchJournal, searchGoals,
   makeRecurrence,
   nextOccurrenceDate,
   describeRecurrence,
@@ -10,7 +11,7 @@ import {
   backlogTasks,
   subtaskProgress,
 } from '../src/logic';
-import type { Task } from '../src/types';
+import type { Task, Note, JournalEntry, Goal } from '../src/types';
 
 function task(partial: Partial<Task>): Task {
   return {
@@ -258,5 +259,39 @@ describe('ordering', () => {
     expect(reorderedPosition(list, 'a', 'a', true)).toBeNull();
     // target not in list
     expect(reorderedPosition(list, 'a', 'zzz', true)).toBeNull();
+  });
+});
+
+describe('global search helpers', () => {
+  const mkNote = (id: string, title: string, note: string, updatedAt = 1): Note => ({
+    id, title, note, noteDoc: null, pinned: false, createdAt: 0, updatedAt,
+  });
+  const mkEntry = (date: string, note: string): JournalEntry => ({
+    id: date, date, note, noteDoc: null, mood: null, createdAt: 0, updatedAt: 0,
+  });
+  const mkGoal = (id: string, title: string, status: Goal['status'] = 'active'): Goal => ({
+    id, title, note: '', targetDate: null, status, order: 0, createdAt: 0, updatedAt: 0,
+  });
+
+  it('searchNotes matches title and body, newest first', () => {
+    const notes = [mkNote('a', 'Trip ideas', 'Lisbon in spring', 1), mkNote('b', 'Other', 'nothing', 3), mkNote('c', 'Spring cleaning', 'garage', 2)];
+    const r = searchNotes(notes, 'spring');
+    expect(r.map((n) => n.id)).toEqual(['c', 'a']);
+  });
+
+  it('searchNotes requires every token', () => {
+    const notes = [mkNote('a', 'Trip ideas', 'Lisbon in spring')];
+    expect(searchNotes(notes, 'lisbon spring')).toHaveLength(1);
+    expect(searchNotes(notes, 'lisbon winter')).toHaveLength(0);
+  });
+
+  it('searchJournal matches body, latest date first', () => {
+    const entries = [mkEntry('2026-10-18', 'focused day'), mkEntry('2026-10-20', 'focused again'), mkEntry('2026-10-19', 'rest')];
+    expect(searchJournal(entries, 'focused').map((e) => e.date)).toEqual(['2026-10-20', '2026-10-18']);
+  });
+
+  it('searchGoals skips archived', () => {
+    const goals = [mkGoal('a', 'Run a 10k'), mkGoal('b', 'Run a marathon', 'archived')];
+    expect(searchGoals(goals, 'run').map((g) => g.id)).toEqual(['a']);
   });
 });

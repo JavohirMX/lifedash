@@ -1,5 +1,5 @@
 import { RRule, Frequency } from 'rrule';
-import type { Task } from './types';
+import type { Task, Note, JournalEntry, Goal } from './types';
 import { utcNoon, fromUtcNoon, parseLocalDate } from './dates';
 
 export type RecurrenceKind = 'daily' | 'weekly' | 'monthly' | 'ndays';
@@ -240,4 +240,27 @@ export function reorderedPosition(list: Task[], taskId: string, targetId: string
   if (tIdx < 0) return null;
   const insertIdx = tIdx + (after ? 1 : 0);
   return orderBetween(without[insertIdx - 1]?.order, without[insertIdx]?.order);
+}
+
+function textMatch(haystack: string, query: string): boolean {
+  const tokens = query.trim().toLowerCase().split(/\s+/).filter((t) => !t.startsWith('#'));
+  if (tokens.length === 0) return false;
+  const hay = haystack.toLowerCase();
+  return tokens.every((tok) => hay.includes(tok));
+}
+
+export function searchNotes(notes: Note[], query: string): Note[] {
+  return notes
+    .filter((n) => textMatch(`${n.title}\n${n.note}`, query))
+    .sort((a, b) => b.updatedAt - a.updatedAt);
+}
+
+export function searchJournal(entries: JournalEntry[], query: string): JournalEntry[] {
+  return entries
+    .filter((e) => textMatch(e.note, query))
+    .sort((a, b) => (a.date < b.date ? 1 : -1));
+}
+
+export function searchGoals(goals: Goal[], query: string): Goal[] {
+  return goals.filter((g) => g.status !== 'archived' && textMatch(`${g.title}\n${g.note}`, query));
 }

@@ -991,3 +991,12 @@ h2 { font-size: var(--fs-section); font-weight: 600; letter-spacing: -0.01em; ma
 .mood-btn.active { background: var(--accent); border-color: var(--accent); color: #fff; }
 .journal-editor { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-card); padding: 14px; max-width: 720px; min-height: 260px; }
 .journal-editor + .empty { margin-top: 12px; }
+
+/* ---------- Global search ---------- */
+.search-group { font-size: var(--fs-section); margin: 18px 0 8px; }
+.search-cards { display: flex; flex-direction: column; gap: 6px; max-width: 560px; }
+.search-card { text-align: left; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-card); padding: 10px 12px; display: flex; flex-direction: column; gap: 3px; cursor: pointer; font-family: var(--font); transition: border-color 160ms ease; }
+.search-card:hover { border-color: var(--accent); }
+.search-card-title { display: flex; align-items: center; gap: 6px; font-weight: 600; font-size: var(--fs-body); color: var(--text); }
+.search-card-title svg { color: var(--accent); flex: none; }
+.search-card-sub { font-size: var(--fs-small); color: var(--muted); }
