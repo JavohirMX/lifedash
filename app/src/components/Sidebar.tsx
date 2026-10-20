@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import {
+import { Bell, BellRing,
   Sun, CalendarDays, Archive, Clock, CalendarRange, Repeat, CheckCircle2,
   Search, Plus, Menu, X, Download, Upload, Moon, Monitor, Zap, Cloud, House, Target, StickyNote, BookOpen,
 } from 'lucide-react';
@@ -57,6 +57,8 @@ export default function Sidebar(props: {
   onImport: () => void;
   onAutomation: () => void;
   onSync: () => void;
+  reminders: 'on' | 'off' | 'blocked' | 'unsupported';
+  onToggleReminders: () => void;
 }) {
   const [adding, setAdding] = useState(false);
   const [name, setName] = useState('');
@@ -237,6 +239,29 @@ export default function Sidebar(props: {
     </>
   );
 
+  const remindersBtn = (
+    <button
+      className="nav foot-action"
+      title={
+        props.reminders === 'on'
+          ? 'Reminders on: tasks with a time notify while Lifedash is open (click to turn off)'
+          : props.reminders === 'blocked'
+            ? 'Notifications are blocked in browser settings'
+            : props.reminders === 'unsupported'
+              ? 'This browser does not support notifications'
+              : 'Reminders off: tasks with a time can notify while Lifedash is open (click to turn on)'
+      }
+      aria-pressed={props.reminders === 'on'}
+      disabled={props.reminders === 'blocked' || props.reminders === 'unsupported'}
+      onClick={props.onToggleReminders}
+    >
+      {props.reminders === 'on'
+        ? <BellRing size={16} strokeWidth={1.75} aria-hidden="true" />
+        : <Bell size={16} strokeWidth={1.75} aria-hidden="true" />}
+      <span>Reminders: {props.reminders}</span>
+    </button>
+  );
+
   const themeBtn = (
     <button
       className="nav foot-action"
@@ -255,7 +280,7 @@ export default function Sidebar(props: {
         {searchBox}
         {MAIN_ITEMS.map(({ kind, label, Icon }) => item(kind, label, Icon))}
         {projectsBlock}
-        <div className="sidebar-foot">{importBtn}{themeBtn}{exportBtn}{restoreBtn}</div>
+        <div className="sidebar-foot">{importBtn}{remindersBtn}{themeBtn}{exportBtn}{restoreBtn}</div>
       </nav>
 
       <div className="mobile-topbar">
@@ -294,7 +319,7 @@ export default function Sidebar(props: {
           {searchBox}
           {MAIN_ITEMS.map(({ kind, label, Icon }) => item(kind, label, Icon, () => setSheet(false)))}
           {projectsBlock}
-          <div className="sidebar-foot">{importBtn}{themeBtn}{exportBtn}{restoreBtn}</div>
+          <div className="sidebar-foot">{importBtn}{remindersBtn}{themeBtn}{exportBtn}{restoreBtn}</div>
         </div>
       )}
     </>

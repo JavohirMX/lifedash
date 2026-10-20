@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { ArrowRight, Pencil, X } from 'lucide-react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db, INBOX_ID, ensureSeed } from './db';
@@ -21,6 +21,7 @@ import AutomationDialog from './components/AutomationDialog';
 import SyncDialog from './components/SyncDialog';
 import { cycleTheme } from './theme';
 import { loadRules, saveRules, type AutomationRules } from './automation';
+import { remindersEnabled, setRemindersEnabled, startReminders } from './reminders';
 import { applyRollover } from './repo';
 import { startAutoSync } from './sync';
 import {
@@ -33,6 +34,7 @@ import {
 } from './logic';
 import { todayStr, friendlyDate, weekdayLabel } from './dates';
 import { updateTask, moveTask, updateProject, deleteProject } from './repo';
+import type { Task } from './types';
 
 export default function App() {
   const tasks = useLiveQuery(() => db.tasks.toArray(), []);
@@ -49,6 +51,8 @@ export default function App() {
   const [automationOpen, setAutomationOpen] = useState(false);
   const [syncOpen, setSyncOpen] = useState(false);
   const [rules, setRules] = useState<AutomationRules>(loadRules);
+  const [remindOn, setRemindOn] = useState(remindersEnabled);
+  const tasksRef = useRef<Task[]>([]);
   const quickAddFocus = () => document.querySelector<HTMLInputElement>('.quick-add input')?.focus();
   useGlobalKeys({
     onPalette: () => setPaletteOpen((o) => !o),
@@ -61,6 +65,21 @@ export default function App() {
     startAutoSync();
     if (loadRules().rollover) void applyRollover(todayStr());
   }, []);
+
+  tasksRef.current = tasks ?? [];
+  useEffect(() => {
+    if (!remindOn || typeof Notification === 'undefined' || Notification.permission !== 'granted') return;
+    return startReminders(
+      () => tasksRef.current,
+      (t) => {
+        try {
+          new Notification('Due now', { body: t.title });
+        } catch {
+          /* notification construction can fail on some platforms */
+        }
+      },
+    );
+  }, [remindOn]);
 
   const today = todayStr();
 
@@ -265,6 +284,17 @@ export default function App() {
   return (
     <div className="app">
       <Sidebar projects={projects} selection={selection} onSelect={setSelection} counts={counts} activeByProject={activeByProject}
+        reminders={typeof Notification === 'undefined' ? 'unsupported' : Notification.permission === 'denied' ? 'blocked' : remindOn ? 'on' : 'off'}
+        onToggleReminders={() => {
+          if (remindOn) { setRemindersEnabled(false); setRemindOn(false); return; }
+          if (typeof Notification === 'undefined') return;
+          void (Notification.permission === 'granted'
+            ? Promise.resolve('granted' as NotificationPermission)
+            : Notification.requestPermission()
+          ).then((perm) => {
+            if (perm === 'granted') { setRemindersEnabled(true); setRemindOn(true); }
+          });
+        }}
         onScheduleToday={(id) => void updateTask(id, { dueDate: today })}
         onImport={() => setImportOpen(true)} onAutomation={() => setAutomationOpen(true)} onSync={() => setSyncOpen(true)} />
       <main>
