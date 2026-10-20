@@ -17,6 +17,7 @@ import SearchView from './views/SearchView';
 import CalendarView from './views/CalendarView';
 import TaskDetail from './components/TaskDetail';
 import CommandPalette, { useGlobalKeys } from './components/CommandPalette';
+import ShortcutsDialog from './components/ShortcutsDialog';
 import ImportDialog from './components/ImportDialog';
 import AutomationDialog from './components/AutomationDialog';
 import SyncDialog from './components/SyncDialog';
@@ -56,6 +57,7 @@ export default function App() {
   const [syncOpen, setSyncOpen] = useState(false);
   const [aiOpen, setAiOpen] = useState(false);
   const [appearanceOpen, setAppearanceOpen] = useState(false);
+  const [shortcutsOpen, setShortcutsOpen] = useState(false);
   const [rules, setRules] = useState<AutomationRules>(loadRules);
   const [remindOn, setRemindOn] = useState(remindersEnabled);
   const tasksRef = useRef<Task[]>([]);
@@ -64,6 +66,7 @@ export default function App() {
     onPalette: () => setPaletteOpen((o) => !o),
     onNewTask: quickAddFocus,
     onSelect: setSelection,
+    onHelp: () => setShortcutsOpen((o) => !o),
   });
 
   useEffect(() => {
@@ -325,6 +328,7 @@ export default function App() {
       {aiOpen && <AssistantDialog tasks={tasks} onClose={() => setAiOpen(false)} />}
       {syncOpen && <SyncDialog onClose={() => setSyncOpen(false)} />}
       {appearanceOpen && <AppearanceDialog onClose={() => setAppearanceOpen(false)} />}
+      {shortcutsOpen && <ShortcutsDialog onClose={() => setShortcutsOpen(false)} />}
       <CommandPalette
         open={paletteOpen}
         tasks={tasks}
@@ -336,6 +340,7 @@ export default function App() {
         onNewTask={quickAddFocus}
         onToggleTheme={() => cycleTheme()}
         onAppearance={() => setAppearanceOpen(true)}
+        onShortcuts={() => setShortcutsOpen(true)}
       />
     </div>
   );

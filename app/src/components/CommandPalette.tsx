@@ -25,6 +25,7 @@ export default function CommandPalette(props: {
   onNewTask: () => void;
   onToggleTheme: () => void;
   onAppearance: () => void;
+  onShortcuts: () => void;
 }) {
   const [query, setQuery] = useState('');
   const [index, setIndex] = useState(0);
@@ -58,6 +59,7 @@ export default function CommandPalette(props: {
       nav('journal', 'Journal', BookOpen),
       nav('completed', 'Completed', CheckCircle2),
       { id: 'appearance', label: 'Appearance: choose style', Icon: Moon, run: () => { props.onAppearance(); props.onClose(); } },
+      { id: 'shortcuts', label: 'Keyboard shortcuts', hint: '?', Icon: BookOpen, run: () => { props.onShortcuts(); props.onClose(); } },
       { id: 'theme', label: 'Toggle light/dark', Icon: Moon, run: () => { props.onToggleTheme(); props.onClose(); } },
     ];
     const q = query.trim().toLowerCase();
@@ -141,6 +143,7 @@ export function useGlobalKeys(handlers: {
   onPalette: () => void;
   onNewTask: () => void;
   onSelect: (s: Selection) => void;
+  onHelp?: () => void;
 }) {
   useEffect(() => {
     const views: Record<string, Selection['kind']> = {
@@ -155,6 +158,7 @@ export function useGlobalKeys(handlers: {
         return;
       }
       if (typing) return;
+      if (e.key === '?') { e.preventDefault(); handlers.onHelp?.(); return; }
       if (e.key === 'n') { e.preventDefault(); handlers.onNewTask(); return; }
       const kind = views[e.key.toLowerCase()];
       if (kind && !e.ctrlKey && !e.metaKey && !e.altKey) handlers.onSelect({ kind } as Selection);
