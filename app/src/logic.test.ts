@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { parseQuickAdd, groupCompletedByDay, renamedTags } from './logic';
+import { parseQuickAdd, groupCompletedByDay, renamedTags, completeTask, describeRecurrence } from './logic';
 import type { Task } from './types';
 
 describe('parseQuickAdd', () => {
@@ -63,5 +63,90 @@ describe('renamedTags', () => {
   });
   it('leaves other tags alone', () => {
     expect(renamedTags(['a', 'b'], 'x', 'y')).toEqual(['a', 'b']);
+  });
+});
+
+describe('completeTask recurrence spawning', () => {
+  const base: Parameters<typeof completeTask>[0] = {
+    id: 't1',
+    title: 'Water plants',
+    note: '',
+    noteDoc: null,
+    projectId: 'inbox',
+    parentId: null,
+    goalId: null,
+    noteId: null,
+    status: 'active',
+    pinned: false,
+    priority: 1,
+    dueDate: '2026-10-22',
+    dueTime: null,
+    recurrence: 'DTSTART:20261022T120000Z\nRRULE:FREQ=DAILY;INTERVAL=1',
+    blockedBy: [],
+    tags: ['home'],
+    order: 3,
+    seriesId: null,
+    createdAt: 1,
+    updatedAt: 1,
+    completedAt: null,
+  };
+
+  it('marks a non-recurring task done without spawning', () => {
+    const { updates, spawned } = completeTask({ ...base, recurrence: null }, '2026-10-21', 99);
+    expect(updates.status).toBe('done');
+    expect(updates.completedAt).toBe(99);
+    expect(spawned).toBeNull();
+  });
+
+  it('does not spawn when the task has no due date', () => {
+    const { spawned } = completeTask({ ...base, dueDate: null }, '2026-10-21', 99);
+    expect(spawned).toBeNull();
+  });
+
+  it('spawns the next daily occurrence with the original id as seriesId', () => {
+    const { spawned } = completeTask(base, '2026-10-22', 99);
+    expect(spawned).not.toBeNull();
+    expect(spawned!.dueDate).toBe('2026-10-23');
+    expect(spawned!.seriesId).toBe('t1');
+    expect(spawned!.recurrence).toBe(base.recurrence);
+    expect(spawned!.tags).toEqual(['home']);
+    expect(spawned!.projectId).toBe('inbox');
+    expect(spawned!.status).toBe('active');
+    expect(spawned!.completedAt).toBeNull();
+  });
+
+  it('keeps an existing seriesId through the chain', () => {
+    const { spawned } = completeTask({ ...base, seriesId: 'root' }, '2026-10-22', 99);
+    expect(spawned!.seriesId).toBe('root');
+  });
+
+  it('completing early advances from the scheduled date, not from today', () => {
+    const { spawned } = completeTask(base, '2026-10-21', 99);
+    expect(spawned!.dueDate).toBe('2026-10-23');
+  });
+
+  it('completing late jumps to the first occurrence after today', () => {
+    const { spawned } = completeTask(base, '2026-10-25', 99);
+    expect(spawned!.dueDate).toBe('2026-10-26');
+  });
+
+  it('a malformed rule completes without spawning instead of throwing', () => {
+    // Restored/synced rows can carry a rule string RRule cannot parse.
+    const { updates, spawned } = completeTask({ ...base, recurrence: 'GARBAGE-NOT-A-RULE' }, '2026-10-22', 99);
+    expect(updates.status).toBe('done');
+    expect(spawned).toBeNull();
+  });
+});
+
+describe('describeRecurrence', () => {
+  it('labels the standard rules', () => {
+    expect(describeRecurrence('DTSTART:20261022T120000Z\nRRULE:FREQ=DAILY;INTERVAL=1')).toBe('Daily');
+    expect(describeRecurrence('DTSTART:20261022T120000Z\nRRULE:FREQ=DAILY;INTERVAL=3')).toBe('Every 3 days');
+    expect(describeRecurrence('DTSTART:20261022T120000Z\nRRULE:FREQ=WEEKLY;INTERVAL=1;BYDAY=TH')).toBe('Weekly');
+  });
+
+  it('returns empty for no rule and a fallback for a malformed one', () => {
+    expect(describeRecurrence(null)).toBe('');
+    expect(describeRecurrence('GARBAGE-NOT-A-RULE')).toBe('Repeats');
   });
 });

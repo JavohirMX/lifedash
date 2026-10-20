@@ -32,7 +32,13 @@ export function makeRecurrence(kind: RecurrenceKind, dueDate: string, intervalDa
 
 export function describeRecurrence(rule: string | null): string {
   if (!rule) return '';
-  const o = RRule.fromString(rule).origOptions;
+  let o: { interval?: number; freq?: Frequency };
+  try {
+    o = RRule.fromString(rule).origOptions;
+  } catch {
+    // Keep list rendering alive on a malformed rule (restored/synced row).
+    return 'Repeats';
+  }
   const n = o.interval ?? 1;
   switch (o.freq) {
     case Frequency.DAILY:
@@ -50,7 +56,13 @@ export function describeRecurrence(rule: string | null): string {
 // Skipping missed occurrences is intentional: completing an overdue daily task
 // today schedules it for tomorrow, not for a pile of past days.
 export function nextOccurrenceDate(rule: string, dueDate: string, today: string): string | null {
-  const rr = RRule.fromString(rule);
+  let rr: RRule;
+  try {
+    rr = RRule.fromString(rule);
+  } catch {
+    // A malformed rule (restored backup, synced row) must not block completion.
+    return null;
+  }
   const base = dueDate > today ? dueDate : today;
   const next = rr.after(utcNoon(base), false);
   return next ? fromUtcNoon(next) : null;
