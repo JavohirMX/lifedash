@@ -1,11 +1,12 @@
 import Dexie, { type Table } from 'dexie';
-import type { Task, Project } from './types';
+import type { Task, Project, Attachment } from './types';
 
 export const INBOX_ID = 'inbox';
 
 export class LifeDashDB extends Dexie {
   tasks!: Table<Task, string>;
   projects!: Table<Project, string>;
+  attachments!: Table<Attachment, string>;
 
   constructor() {
     super('lifedash');
@@ -25,6 +26,20 @@ export class LifeDashDB extends Dexie {
           .modify((t: { blockedBy?: string[]; tags?: string[] }) => {
             t.blockedBy ??= [];
             t.tags ??= [];
+          }),
+      );
+    this.version(3)
+      .stores({
+        tasks: 'id, status, projectId, parentId, dueDate, seriesId',
+        projects: 'id, order',
+        attachments: 'id, taskId',
+      })
+      .upgrade((tx) =>
+        tx
+          .table('tasks')
+          .toCollection()
+          .modify((t: { noteDoc?: unknown }) => {
+            t.noteDoc ??= null;
           }),
       );
   }

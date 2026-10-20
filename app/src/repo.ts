@@ -19,6 +19,7 @@ export async function addTask(input: {
     id: newId(),
     title: input.title.trim(),
     note: '',
+    noteDoc: null,
     projectId: input.projectId,
     parentId: input.parentId ?? null,
     status: 'active',
@@ -63,9 +64,11 @@ export async function togglePin(task: Task): Promise<void> {
 }
 
 export async function deleteTask(task: Task): Promise<void> {
-  await db.transaction('rw', db.tasks, async () => {
+  await db.transaction('rw', db.tasks, db.attachments, async () => {
+    const childIds = (await db.tasks.where('parentId').equals(task.id).primaryKeys()) as string[];
     await db.tasks.where('parentId').equals(task.id).delete();
     await db.tasks.delete(task.id);
+    await db.attachments.where('taskId').anyOf([task.id, ...childIds]).delete();
   });
 }
 
@@ -87,8 +90,30 @@ export async function deleteProject(project: Project): Promise<void> {
 }
 
 export async function exportJson(): Promise<string> {
-  const [tasks, projects] = await Promise.all([db.tasks.toArray(), db.projects.toArray()]);
-  return JSON.stringify({ exportedAt: new Date().toISOString(), projects, tasks }, null, 2);
+  const [tasks, projects, attachments] = await Promise.all([
+    db.tasks.toArray(),
+    db.projects.toArray(),
+    db.attachments.toArray(),
+  ]);
+  // Attachment binaries stay on-device; metadata is exported for reference.
+  const attachmentMeta = attachments.map(({ blob: _blob, ...meta }) => meta);
+  return JSON.stringify({ exportedAt: new Date().toISOString(), projects, tasks, attachments: attachmentMeta }, null, 2);
+}
+
+export async function addAttachment(taskId: string, file: File): Promise<void> {
+  await db.attachments.add({
+    id: newId(),
+    taskId,
+    name: file.name,
+    mime: file.type || 'application/octet-stream',
+    byteSize: file.size,
+    blob: file,
+    createdAt: Date.now(),
+  });
+}
+
+export async function deleteAttachment(id: string): Promise<void> {
+  await db.attachments.delete(id);
 }
 
 export async function addBlocker(taskId: string, blockerId: string): Promise<{ ok: boolean; reason?: string }> {

@@ -319,3 +319,50 @@ h2 { font-size: 1.05rem; margin: 1.5rem 0 0.5rem; }
 @media (max-width: 720px) {
   .search-box { width: 140px; margin: 0 0.3rem; }
 }
+
+/* Phase 2b: rich text + attachments */
+.note-editor {
+  background: var(--surface-2);
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 8px;
+}
+.ed-toolbar {
+  display: flex;
+  gap: 2px;
+  padding: 4px;
+  border-bottom: 1px solid rgba(255,255,255,0.06);
+  flex-wrap: wrap;
+}
+.ed-btn {
+  background: transparent;
+  border: 0;
+  color: var(--muted);
+  border-radius: 6px;
+  padding: 0.25rem 0.5rem;
+  font-size: 0.8rem;
+  cursor: pointer;
+}
+.ed-btn:hover { background: rgba(255,255,255,0.06); color: var(--text); }
+.ed-btn.active { background: var(--primary); color: white; }
+.ed-content .ProseMirror {
+  min-height: 90px;
+  padding: 0.6rem;
+  outline: none;
+  font-size: 0.95rem;
+  line-height: 1.45;
+}
+.ed-content .ProseMirror p { margin: 0 0 0.4rem; }
+.ed-content .ProseMirror ul[data-type="taskList"] { list-style: none; padding-left: 0.2rem; }
+.ed-content .ProseMirror ul[data-type="taskList"] li { display: flex; gap: 0.45rem; align-items: flex-start; }
+.ed-content .ProseMirror ul[data-type="taskList"] li > label { margin-top: 0.15rem; }
+.ed-content .ProseMirror a { color: var(--primary); }
+.att-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.3rem 0;
+}
+.att-thumb { width: 40px; height: 40px; object-fit: cover; border-radius: 6px; }
+.att-icon { font-size: 1.1rem; }
+.att-name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 0.85rem; }
+.att-size { color: var(--dim); font-size: 0.75rem; }

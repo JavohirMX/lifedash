@@ -71,6 +71,7 @@ export function completeTask(task: Task, today: string, now: number): Completion
     spawned: {
       title: task.title,
       note: task.note,
+      noteDoc: task.noteDoc ?? null,
       projectId: task.projectId,
       parentId: task.parentId,
       status: 'active',
@@ -145,7 +146,7 @@ export function subtaskProgress(tasks: Task[], parentId: string): { done: number
 // --- Dependencies ---
 
 export function normalizeTask(t: Task): Task {
-  return { ...t, blockedBy: t.blockedBy ?? [], tags: t.tags ?? [] };
+  return { ...t, blockedBy: t.blockedBy ?? [], tags: t.tags ?? [], noteDoc: t.noteDoc ?? null };
 }
 
 export function blockersOf(tasks: Task[], t: Task): Task[] {

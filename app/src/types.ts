@@ -3,7 +3,8 @@ export type TaskStatus = 'active' | 'done' | 'archived';
 export interface Task {
   id: string;
   title: string;
-  note: string;
+  note: string; // plain text mirror of noteDoc, used by search
+  noteDoc: unknown | null; // ProseMirror JSON document; null = plain/empty
   projectId: string;
   parentId: string | null;
   status: TaskStatus;
@@ -17,6 +18,16 @@ export interface Task {
   createdAt: number;
   updatedAt: number;
   completedAt: number | null;
+}
+
+export interface Attachment {
+  id: string;
+  taskId: string;
+  name: string;
+  mime: string;
+  byteSize: number;
+  blob: Blob;
+  createdAt: number;
 }
 
 export interface Project {

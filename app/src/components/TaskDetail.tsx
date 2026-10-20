@@ -1,4 +1,6 @@
 import { useState } from 'react';
+import NoteEditor from './NoteEditor';
+import Attachments from './Attachments';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db, INBOX_ID } from '../db';
 import { addTask, deleteTask, toggleComplete, updateTask, addBlocker, removeBlocker, addTag, removeTag } from '../repo';
@@ -57,13 +59,7 @@ export default function TaskDetail(props: { taskId: string; onClose: () => void 
         value={task.title}
         onChange={(e) => void updateTask(task.id, { title: e.target.value })}
       />
-      <textarea
-        className="detail-note"
-        placeholder="Notes (plain text for now - rich text lands in Phase 2)"
-        value={task.note}
-        rows={5}
-        onChange={(e) => void updateTask(task.id, { note: e.target.value })}
-      />
+      <NoteEditor key={task.id} task={task} />
       <label className="field">
         <span>Due date</span>
         <input
@@ -207,6 +203,8 @@ export default function TaskDetail(props: { taskId: string; onClose: () => void 
           />
         </div>
       </div>
+
+      <Attachments taskId={task.id} />
 
       <button
         className="danger"
