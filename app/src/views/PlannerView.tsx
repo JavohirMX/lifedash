@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { Clock } from 'lucide-react';
 import { updateTask } from '../repo';
 import TaskRow from '../components/TaskRow';
 import { TASK_DRAG_MIME } from '../components/TaskList';
@@ -15,6 +16,7 @@ export default function PlannerView(props: { tasks: Task[]; onOpen: (id: string)
   const today = todayStr();
   const nowHour = new Date().getHours();
   const [overHour, setOverHour] = useState<number | 'anytime' | null>(null);
+  const [pickerId, setPickerId] = useState<string | null>(null);
 
   const dueToday = props.tasks.filter((t) => t.status === 'active' && t.dueDate === today && t.parentId === null);
   const anytime = dueToday.filter((t) => !t.dueTime);
@@ -28,6 +30,61 @@ export default function PlannerView(props: { tasks: Task[]; onOpen: (id: string)
 
   const hours: number[] = [];
   for (let h = START_HOUR; h <= END_HOUR; h++) hours.push(h);
+
+  // One planner task: draggable on desktop, plus a clock button that opens an
+  // inline time picker so touch users can schedule without drag-and-drop.
+  function PlanTask({ t }: { t: Task }) {
+    return (
+      <div className="plan-item">
+        <div className="plan-row">
+          <div
+            className="plan-drag"
+            draggable
+            onDragStart={(e) => {
+              e.dataTransfer.setData(TASK_DRAG_MIME, t.id);
+              e.dataTransfer.effectAllowed = 'move';
+            }}
+          >
+            <TaskRow task={t} allTasks={props.tasks} onOpen={props.onOpen} />
+          </div>
+          <button
+            className="icon-btn"
+            aria-label={`Set time for ${t.title}`}
+            title="Set time"
+            onClick={() => setPickerId((cur) => (cur === t.id ? null : t.id))}
+          >
+            <Clock size={14} strokeWidth={1.75} aria-hidden="true" />
+          </button>
+        </div>
+        {pickerId === t.id && (
+          <div className="time-pop">
+            <input
+              type="time"
+              aria-label="Task time"
+              value={t.dueTime ?? ''}
+              onChange={(e) => {
+                if (!e.target.value) return;
+                void updateTask(t.id, { dueDate: today, dueTime: e.target.value });
+                setPickerId(null);
+              }}
+            />
+            {t.dueTime && (
+              <button
+                className="mini"
+                onClick={() => {
+                  void updateTask(t.id, { dueTime: null });
+                  setPickerId(null);
+                }}
+              >
+                Anytime
+              </button>
+            )}
+            <button className="mini" onClick={() => setPickerId(null)}>Close</button>
+          </div>
+        )}
+      </div>
+    );
+  }
 
   function dropProps(hour: number | 'anytime') {
     return {
@@ -59,36 +116,14 @@ export default function PlannerView(props: { tasks: Task[]; onOpen: (id: string)
       <div className={`anytime ${overHour === 'anytime' ? 'drop-hot' : ''}`} {...dropProps('anytime')}>
         <h2>Anytime</h2>
         {anytime.length === 0 && <p className="empty">No unscheduled tasks for today.</p>}
-        {anytime.map((t) => (
-          <div
-            key={t.id}
-            draggable
-            onDragStart={(e) => {
-              e.dataTransfer.setData(TASK_DRAG_MIME, t.id);
-              e.dataTransfer.effectAllowed = 'move';
-            }}
-          >
-            <TaskRow task={t} allTasks={props.tasks} onOpen={props.onOpen} />
-          </div>
-        ))}
+        {anytime.map((t) => <PlanTask key={t.id} t={t} />)}
       </div>
       <div className="timeline">
         {hours.map((h) => (
           <div key={h} className={`hour-row ${overHour === h ? 'drop-hot' : ''} ${h === nowHour ? 'now' : ''}`} {...dropProps(h)}>
             <span className="hour-label">{String(h).padStart(2, '0')}:00</span>
             <div className="hour-body">
-              {(byHour.get(h) ?? []).map((t) => (
-                <div
-                  key={t.id}
-                  draggable
-                  onDragStart={(e) => {
-                    e.dataTransfer.setData(TASK_DRAG_MIME, t.id);
-                    e.dataTransfer.effectAllowed = 'move';
-                  }}
-                >
-                  <TaskRow task={t} allTasks={props.tasks} onOpen={props.onOpen} />
-                </div>
-              ))}
+              {(byHour.get(h) ?? []).map((t) => <PlanTask key={t.id} t={t} />)}
             </div>
           </div>
         ))}

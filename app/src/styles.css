@@ -1103,3 +1103,22 @@ button.cal-more:hover { color: var(--accent); }
 .archived-list { display: flex; flex-direction: column; gap: 4px; margin-top: 6px; }
 .archived-row { display: flex; align-items: center; gap: 8px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-control); padding: 8px 12px; opacity: 0.8; }
 .archived-row .mini { margin-left: auto; }
+
+/* Planner: tap-to-schedule rows */
+.plan-row { display: flex; align-items: center; gap: 2px; }
+.plan-row .plan-drag { flex: 1; min-width: 0; }
+.plan-row .icon-btn { flex-shrink: 0; opacity: 0.55; }
+.plan-row:hover .icon-btn, .plan-row .icon-btn:focus-visible { opacity: 1; }
+.time-pop { display: flex; align-items: center; gap: 8px; padding: 6px 8px 10px 34px; }
+.time-pop input[type="time"] {
+  font: inherit;
+  padding: 6px 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--text);
+}
+@media (max-width: 700px) {
+  .plan-row .icon-btn { opacity: 0.8; } /* always visible on touch */
+  .time-pop { padding-left: 8px; }
+}
