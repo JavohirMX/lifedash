@@ -36,7 +36,7 @@ export async function addTask(input: {
     priority: input.priority ?? 0,
     dueDate: input.dueDate ?? null,
     dueTime: input.dueTime ?? null,
-    recurrence: null,
+    recurrence: input.recurrence ?? null,
     blockedBy: [],
     tags: input.tags ?? [],
     order: await nextOrder(input.projectId),
