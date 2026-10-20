@@ -807,6 +807,8 @@ h2 { font-size: var(--fs-section); font-weight: 600; letter-spacing: -0.01em; ma
 .import-panel {
   width: 100%;
   max-width: 560px;
+  max-height: calc(100dvh - 16vh);
+  overflow-y: auto;
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: 12px;
@@ -878,6 +880,7 @@ h2 { font-size: var(--fs-section); font-weight: 600; letter-spacing: -0.01em; ma
 }
 
 /* ---------- Sync dialog ---------- */
+.sync-panel form { display: flex; flex-direction: column; gap: 14px; }
 .sync-actions { display: flex; gap: 10px; }
 .sync-status { margin: 0; font-size: var(--fs-small); color: var(--muted); }
 .sync-panel .field input {
