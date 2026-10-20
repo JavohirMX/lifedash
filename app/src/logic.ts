@@ -286,3 +286,26 @@ export function suggestedTask(tasks: Task[], today: string): { task: Task; reaso
   const reason = overdue.length > 0 ? 'Overdue' : top.priority === 1 ? 'Top priority' : top.dueTime ? `Due ${top.dueTime}` : 'Due today';
   return { task: top, reason };
 }
+
+// Unchecked checklist items in a ProseMirror doc, as plain-text titles.
+export function extractChecklistItems(doc: unknown): string[] {
+  const out: string[] = [];
+  const walk = (node: unknown): void => {
+    if (node === null || typeof node !== 'object') return;
+    const n = node as { type?: string; attrs?: { checked?: boolean }; content?: unknown[]; text?: string };
+    if (n.type === 'taskItem' && n.attrs?.checked !== true) {
+      const text = (n.content ?? [])
+        .map((c) => {
+          const cn = c as { content?: { text?: string }[]; text?: string };
+          return cn.content ? cn.content.map((x) => x.text ?? '').join('') : (cn.text ?? '');
+        })
+        .join('')
+        .trim();
+      if (text) out.push(text);
+      return; // don't double-walk children of a task item
+    }
+    (n.content ?? []).forEach(walk);
+  };
+  walk(doc);
+  return out;
+}

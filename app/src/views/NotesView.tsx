@@ -1,8 +1,10 @@
 import { useMemo, useState } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
-import { Pin, PinOff, Plus, StickyNote, Trash2 } from 'lucide-react';
-import { db } from '../db';
-import { addNote, updateNote, deleteNote } from '../repo';
+import { ListPlus, Pin, PinOff, Plus, StickyNote, Trash2 } from 'lucide-react';
+
+import { addNote, updateNote, deleteNote, addTask } from '../repo';
+import { extractChecklistItems } from '../logic';
+import { db, INBOX_ID } from '../db';
 import NoteEditor from '../components/NoteEditor';
 
 function excerpt(text: string, n = 90): string {
@@ -25,6 +27,7 @@ function relTime(ts: number): string {
 export default function NotesView(props: { initialOpenId?: string }) {
   const notes = useLiveQuery(() => db.notes.toArray(), []);
   const [openId, setOpenId] = useState<string | null>(props.initialOpenId ?? null);
+  const [extracted, setExtracted] = useState<number | null>(null);
 
   const sorted = useMemo(
     () => (notes ?? []).slice().sort((a, b) => Number(b.pinned) - Number(a.pinned) || b.updatedAt - a.updatedAt),
@@ -81,6 +84,26 @@ export default function NotesView(props: { initialOpenId?: string }) {
                   aria-label="Note title"
                   onChange={(e) => void updateNote(open.id, { title: e.target.value })}
                 />
+                {extractChecklistItems(open.noteDoc).length > 0 && (
+                  <button
+                    className="icon-btn"
+                    aria-label="Turn checklist into tasks"
+                    title="Turn checklist into tasks"
+                    onClick={() => {
+                      const items = extractChecklistItems(open.noteDoc);
+                      void items.reduce(
+                        (chain, title) => chain.then(() => addTask({ title, projectId: INBOX_ID })),
+                        Promise.resolve<unknown>(null),
+                      ).then(() => {
+                        setExtracted(items.length);
+                        setTimeout(() => setExtracted(null), 3000);
+                      });
+                    }}
+                  >
+                    <ListPlus size={15} strokeWidth={2} />
+                  </button>
+                )}
+                {extracted !== null && <span className="extracted-note num">{extracted} task{extracted === 1 ? '' : 's'} added</span>}
                 <button
                   className="icon-btn"
                   aria-label={open.pinned ? 'Unpin note' : 'Pin note'}

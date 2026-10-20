@@ -8,6 +8,7 @@ import {
   sortTasks,
   todayTasks,
   suggestedTask,
+  extractChecklistItems,
   upcomingTasks,
   backlogTasks,
   subtaskProgress,
@@ -331,5 +332,30 @@ describe('suggestedTask', () => {
     const sub = task({ id: 'z', dueDate: '2026-10-20', parentId: 'x' });
     expect(suggestedTask([blocker, blocked, sub], '2026-10-20')?.task.id).toBe('x');
     expect(suggestedTask([task({ id: 'f', dueDate: '2026-10-21' })], '2026-10-20')).toBeNull();
+  });
+});
+
+describe('extractChecklistItems', () => {
+  const doc = {
+    type: 'doc',
+    content: [
+      { type: 'paragraph', content: [{ type: 'text', text: 'intro' }] },
+      {
+        type: 'taskList',
+        content: [
+          { type: 'taskItem', attrs: { checked: false }, content: [{ type: 'paragraph', content: [{ type: 'text', text: 'Buy milk' }] }] },
+          { type: 'taskItem', attrs: { checked: true }, content: [{ type: 'paragraph', content: [{ type: 'text', text: 'Done one' }] }] },
+          { type: 'taskItem', attrs: { checked: false }, content: [{ type: 'paragraph', content: [{ type: 'text', text: 'Call bank' }] }] },
+        ],
+      },
+      { type: 'bulletList', content: [{ type: 'listItem', content: [{ type: 'paragraph', content: [{ type: 'text', text: 'not a task' }] }] }] },
+    ],
+  };
+  it('pulls unchecked task items only', () => {
+    expect(extractChecklistItems(doc)).toEqual(['Buy milk', 'Call bank']);
+  });
+  it('empty doc and null are safe', () => {
+    expect(extractChecklistItems(null)).toEqual([]);
+    expect(extractChecklistItems({ type: 'doc' })).toEqual([]);
   });
 });

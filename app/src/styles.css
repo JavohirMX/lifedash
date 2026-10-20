@@ -1061,3 +1061,6 @@ h2 { font-size: var(--fs-section); font-weight: 600; letter-spacing: -0.01em; ma
 .focus-task { display: flex; align-items: center; gap: 10px; }
 .focus-title { flex: 1; text-align: left; background: none; border: none; font-family: var(--font); font-size: var(--fs-body); font-weight: 600; color: var(--text); cursor: pointer; padding: 4px 0; }
 .focus-title:hover { color: var(--accent); }
+
+/* ---------- Note -> tasks ---------- */
+.extracted-note { font-size: var(--fs-small); color: var(--accent); font-weight: 600; }
