@@ -23,27 +23,23 @@ export default function AssistantDialog({ tasks, onClose }: { tasks: Task[]; onC
   useEffect(() => { setReviewed(null); setApproved(false); setAnswer(''); setError(''); }, [mode, baseUrl, model, apiKey, prompt, taskContext]);
   function review() {
     try {
-      if (mode === 'local') {
-        if (prompt.length > 8000) throw new Error('Enter a request (up to 8,000 characters).');
-        if (taskContext.length > 24000) throw new Error('Choose less context (up to 24,000 characters).');
-        setReviewed(Object.freeze({ endpoint: 'on-device (nothing is sent anywhere)', model: 'rule-based local summary v1', prompt, context: taskContext }));
-        setError('');
-      } else {
-        setReviewed(reviewRequest({ baseUrl, model, apiKey }, prompt, taskContext));
-        setError('');
-      }
+      setReviewed(reviewRequest({ baseUrl, model, apiKey }, prompt, taskContext));
+      setError('');
     } catch (e) { setError((e as Error).message); }
+  }
+  function runLocal() {
+    if (busy) return;
+    setBusy(true); setError(''); setAnswer('');
+    try {
+      if (taskContext.length > 24000) throw new Error('Choose less context (up to 24,000 characters).');
+      setAnswer(localPlan('', JSON.parse(taskContext)));
+    } catch (e) { setError(e instanceof Error ? e.message : 'Local summary failed.'); }
+    finally { setBusy(false); }
   }
   async function send() {
     if (!reviewed || !approved || busy) return;
     const request = reviewed;
     setBusy(true); setError(''); setAnswer(''); setApproved(false);
-    if (mode === 'local') {
-      try { setAnswer(localPlan(request.prompt, JSON.parse(request.context))); }
-      catch (e) { setError(e instanceof Error ? e.message : 'Local summary failed.'); }
-      finally { setBusy(false); }
-      return;
-    }
     const controller = new AbortController(); abort.current = controller;
     const timer = window.setTimeout(() => controller.abort(), 60000);
     try { setAnswer(await requestAdvice({ baseUrl, model, apiKey }, request, true, { signal: controller.signal })); }
@@ -58,7 +54,7 @@ export default function AssistantDialog({ tasks, onClose }: { tasks: Task[]; onC
         <button key={id} role="radio" aria-checked={mode === id} className={mode === id ? 'active' : ''} onClick={() => setMode(id)}>{label}</button>)}
     </div>
     {mode === 'local'
-      ? <p className="ai-hint">Rule-based summary computed on this device. No model, no network request, no account, no cost. It ranks the tasks you share by due date and priority; it cannot interpret free text.</p>
+      ? <p className="ai-hint">Local rule-based planning on this device: ranks the tasks you select by due date and priority. No model, no network request, no account, no cost. This is not the requested local-model capability - it does not understand free text.</p>
       : <p className="ai-hint">Ollama: localhost:11434/v1. LM Studio: localhost:1234/v1. Cloud: your HTTPS OpenAI-compatible API base URL. Local servers must allow this app's origin (CORS). A localhost endpoint can still route to a cloud model.</p>}
     <fieldset disabled={busy}>
       {mode === 'provider' && <>
@@ -67,13 +63,21 @@ export default function AssistantDialog({ tasks, onClose }: { tasks: Task[]; onC
       </>}
       <h3>Choose what to share</h3><p className="ai-hint">Nothing is selected by default. Only titles, due dates, priority and status are included. Notes, journal, attachments and sync credentials stay out.</p>
       <div className="ai-task-picker">{tasks.filter(t => t.status === 'active').map(t => <label key={t.id}><input type="checkbox" checked={selected.includes(t.id)} onChange={e => setSelected(ids => e.target.checked ? [...ids, t.id] : ids.filter(id => id !== t.id))} /><span>{t.title}</span></label>)}{!tasks.some(t => t.status === 'active') && <p>No active tasks. You can still ask a planning question.</p>}</div>
-      <label>Your request<textarea rows={3} value={prompt} onChange={e => setPrompt(e.target.value)} /></label>
-      <button className="btn-primary" onClick={review}>Review request</button>
+      {mode === 'provider' && <>
+        <label>Your request<textarea rows={3} value={prompt} onChange={e => setPrompt(e.target.value)} /></label>
+        <button className="btn-primary" onClick={review}>Review request</button>
+      </>}
+      {mode === 'local' && <>
+        <p className="ai-hint">Ranking: overdue first, then due today (timed before untimed), then high-priority undated, then upcoming by date, then everything else.</p>
+        <button className="btn-primary" onClick={runLocal}>Summarize selected tasks on this device</button>
+      </>}
     </fieldset>
-    {reviewed && <section className="ai-review"><h3>{mode === 'local' ? 'Review before running' : 'Review before sending'}</h3><p>Destination: <code>{reviewed.endpoint}</code><br />Source: <code>{reviewed.model}</code></p><pre>{reviewed.prompt}{'\n\n'}{reviewed.context}</pre><label className="ai-consent"><input type="checkbox" checked={approved} disabled={busy} onChange={e => setApproved(e.target.checked)} /><span>{mode === 'local' ? 'I approve running this rule-based summary on this device. Nothing is sent anywhere.' : 'I approve sending this exact request and data to this provider. Cloud models may charge my account and follow their own data policies.'}</span></label><button className="btn-primary" disabled={!approved || busy} onClick={() => void send()}>{busy ? (mode === 'local' ? 'Working...' : 'Waiting for model...') : (mode === 'local' ? 'Run on this device' : 'Send this request')}</button></section>}
+    {reviewed && mode === 'provider' && <section className="ai-review"><h3>Review before sending</h3><p>Destination: <code>{reviewed.endpoint}</code><br />Source: <code>{reviewed.model}</code></p><pre>{reviewed.prompt}{'\n\n'}{reviewed.context}</pre><label className="ai-consent"><input type="checkbox" checked={approved} disabled={busy} onChange={e => setApproved(e.target.checked)} /><span>I approve sending this exact request and data to this provider. Cloud models may charge my account and follow their own data policies.</span></label><button className="btn-primary" disabled={!approved || busy} onClick={() => void send()}>{busy ? 'Waiting for model...' : 'Send this request'}</button></section>}
     {busy && mode === 'provider' && <button onClick={() => abort.current?.abort()}>Stop waiting</button>}
     {error && <p role="alert" className="ai-error">{error}</p>}
     {answer && <section aria-live="polite" className="ai-answer"><h3>Suggested plan</h3><p>Review this yourself. Nothing has been changed.</p><pre>{answer}</pre></section>}
-    <p className="ai-hint">No background calls, automatic retries or saved API keys. Stopping a request may not stop provider billing. Advice is plain text, not executable instructions.</p>
+    <p className="ai-hint">{mode === 'local'
+      ? 'Nothing is sent anywhere: the summary runs entirely in this browser tab. Advice is plain text; nothing is changed.'
+      : 'No background calls, automatic retries or saved API keys. Stopping a request may not stop provider billing. Advice is plain text, not executable instructions.'}</p>
   </dialog>;
 }
