@@ -13,6 +13,8 @@ export async function addTask(input: {
   title: string;
   projectId: string;
   dueDate?: string | null;
+  dueTime?: string | null;
+  recurrence?: string | null;
   parentId?: string | null;
   goalId?: string | null;
   tags?: string[];
@@ -29,7 +31,7 @@ export async function addTask(input: {
     status: 'active',
     pinned: false,
     dueDate: input.dueDate ?? null,
-    dueTime: null,
+    dueTime: input.dueTime ?? null,
     recurrence: null,
     blockedBy: [],
     tags: input.tags ?? [],

@@ -233,7 +233,8 @@ h2 { font-size: var(--fs-section); font-weight: 600; letter-spacing: -0.01em; ma
   color: var(--faint);
   pointer-events: none;
 }
-.quick-add input {
+.quick-add-field { position: relative; }
+.quick-add-field input {
   width: 100%;
   height: 42px;
   background: var(--surface);
@@ -241,6 +242,17 @@ h2 { font-size: var(--fs-section); font-weight: 600; letter-spacing: -0.01em; ma
   border-radius: var(--radius-card);
   padding: 0 12px 0 34px;
   font-size: 15px;
+}
+.quick-add-hint {
+  position: absolute;
+  right: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+  font-size: var(--fs-small);
+  color: var(--accent);
+  font-weight: 600;
+  pointer-events: none;
+  font-variant-numeric: tabular-nums;
 }
 .quick-add input:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
 
