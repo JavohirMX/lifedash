@@ -1,4 +1,4 @@
-import { Check } from 'lucide-react';
+import { Check, StickyNote } from 'lucide-react';
 import { useState } from 'react';
 import NoteEditor from './NoteEditor';
 import Attachments from './Attachments';
@@ -20,7 +20,7 @@ function currentChoice(t: Task): RecChoice {
   return 'ndays';
 }
 
-export default function TaskDetail(props: { taskId: string; onClose: () => void }) {
+export default function TaskDetail(props: { taskId: string; onClose: () => void; onOpenNote: (noteId: string) => void }) {
   const task = useLiveQuery(() => db.tasks.get(props.taskId), [props.taskId]);
   const projects = useLiveQuery(() => db.projects.orderBy('order').toArray(), []);
   const goals = useLiveQuery(() => db.goals.orderBy('order').toArray(), []);
@@ -29,6 +29,10 @@ export default function TaskDetail(props: { taskId: string; onClose: () => void 
     [props.taskId],
   );
   const allTasks = useLiveQuery(() => db.tasks.toArray(), []);
+  const sourceNote = useLiveQuery(
+    () => (task?.noteId ? db.notes.get(task.noteId) : undefined),
+    [task?.noteId],
+  );
   const [newSub, setNewSub] = useState('');
   const [nDays, setNDays] = useState(3);
   const [blockerPick, setBlockerPick] = useState('');
@@ -63,6 +67,12 @@ export default function TaskDetail(props: { taskId: string; onClose: () => void 
         onChange={(e) => void updateTask(task.id, { title: e.target.value })}
       />
       <NoteEditor key={task.id} docKey={task.id} note={task.note} noteDoc={task.noteDoc} onSave={(doc, text) => void updateTask(task.id, { noteDoc: doc, note: text })} />
+      {task.noteId && sourceNote && (
+        <button className="note-source" onClick={() => props.onOpenNote(task.noteId!)}>
+          <StickyNote size={13} strokeWidth={2} aria-hidden="true" />
+          From note: {sourceNote.title || 'Untitled'}
+        </button>
+      )}
       <label className="field">
         <span>Due date</span>
         <input
