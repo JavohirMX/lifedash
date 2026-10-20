@@ -108,7 +108,7 @@ export default function SearchView(props: {
           <h2 className="search-group">Notes</h2>
           <div className="search-cards">
             {noteResults.map((n) => (
-              <button key={n.id} className="search-card" onClick={() => props.onSelect({ kind: 'notes' })}>
+              <button key={n.id} className="search-card" onClick={() => props.onSelect({ kind: 'notes', openId: n.id })}>
                 <span className="search-card-title">
                   <StickyNote size={13} strokeWidth={1.75} aria-hidden="true" />
                   {n.title.trim() || 'Untitled'}
@@ -125,7 +125,7 @@ export default function SearchView(props: {
           <h2 className="search-group">Journal</h2>
           <div className="search-cards">
             {journalResults.map((e) => (
-              <button key={e.id} className="search-card" onClick={() => props.onSelect({ kind: 'journal' })}>
+              <button key={e.id} className="search-card" onClick={() => props.onSelect({ kind: 'journal', date: e.date })}>
                 <span className="search-card-title">
                   <BookOpen size={13} strokeWidth={1.75} aria-hidden="true" />
                   {e.date}

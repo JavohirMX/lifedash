@@ -8,7 +8,9 @@ import { addProject, exportJson, importBackup } from '../repo';
 import { cycleTheme, getTheme, type Theme } from '../theme';
 
 export type Selection =
-  | { kind: 'home' | 'today' | 'upcoming' | 'backlog' | 'completed' | 'habits' | 'planner' | 'week' | 'goals' | 'notes' | 'journal' | 'calendar' }
+  | { kind: 'home' | 'today' | 'upcoming' | 'backlog' | 'completed' | 'habits' | 'planner' | 'week' | 'goals' | 'calendar' }
+  | { kind: 'notes'; openId?: string }
+  | { kind: 'journal'; date?: string }
   | { kind: 'project'; id: string }
   | { kind: 'search'; query: string; status?: 'all' | 'open' | 'done'; projectId?: string | null; scope?: 'all' | 'tasks' | 'notes' | 'journal' | 'goals' };
 

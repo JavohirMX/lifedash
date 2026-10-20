@@ -22,9 +22,9 @@ function relTime(ts: number): string {
   return new Date(ts).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
 }
 
-export default function NotesView() {
+export default function NotesView(props: { initialOpenId?: string }) {
   const notes = useLiveQuery(() => db.notes.toArray(), []);
-  const [openId, setOpenId] = useState<string | null>(null);
+  const [openId, setOpenId] = useState<string | null>(props.initialOpenId ?? null);
 
   const sorted = useMemo(
     () => (notes ?? []).slice().sort((a, b) => Number(b.pinned) - Number(a.pinned) || b.updatedAt - a.updatedAt),

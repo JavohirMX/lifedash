@@ -14,9 +14,9 @@ const MOODS = [
   { v: 5, Icon: Laugh, label: 'Great' },
 ];
 
-export default function JournalView() {
+export default function JournalView(props: { initialDate?: string }) {
   const today = todayStr();
-  const [date, setDate] = useState(today);
+  const [date, setDate] = useState(props.initialDate ?? today);
   const entries = useLiveQuery(() => db.journal.toArray(), []);
   const entry = (entries ?? []).find((e) => e.date === date) ?? null;
   const hasEntries = (entries ?? []).length > 0;

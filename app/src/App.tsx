@@ -152,9 +152,9 @@ export default function App() {
   } else if (selection.kind === 'calendar') {
     body = <CalendarView tasks={tasks} onOpen={setOpenId} />;
   } else if (selection.kind === 'journal') {
-    body = <JournalView />;
+    body = <JournalView key={selection.date ?? ''} initialDate={selection.date} />;
   } else if (selection.kind === 'notes') {
-    body = <NotesView />;
+    body = <NotesView key={selection.openId ?? ''} initialOpenId={selection.openId} />;
   } else if (selection.kind === 'goals') {
     body = <GoalsView tasks={tasks} onOpenGoalTasks={() => {}} />;
   } else if (selection.kind === 'habits') {
