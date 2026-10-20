@@ -1,9 +1,9 @@
 import { useMemo, useState } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
-import { Check, ListPlus, Pin, PinOff, Plus, StickyNote, Trash2 } from 'lucide-react';
+import { Check, ListPlus, Pin, PinOff, Plus, Search, StickyNote, Trash2 } from 'lucide-react';
 
 import { addNote, updateNote, deleteNote, addTask, toggleComplete } from '../repo';
-import { extractChecklistItems } from '../logic';
+import { extractChecklistItems, searchNotes } from '../logic';
 import { db, INBOX_ID } from '../db';
 import NoteEditor from '../components/NoteEditor';
 
@@ -28,10 +28,17 @@ export default function NotesView(props: { initialOpenId?: string }) {
   const notes = useLiveQuery(() => db.notes.toArray(), []);
   const [openId, setOpenId] = useState<string | null>(props.initialOpenId ?? null);
   const [extracted, setExtracted] = useState<number | null>(null);
+  const [q, setQ] = useState('');
 
   const sorted = useMemo(
     () => (notes ?? []).slice().sort((a, b) => Number(b.pinned) - Number(a.pinned) || b.updatedAt - a.updatedAt),
     [notes],
+  );
+  const filtering = q.trim().length > 0;
+  // Filter by title + body, keeping the pinned-first order of the full list.
+  const shown = useMemo(
+    () => (filtering ? searchNotes(sorted, q).sort((a, b) => Number(b.pinned) - Number(a.pinned) || b.updatedAt - a.updatedAt) : sorted),
+    [sorted, q, filtering],
   );
   const open = sorted.find((n) => n.id === openId) ?? null;
   const linked = useLiveQuery(
@@ -43,7 +50,7 @@ export default function NotesView(props: { initialOpenId?: string }) {
   return (
     <section>
       <h1>
-        Notes <span className="date-sub">{sorted.length} total</span>
+        Notes <span className="date-sub">{filtering ? `${shown.length} of ${sorted.length}` : `${sorted.length} total`}</span>
         <button
           className="mini"
           style={{ marginLeft: 'auto' }}
@@ -53,7 +60,22 @@ export default function NotesView(props: { initialOpenId?: string }) {
           <Plus size={14} strokeWidth={2} aria-hidden="true" /> Note
         </button>
       </h1>
-      {sorted.length === 0 ? (
+      {sorted.length > 4 && (
+        <div className="search-wrap notes-filter">
+          <Search size={14} strokeWidth={1.75} aria-hidden="true" className="search-icon" />
+          <input
+            className="search-box"
+            placeholder="Filter notes"
+            aria-label="Filter notes"
+            value={q}
+            onChange={(e) => setQ(e.target.value)}
+            onKeyDown={(e) => { if (e.key === 'Escape') setQ(''); }}
+          />
+        </div>
+      )}
+      {filtering && shown.length === 0 ? (
+        <p className="empty">No notes match "{q.trim()}".</p>
+      ) : sorted.length === 0 ? (
         <div className="empty goals-empty">
           <StickyNote size={28} strokeWidth={1.5} aria-hidden="true" />
           <p>Free-form notes with rich text - checklists, links, headings. Pin the ones you come back to.</p>
@@ -61,7 +83,7 @@ export default function NotesView(props: { initialOpenId?: string }) {
       ) : (
         <div className="notes-layout">
           <div className="notes-list" role="list">
-            {sorted.map((n) => (
+            {shown.map((n) => (
               <button
                 key={n.id}
                 role="listitem"

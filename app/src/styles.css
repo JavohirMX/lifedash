@@ -1122,3 +1122,6 @@ button.cal-more:hover { color: var(--accent); }
   .plan-row .icon-btn { opacity: 0.8; } /* always visible on touch */
   .time-pop { padding-left: 8px; }
 }
+
+/* Notes filter */
+.notes-filter { max-width: 420px; margin-bottom: 12px; }
