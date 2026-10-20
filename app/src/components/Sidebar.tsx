@@ -38,9 +38,8 @@ const DOCK_ITEMS = [
   { kind: 'home', label: 'Home', Icon: House },
   { kind: 'today', label: 'Today', Icon: Sun },
   { kind: 'planner', label: 'Planner', Icon: Clock },
-  { kind: 'week', label: 'Week', Icon: CalendarRange },
   { kind: 'habits', label: 'Habits', Icon: Repeat },
-] as const;
+] as const; // 4 + More = 5; Week lives in the sheet
 
 export default function Sidebar(props: {
   projects: Project[];
