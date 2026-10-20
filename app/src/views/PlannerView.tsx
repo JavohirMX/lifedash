@@ -12,7 +12,7 @@ const END_HOUR = 23;
 // Day planner: today's tasks on a timeline. Tasks with a dueTime sit in
 // their hour; the rest are "anytime". Drag an anytime task onto an hour
 // to schedule it; drag a scheduled task onto Anytime to unschedule.
-export default function PlannerView(props: { tasks: Task[]; onOpen: (id: string) => void }) {
+export default function PlannerView(props: { tasks: Task[]; onOpen: (id: string) => void; onTag?: (tag: string) => void }) {
   const today = todayStr();
   const nowHour = new Date().getHours();
   const [overHour, setOverHour] = useState<number | 'anytime' | null>(null);
@@ -45,7 +45,7 @@ export default function PlannerView(props: { tasks: Task[]; onOpen: (id: string)
               e.dataTransfer.effectAllowed = 'move';
             }}
           >
-            <TaskRow task={t} allTasks={props.tasks} onOpen={props.onOpen} />
+            <TaskRow task={t} allTasks={props.tasks} onOpen={props.onOpen} onTag={props.onTag} />
           </div>
           <button
             className="icon-btn"

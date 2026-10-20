@@ -178,7 +178,7 @@ export default function App() {
   } else if (selection.kind === 'habits') {
     body = <HabitsView />;
   } else if (selection.kind === 'planner') {
-    body = <PlannerView tasks={tasks} onOpen={setOpenId} />;
+    body = <PlannerView tasks={tasks} onOpen={setOpenId} onTag={openTag} />;
   } else if (selection.kind === 'week') {
     body = <WeekView tasks={tasks} onOpen={setOpenId} />;
   } else if (selection.kind === 'search') {
