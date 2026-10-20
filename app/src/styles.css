@@ -1069,3 +1069,11 @@ h2 { font-size: var(--fs-section); font-weight: 600; letter-spacing: -0.01em; ma
 .proj-count { margin-left: auto; font-size: var(--fs-small); color: var(--faint); }
 .proj-progress { display: inline-flex; align-items: center; gap: 10px; margin-left: 14px; }
 .proj-bar { width: 120px; display: inline-block; }
+
+/* ---------- Archived habits ---------- */
+.archived-habits { margin-top: 18px; max-width: 560px; }
+.archived-toggle { background: none; border: none; font-family: var(--font); font-size: var(--fs-small); color: var(--muted); cursor: pointer; padding: 4px 0; }
+.archived-toggle:hover { color: var(--text); }
+.archived-list { display: flex; flex-direction: column; gap: 4px; margin-top: 6px; }
+.archived-row { display: flex; align-items: center; gap: 8px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-control); padding: 8px 12px; opacity: 0.8; }
+.archived-row .mini { margin-left: auto; }

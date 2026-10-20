@@ -219,6 +219,10 @@ export async function archiveHabit(id: string): Promise<void> {
   await db.habits.update(id, { archived: true });
 }
 
+export async function restoreHabit(id: string): Promise<void> {
+  await db.habits.update(id, { archived: false });
+}
+
 export async function toggleHabitForDate(habitId: string, date: string): Promise<void> {
   const id = `${habitId}:${date}`;
   const existing = await db.habitLogs.get(id);

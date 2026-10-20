@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Flame } from 'lucide-react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db } from '../db';
-import { addHabit, archiveHabit, toggleHabitForDate } from '../repo';
+import { addHabit, archiveHabit, restoreHabit, toggleHabitForDate } from '../repo';
 import { currentStreak, bestStreak, completionRate, weekGrid, logsByDate, isScheduledOn } from '../habits';
 import { todayStr, weekdayLabel } from '../dates';
 
@@ -18,6 +18,8 @@ export default function HabitsView() {
 
   const today = todayStr();
   const active = (habits ?? []).filter((h) => !h.archived);
+  const archived = (habits ?? []).filter((h) => h.archived);
+  const [showArchived, setShowArchived] = useState(false);
 
   function toggleWd(d: number) {
     const cur = weekdays ?? [0, 1, 2, 3, 4, 5, 6];
@@ -83,11 +85,13 @@ export default function HabitsView() {
                 <span className="dot" style={{ background: h.color }} />
                 <span className="habit-name">{h.name}</span>
                 {streak >= 2 && <span className="streak"><Flame size={12} strokeWidth={2} aria-hidden="true" /> {streak}</span>}
-                <span className="habit-stats num">
-                  {best > streak && <>best {best} · </>}
-                  {rate !== null && <>{Math.round(rate * 100)}% · </>}
-                  {total} total
-                </span>
+                {total > 0 && (
+                  <span className="habit-stats num">
+                    {best > streak && <>best {best} · </>}
+                    {rate !== null && <>{Math.round(rate * 100)}% · </>}
+                    {total} total
+                  </span>
+                )}
                 <button className="mini" title="Archive habit" onClick={() => void archiveHabit(h.id)}>
                   Archive
                 </button>
@@ -117,6 +121,24 @@ export default function HabitsView() {
             </div>
           );
         })}
+      {archived.length > 0 && (
+        <div className="archived-habits">
+          <button className="archived-toggle" onClick={() => setShowArchived(!showArchived)} aria-expanded={showArchived}>
+            Archived ({archived.length}) {showArchived ? '−' : '+'}
+          </button>
+          {showArchived && (
+            <div className="archived-list">
+              {archived.map((h) => (
+                <div key={h.id} className="archived-row">
+                  <span className="dot" style={{ background: h.color }} />
+                  <span className="habit-name">{h.name}</span>
+                  <button className="mini" onClick={() => void restoreHabit(h.id)}>Restore</button>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
     </section>
   );
 }
