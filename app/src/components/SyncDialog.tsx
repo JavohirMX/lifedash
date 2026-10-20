@@ -32,7 +32,10 @@ export default function SyncDialog(props: { onClose: () => void }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const fail = (e: unknown) => setStatus(e instanceof Error ? e.message : String(e));
+  const fail = (e: unknown) => {
+    const msg = e instanceof Error ? e.message : String(e);
+    setStatus(msg === 'Failed to fetch' ? "Couldn't reach the server - check the URL and that it's running." : msg);
+  };
 
   async function doAuth(kind: 'login' | 'register') {
     setBusy(true);
@@ -88,20 +91,27 @@ export default function SyncDialog(props: { onClose: () => void }) {
             </p>
             <label className="field">
               <span>Server URL</span>
-              <input ref={urlRef} value={url} onChange={(e) => setUrl(e.target.value)} placeholder="https://sync.example.com" />
+              <input ref={urlRef} type="url" inputMode="url" autoCapitalize="off" autoCorrect="off" value={url} onChange={(e) => setUrl(e.target.value)} placeholder="https://sync.example.com" />
             </label>
-            <label className="field">
-              <span>Username</span>
-              <input value={username} onChange={(e) => setUsername(e.target.value)} autoComplete="username" />
-            </label>
-            <label className="field">
-              <span>Password (8+ characters)</span>
-              <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} autoComplete="current-password" />
-            </label>
-            <div className="sync-actions">
-              <button className="btn-primary" disabled={busy || !url || !username || password.length < 8} onClick={() => void doAuth('login')}>Sign in</button>
-              <button className="btn-secondary" disabled={busy || !url || !username || password.length < 8} onClick={() => void doAuth('register')}>Create account</button>
-            </div>
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                if (!busy && url && username && password.length >= 8) void doAuth('login');
+              }}
+            >
+              <label className="field">
+                <span>Username</span>
+                <input value={username} onChange={(e) => setUsername(e.target.value)} autoComplete="username" />
+              </label>
+              <label className="field">
+                <span>Password (8+ characters)</span>
+                <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} autoComplete="current-password" />
+              </label>
+              <div className="sync-actions">
+                <button type="submit" className="btn-primary" disabled={busy || !url || !username || password.length < 8}>Sign in</button>
+                <button type="button" className="btn-secondary" disabled={busy || !url || !username || password.length < 8} onClick={() => void doAuth('register')}>Create account</button>
+              </div>
+            </form>
           </>
         ) : (
           <>
