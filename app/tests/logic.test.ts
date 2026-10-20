@@ -1,0 +1,167 @@
+import { describe, it, expect } from 'vitest';
+import {
+  makeRecurrence,
+  nextOccurrenceDate,
+  describeRecurrence,
+  completeTask,
+  sortTasks,
+  todayTasks,
+  upcomingTasks,
+  backlogTasks,
+  subtaskProgress,
+} from '../src/logic';
+import type { Task } from '../src/types';
+
+function task(partial: Partial<Task>): Task {
+  return {
+    id: partial.id ?? 't1',
+    title: 'Task',
+    note: '',
+    projectId: 'inbox',
+    parentId: null,
+    status: 'active',
+    pinned: false,
+    dueDate: null,
+    recurrence: null,
+    order: 0,
+    seriesId: null,
+    createdAt: 0,
+    updatedAt: 0,
+    completedAt: null,
+    ...partial,
+  };
+}
+
+describe('recurrence', () => {
+  it('daily: next occurrence is the next day', () => {
+    const r = makeRecurrence('daily', '2026-10-20');
+    expect(nextOccurrenceDate(r, '2026-10-20', '2026-10-20')).toBe('2026-10-21');
+  });
+
+  it('daily: overdue completion skips the missed days, lands tomorrow', () => {
+    const r = makeRecurrence('daily', '2026-10-10');
+    expect(nextOccurrenceDate(r, '2026-10-10', '2026-10-20')).toBe('2026-10-21');
+  });
+
+  it('weekly: same weekday next week', () => {
+    // 2026-10-20 is a Tuesday
+    const r = makeRecurrence('weekly', '2026-10-20');
+    expect(nextOccurrenceDate(r, '2026-10-20', '2026-10-20')).toBe('2026-10-27');
+  });
+
+  it('monthly: same day next month', () => {
+    const r = makeRecurrence('monthly', '2026-10-20');
+    expect(nextOccurrenceDate(r, '2026-10-20', '2026-10-20')).toBe('2026-11-20');
+  });
+
+  it('every N days honors the interval', () => {
+    const r = makeRecurrence('ndays', '2026-10-20', 3);
+    expect(nextOccurrenceDate(r, '2026-10-20', '2026-10-20')).toBe('2026-10-23');
+  });
+
+  it('every N days overdue skips ahead to a future occurrence', () => {
+    const r = makeRecurrence('ndays', '2026-10-01', 7);
+    const next = nextOccurrenceDate(r, '2026-10-01', '2026-10-20');
+    expect(next).toBe('2026-10-22'); // occurrences: 1, 8, 15, 22
+  });
+
+  it('completed early (before due date) anchors at the due date', () => {
+    const r = makeRecurrence('daily', '2026-10-25');
+    expect(nextOccurrenceDate(r, '2026-10-25', '2026-10-20')).toBe('2026-10-26');
+  });
+
+  it('describes rules in plain words', () => {
+    expect(describeRecurrence(makeRecurrence('daily', '2026-10-20'))).toBe('Daily');
+    expect(describeRecurrence(makeRecurrence('weekly', '2026-10-20'))).toBe('Weekly');
+    expect(describeRecurrence(makeRecurrence('ndays', '2026-10-20', 5))).toBe('Every 5 days');
+    expect(describeRecurrence(null)).toBe('');
+  });
+});
+
+describe('completeTask', () => {
+  it('marks a plain task done with no spawn', () => {
+    const { updates, spawned } = completeTask(task({}), '2026-10-20', 123);
+    expect(updates.status).toBe('done');
+    expect(updates.completedAt).toBe(123);
+    expect(spawned).toBeNull();
+  });
+
+  it('spawns the next occurrence for a recurring task, linked by seriesId', () => {
+    const t = task({ id: 'abc', dueDate: '2026-10-20', recurrence: makeRecurrence('daily', '2026-10-20'), pinned: true });
+    const { updates, spawned } = completeTask(t, '2026-10-20', 123);
+    expect(updates.status).toBe('done');
+    expect(spawned).not.toBeNull();
+    expect(spawned!.dueDate).toBe('2026-10-21');
+    expect(spawned!.seriesId).toBe('abc');
+    expect(spawned!.status).toBe('active');
+    expect(spawned!.pinned).toBe(true);
+    expect(spawned!.recurrence).toBe(t.recurrence);
+    expect(spawned!.completedAt).toBeNull();
+  });
+
+  it('keeps the series id stable across generations', () => {
+    const t = task({ id: 'gen2', seriesId: 'root', dueDate: '2026-10-20', recurrence: makeRecurrence('daily', '2026-10-20') });
+    const { spawned } = completeTask(t, '2026-10-20', 1);
+    expect(spawned!.seriesId).toBe('root');
+  });
+});
+
+describe('sorting and views', () => {
+  const a = task({ id: 'a', order: 2, createdAt: 2 });
+  const b = task({ id: 'b', order: 1, createdAt: 3 });
+  const c = task({ id: 'c', order: 9, pinned: true, createdAt: 1 });
+
+  it('pinned first, then manual order', () => {
+    expect(sortTasks([a, b, c]).map((t) => t.id)).toEqual(['c', 'b', 'a']);
+  });
+
+  it('today includes overdue and due-today, excludes future and done', () => {
+    const list = todayTasks(
+      [
+        task({ id: 'overdue', dueDate: '2026-10-19' }),
+        task({ id: 'today', dueDate: '2026-10-20' }),
+        task({ id: 'future', dueDate: '2026-10-21' }),
+        task({ id: 'done', dueDate: '2026-10-20', status: 'done' }),
+        task({ id: 'nodate' }),
+      ],
+      '2026-10-20',
+    );
+    expect(list.map((t) => t.id).sort()).toEqual(['overdue', 'today']);
+  });
+
+  it('subtasks do not appear as top-level view rows', () => {
+    const list = todayTasks(
+      [task({ id: 'parent', dueDate: '2026-10-20' }), task({ id: 'sub', parentId: 'parent', dueDate: '2026-10-20' })],
+      '2026-10-20',
+    );
+    expect(list.map((t) => t.id)).toEqual(['parent']);
+  });
+
+  it('backlog is active no-date tasks only', () => {
+    const list = backlogTasks([task({ id: 'x' }), task({ id: 'y', dueDate: '2026-10-20' }), task({ id: 'z', status: 'done' })]);
+    expect(list.map((t) => t.id)).toEqual(['x']);
+  });
+
+  it('upcoming groups by date within the window', () => {
+    const groups = upcomingTasks(
+      [
+        task({ id: 'soon', dueDate: '2026-10-22' }),
+        task({ id: 'far', dueDate: '2026-12-31' }),
+        task({ id: 'today', dueDate: '2026-10-20' }),
+      ],
+      '2026-10-20',
+    );
+    expect([...groups.keys()]).toEqual(['2026-10-22']);
+    expect(groups.get('2026-10-22')!.map((t) => t.id)).toEqual(['soon']);
+  });
+
+  it('subtask progress counts done vs total, ignoring archived', () => {
+    const all = [
+      task({ id: 'p' }),
+      task({ id: 's1', parentId: 'p', status: 'done' }),
+      task({ id: 's2', parentId: 'p' }),
+      task({ id: 's3', parentId: 'p', status: 'archived' }),
+    ];
+    expect(subtaskProgress(all, 'p')).toEqual({ done: 1, total: 2 });
+  });
+});
