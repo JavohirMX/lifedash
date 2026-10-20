@@ -4,6 +4,8 @@ import { db, INBOX_ID } from './db';
 import Sidebar, { type Selection } from './components/Sidebar';
 import QuickAdd from './components/QuickAdd';
 import TaskList, { TASK_DRAG_MIME } from './components/TaskList';
+import HabitsView from './views/HabitsView';
+import PlannerView from './views/PlannerView';
 import TaskDetail from './components/TaskDetail';
 import {
   todayTasks,
@@ -41,7 +43,7 @@ export default function App() {
     if (selection.kind === 'project') return { projectId: selection.id, dueDate: null };
     return { projectId: INBOX_ID, dueDate: null };
   })();
-  const showQuickAdd = selection.kind !== 'completed' && selection.kind !== 'search';
+  const showQuickAdd = selection.kind !== 'completed' && selection.kind !== 'search' && selection.kind !== 'habits' && selection.kind !== 'planner';
 
   let body;
   if (selection.kind === 'today') {
@@ -100,6 +102,10 @@ export default function App() {
         <TaskList tasks={list.slice(0, 100)} allTasks={tasks} showDate onOpen={setOpenId} />
       </section>
     );
+  } else if (selection.kind === 'habits') {
+    body = <HabitsView />;
+  } else if (selection.kind === 'planner') {
+    body = <PlannerView tasks={tasks} onOpen={setOpenId} />;
   } else if (selection.kind === 'search') {
     const results = searchTasks(tasks, selection.query);
     body = (

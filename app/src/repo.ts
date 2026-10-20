@@ -25,6 +25,7 @@ export async function addTask(input: {
     status: 'active',
     pinned: false,
     dueDate: input.dueDate ?? null,
+    dueTime: null,
     recurrence: null,
     blockedBy: [],
     tags: [],
@@ -152,4 +153,28 @@ export async function moveTask(taskId: string, targetId: string, after: boolean,
   const order = reorderedPosition(list, taskId, targetId, after);
   if (order === null) return;
   await updateTask(taskId, { order });
+}
+
+export async function addHabit(name: string, color: string, weekdays: number[] | null): Promise<void> {
+  const count = await db.habits.count();
+  await db.habits.add({
+    id: newId(),
+    name: name.trim(),
+    color,
+    weekdays,
+    order: count,
+    archived: false,
+    createdAt: Date.now(),
+  });
+}
+
+export async function archiveHabit(id: string): Promise<void> {
+  await db.habits.update(id, { archived: true });
+}
+
+export async function toggleHabitForDate(habitId: string, date: string): Promise<void> {
+  const id = `${habitId}:${date}`;
+  const existing = await db.habitLogs.get(id);
+  if (existing) await db.habitLogs.delete(id);
+  else await db.habitLogs.add({ id, habitId, date, doneAt: Date.now() });
 }

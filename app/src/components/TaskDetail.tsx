@@ -68,6 +68,16 @@ export default function TaskDetail(props: { taskId: string; onClose: () => void 
           onChange={(e) => void updateTask(task.id, { dueDate: e.target.value || null })}
         />
       </label>
+      {task.dueDate && (
+        <label className="field">
+          <span>Time (optional - shows in Planner)</span>
+          <input
+            type="time"
+            value={task.dueTime ?? ''}
+            onChange={(e) => void updateTask(task.id, { dueTime: e.target.value || null })}
+          />
+        </label>
+      )}
       <label className="field">
         <span>Project</span>
         <select

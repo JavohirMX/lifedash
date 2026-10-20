@@ -23,6 +23,7 @@ function task(partial: Partial<Task>): Task {
     status: 'active',
     pinned: false,
     dueDate: null,
+    dueTime: null,
     recurrence: null,
     blockedBy: [],
     tags: [],

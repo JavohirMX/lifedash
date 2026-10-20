@@ -10,6 +10,7 @@ export interface Task {
   status: TaskStatus;
   pinned: boolean;
   dueDate: string | null; // local YYYY-MM-DD
+  dueTime: string | null; // local 'HH:MM', null = anytime
   recurrence: string | null; // RRULE string with DTSTART
   blockedBy: string[]; // task ids that gate this task
   tags: string[]; // lowercase, no '#'
@@ -18,6 +19,23 @@ export interface Task {
   createdAt: number;
   updatedAt: number;
   completedAt: number | null;
+}
+
+export interface Habit {
+  id: string;
+  name: string;
+  color: string;
+  weekdays: number[] | null; // null = every day; else weekday numbers (0=Sun)
+  order: number;
+  archived: boolean;
+  createdAt: number;
+}
+
+export interface HabitLog {
+  id: string; // `${habitId}:${date}` - idempotent per day
+  habitId: string;
+  date: string; // local YYYY-MM-DD
+  doneAt: number;
 }
 
 export interface Attachment {

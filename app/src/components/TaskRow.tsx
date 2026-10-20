@@ -39,6 +39,7 @@ export default function TaskRow(props: {
       <button className="task-main" onClick={() => props.onOpen(task.id)}>
         <span className="task-title">{task.title}</span>
         <span className="task-meta">
+          {task.dueTime && <span className="time-chip">{task.dueTime}</span>}
           {props.showDate && task.dueDate && (
             <span className={`due ${overdue ? 'overdue' : task.dueDate === today ? 'today' : ''}`}>
               {friendlyDate(task.dueDate, today)}

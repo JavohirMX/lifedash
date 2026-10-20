@@ -77,6 +77,7 @@ export function completeTask(task: Task, today: string, now: number): Completion
       status: 'active',
       pinned: task.pinned,
       dueDate: nextDate,
+      dueTime: task.dueTime ?? null,
       recurrence: task.recurrence,
       blockedBy: [...(task.blockedBy ?? [])],
       tags: [...(task.tags ?? [])],
