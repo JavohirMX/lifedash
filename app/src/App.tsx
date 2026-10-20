@@ -92,6 +92,7 @@ export default function App() {
     if (selection.kind === 'project') return { projectId: selection.id, dueDate: null };
     return { projectId: INBOX_ID, dueDate: null };
   })();
+  const openTag = (tag: string) => setSelection({ kind: 'search', query: `#${tag}` });
   const showQuickAdd = selection.kind !== 'completed' && selection.kind !== 'search' && selection.kind !== 'habits' && selection.kind !== 'planner' && selection.kind !== 'week' && selection.kind !== 'home' && selection.kind !== 'goals' && selection.kind !== 'notes' && selection.kind !== 'journal' && selection.kind !== 'calendar';
 
   let body;
@@ -109,7 +110,7 @@ export default function App() {
           </button>
         )}
         {list.length === 0 && <p className="empty">Nothing due today. Enjoy, or pull something in from Backlog.</p>}
-        <TaskList tasks={list} allTasks={tasks} showDate onOpen={setOpenId}
+        <TaskList tasks={list} allTasks={tasks} showDate onOpen={setOpenId} onTag={openTag}
           onReorder={(dragId, targetId, after) => void moveTask(dragId, targetId, after, list)} />
       </section>
     );
@@ -122,7 +123,7 @@ export default function App() {
         {[...groups.entries()].map(([date, list]) => (
           <div key={date} className="day-group">
             <h2>{friendlyDate(date, today)} <span className="date-sub">{weekdayLabel(date)}</span></h2>
-            <TaskList tasks={list} allTasks={tasks} onOpen={setOpenId} />
+            <TaskList tasks={list} allTasks={tasks} onOpen={setOpenId} onTag={openTag} />
           </div>
         ))}
       </section>
@@ -141,7 +142,7 @@ export default function App() {
                 e.dataTransfer.setData(TASK_DRAG_MIME, t.id);
                 e.dataTransfer.effectAllowed = 'move';
               }}>
-              <TaskList tasks={[t]} allTasks={tasks} onOpen={setOpenId} />
+              <TaskList tasks={[t]} allTasks={tasks} onOpen={setOpenId} onTag={openTag} />
             </div>
             <button className="mini" onClick={() => void updateTask(t.id, { dueDate: today })}>
               <ArrowRight size={12} strokeWidth={1.75} aria-hidden="true" /> Today
@@ -160,7 +161,7 @@ export default function App() {
         {groups.map((g) => (
           <div key={g.day || 'unknown'} className="day-group">
             <h2>{g.label} <span className="date-sub num">{g.tasks.length}</span></h2>
-            <TaskList tasks={g.tasks} allTasks={tasks} showDate onOpen={setOpenId} />
+            <TaskList tasks={g.tasks} allTasks={tasks} showDate onOpen={setOpenId} onTag={openTag} />
           </div>
         ))}
         {list.length > 200 && <p className="empty">Showing the 200 most recent.</p>}
@@ -255,7 +256,7 @@ export default function App() {
           </div>
         )}
         {list.length === 0 && <p className="empty">No active tasks in this project.</p>}
-        <TaskList tasks={list} allTasks={tasks} showDate onOpen={setOpenId}
+        <TaskList tasks={list} allTasks={tasks} showDate onOpen={setOpenId} onTag={openTag}
           onReorder={(dragId, targetId, after) => void moveTask(dragId, targetId, after, list)} />
       </section>
     );

@@ -99,7 +99,7 @@ export default function SearchView(props: {
       {taskResults.length > 0 && (
         <>
           {scope === 'all' && <h2 className="search-group">Tasks</h2>}
-          <TaskList tasks={taskResults} allTasks={props.tasks} showDate onOpen={props.onOpenTask} />
+          <TaskList tasks={taskResults} allTasks={props.tasks} onTag={(tag) => props.onSelect({ kind: 'search', query: `#${tag}` })} showDate onOpen={props.onOpenTask} />
         </>
       )}
 

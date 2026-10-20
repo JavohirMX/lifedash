@@ -1156,3 +1156,8 @@ button.cal-more:hover { color: var(--accent); }
 }
 .goal-tasks-toggle:hover { color: var(--accent); }
 .goal-tasks { margin-top: 8px; }
+
+/* Clickable tag chips */
+.tag-link { cursor: pointer; }
+.tag-link:hover { color: var(--accent); }
+.tag-link:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; border-radius: 4px; }

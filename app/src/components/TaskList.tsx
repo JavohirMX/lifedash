@@ -14,6 +14,7 @@ export default function TaskList(props: {
   allTasks: Task[];
   showDate?: boolean;
   onOpen: (id: string) => void;
+  onTag?: (tag: string) => void;
   onReorder?: (dragId: string, targetId: string, after: boolean) => void;
 }) {
   const [over, setOver] = useState<{ id: string; after: boolean } | null>(null);
@@ -135,7 +136,8 @@ export default function TaskList(props: {
               : undefined
           }
         >
-          <TaskRow task={t} allTasks={props.allTasks} showDate={props.showDate} onOpen={props.onOpen} />
+          <TaskRow task={t} allTasks={props.allTasks} showDate={props.showDate} onOpen={props.onOpen}
+          onTag={props.onTag} />
         </div>
       ))}
     </div>

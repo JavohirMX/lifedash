@@ -9,6 +9,7 @@ export default function TaskRow(props: {
   allTasks: Task[];
   showDate?: boolean;
   onOpen: (id: string) => void;
+  onTag?: (tag: string) => void;
 }) {
   const { task, allTasks } = props;
   const done = task.status === 'done';
@@ -53,9 +54,25 @@ export default function TaskRow(props: {
           {blocked && (
             <span className="blocked-by">blocked by {blockers[0].title}{blockers.length > 1 ? ` +${blockers.length - 1}` : ''}</span>
           )}
-          {tags.map((t) => (
-            <span key={t} className="tag">#{t}</span>
-          ))}
+          {tags.map((t) =>
+            props.onTag ? (
+              <span
+                key={t}
+                className="tag tag-link"
+                role="button"
+                tabIndex={0}
+                aria-label={`Search tag ${t}`}
+                onClick={(e) => { e.stopPropagation(); props.onTag!(t); }}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.stopPropagation(); props.onTag!(t); }
+                }}
+              >
+                #{t}
+              </span>
+            ) : (
+              <span key={t} className="tag">#{t}</span>
+            ),
+          )}
           {progress.total > 0 && (
             <span className="subs">
               {progress.done}/{progress.total}
