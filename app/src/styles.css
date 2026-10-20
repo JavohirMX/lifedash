@@ -1000,3 +1000,10 @@ h2 { font-size: var(--fs-section); font-weight: 600; letter-spacing: -0.01em; ma
 .search-card-title { display: flex; align-items: center; gap: 6px; font-weight: 600; font-size: var(--fs-body); color: var(--text); }
 .search-card-title svg { color: var(--accent); flex: none; }
 .search-card-sub { font-size: var(--fs-small); color: var(--muted); }
+
+/* ---------- Widget settings ---------- */
+.home-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; }
+.home-head .icon-btn.active { color: var(--accent); border-color: var(--accent); }
+.widget-settings { display: flex; flex-wrap: wrap; gap: 8px 16px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-card); padding: 10px 14px; margin-bottom: 14px; max-width: 560px; }
+.widget-toggle { display: flex; align-items: center; gap: 6px; font-size: var(--fs-body); color: var(--text); cursor: pointer; }
+.widget-toggle input { accent-color: var(--accent); }

@@ -1,5 +1,6 @@
 import { useLiveQuery } from 'dexie-react-hooks';
-import { Check, Flame, ArrowRight, Target } from 'lucide-react';
+import { useState } from 'react';
+import { Check, Flame, ArrowRight, Target, SlidersHorizontal } from 'lucide-react';
 import { db } from '../db';
 import { toggleComplete, toggleHabitForDate } from '../repo';
 import { todayTasks, upcomingTasks } from '../logic';
@@ -16,6 +17,13 @@ function greeting(hour: number): string {
 
 export default function HomeView(props: { tasks: Task[]; onSelect: (kind: string) => void; onOpen: (id: string) => void }) {
   const habits = useLiveQuery(() => db.habits.orderBy('order').toArray(), []);
+  const widgetPref = useLiveQuery(() => db.syncmeta.get('home.widgets'), []);
+  const hidden: string[] = (widgetPref?.value as string[] | undefined) ?? [];
+  const [customizing, setCustomizing] = useState(false);
+  const toggleWidget = (id: string) => {
+    const next = hidden.includes(id) ? hidden.filter((w) => w !== id) : [...hidden, id];
+    void db.syncmeta.put({ key: 'home.widgets', value: next });
+  };
   const logs = useLiveQuery(() => db.habitLogs.toArray(), []);
   const goals = useLiveQuery(() => db.goals.orderBy('order').toArray(), []);
   const today = todayStr();
@@ -46,11 +54,39 @@ export default function HomeView(props: { tasks: Task[]; onSelect: (kind: string
   return (
     <section className="home">
       <header className="home-head">
-        <h1>{greeting(now.getHours())}</h1>
-        <p className="home-date">{weekdayLabel(today)} · {now.toLocaleDateString(undefined, { month: 'long', day: 'numeric' })}</p>
+        <div>
+          <h1>{greeting(now.getHours())}</h1>
+          <p className="home-date">{weekdayLabel(today)} · {now.toLocaleDateString(undefined, { month: 'long', day: 'numeric' })}</p>
+        </div>
+        <button
+          className={`icon-btn${customizing ? ' active' : ''}`}
+          aria-label="Customize widgets"
+          aria-expanded={customizing}
+          title="Customize widgets"
+          onClick={() => setCustomizing(!customizing)}
+        >
+          <SlidersHorizontal size={18} strokeWidth={1.75} />
+        </button>
       </header>
+      {customizing && (
+        <div className="widget-settings" role="group" aria-label="Show or hide widgets">
+          {[
+            ['today', 'Today'],
+            ['habits', 'Habits'],
+            ['week', 'This week'],
+            ['goals', 'Goals'],
+            ['upcoming', 'Upcoming'],
+          ].map(([id, label]) => (
+            <label key={id} className="widget-toggle">
+              <input type="checkbox" checked={!hidden.includes(id)} onChange={() => toggleWidget(id)} />
+              {label}
+            </label>
+          ))}
+        </div>
+      )}
 
       <div className="widget-grid">
+        {!hidden.includes('today') && (
         <div className="widget">
           <div className="widget-head">
             <h2>Today</h2>
@@ -77,7 +113,9 @@ export default function HomeView(props: { tasks: Task[]; onSelect: (kind: string
             </>
           )}
         </div>
+        )}
 
+        {!hidden.includes('habits') && (
         <div className="widget">
           <div className="widget-head">
             <h2>Habits</h2>
@@ -116,7 +154,9 @@ export default function HomeView(props: { tasks: Task[]; onSelect: (kind: string
             </>
           )}
         </div>
+        )}
 
+        {!hidden.includes('week') && (
         <div className="widget">
           <div className="widget-head">
             <h2>This week</h2>
@@ -133,7 +173,9 @@ export default function HomeView(props: { tasks: Task[]; onSelect: (kind: string
             ))}
           </div>
         </div>
+        )}
 
+        {!hidden.includes('goals') && (
         <div className="widget">
           <div className="widget-head">
             <h2>Goals</h2>
@@ -160,7 +202,9 @@ export default function HomeView(props: { tasks: Task[]; onSelect: (kind: string
             </ul>
           )}
         </div>
+        )}
 
+        {!hidden.includes('upcoming') && (
         <div className="widget">
           <div className="widget-head">
             <h2>Upcoming</h2>
@@ -181,6 +225,7 @@ export default function HomeView(props: { tasks: Task[]; onSelect: (kind: string
             </ul>
           )}
         </div>
+        )}
       </div>
     </section>
   );
