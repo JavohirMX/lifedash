@@ -13,7 +13,7 @@ from fastapi import Depends, FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 
-from .auth import current_user, hash_password, new_token, verify_password
+from .auth import bearer_token, current_user, hash_password, new_token, verify_password
 from .db import get_conn, init_db
 
 COLLECTIONS = {"tasks", "projects", "tags", "habits", "habitLogs", "goals", "notes", "journal"}
@@ -92,6 +92,16 @@ def login(creds: Credentials):
     conn.execute("INSERT INTO tokens (token, user_id) VALUES (?, ?)", (token, row["id"]))
     conn.commit()
     return {"token": token, "user_id": row["id"]}
+
+
+@app.post("/api/logout")
+def logout(auth: tuple[int, str] = Depends(bearer_token)):
+    """Revoke the calling token. Other sessions keep working."""
+    user_id, token = auth
+    conn = get_conn()
+    conn.execute("DELETE FROM tokens WHERE token = ? AND user_id = ?", (token, user_id))
+    conn.commit()
+    return {"ok": True}
 
 
 @app.get("/api/changes")

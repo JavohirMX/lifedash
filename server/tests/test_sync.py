@@ -54,6 +54,23 @@ def test_auth_required(client):
     assert client.post("/api/changes", json={"changes": []}).status_code == 401
 
 
+def test_logout_revokes_only_that_token(client):
+    username, token_a = register(client)
+    # second session for the same user
+    r = client.post("/api/login", json={"username": username, "password": "correct horse battery staple"})
+    assert r.status_code == 200, r.text
+    token_b = r.json()["token"]
+    assert token_a != token_b
+
+    assert client.post("/api/logout", headers=auth(token_a)).json() == {"ok": True}
+    # revoked token no longer works
+    assert client.get("/api/changes", headers=auth(token_a)).status_code == 401
+    # the other session is unaffected
+    assert client.get("/api/changes", headers=auth(token_b)).status_code == 200
+    # logging out again with the dead token is a 401, not a silent ok
+    assert client.post("/api/logout", headers=auth(token_a)).status_code == 401
+
+
 def test_push_and_pull_roundtrip(client):
     _, token = register(client)
     task_id = uuid.uuid4().hex

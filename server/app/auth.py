@@ -36,7 +36,8 @@ def new_token() -> str:
     return secrets.token_urlsafe(32)
 
 
-def current_user(authorization: str = Header(default="")) -> int:
+def bearer_token(authorization: str = Header(default="")) -> tuple[int, str]:
+    """Resolve the Authorization header to (user_id, token) or raise 401."""
     prefix = "Bearer "
     if not authorization.startswith(prefix):
         raise HTTPException(status_code=401, detail="missing bearer token")
@@ -44,4 +45,9 @@ def current_user(authorization: str = Header(default="")) -> int:
     row = get_conn().execute("SELECT user_id FROM tokens WHERE token = ?", (token,)).fetchone()
     if row is None:
         raise HTTPException(status_code=401, detail="invalid token")
-    return row["user_id"]
+    return row["user_id"], token
+
+
+def current_user(authorization: str = Header(default="")) -> int:
+    user_id, _ = bearer_token(authorization)
+    return user_id
