@@ -264,8 +264,11 @@ async function pull(base: string, headers: Record<string, string>): Promise<numb
     if (!COLLECTIONS.includes(col)) continue;
     const isDirty = (await db.syncmeta.get(dirtyKey(col, e.id))) !== undefined;
     if (isDirty) {
-      // Local edit wins until the push resolves it; just refresh base_rev.
-      await setMeta(revKey(col, e.id), e.rev);
+      // Locally edited: keep BOTH the local data and the old base_rev.
+      // The push must go out with the stale base_rev so the server can
+      // answer "conflict" with its version (server-wins MVP). Refreshing
+      // base_rev here would make the push match and silently clobber the
+      // server's newer version - the bug this comment replaces.
       continue;
     }
     await applyRemote(col, e);
