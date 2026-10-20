@@ -471,9 +471,12 @@ h2 { font-size: var(--fs-section); font-weight: 600; letter-spacing: -0.01em; ma
   border: 0;
   color: var(--muted);
   border-radius: var(--radius-control);
-  padding: 4px 8px;
+  padding: 5px 8px;
   font-size: var(--fs-small);
   cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
 }
 .ed-btn:hover { background: var(--surface-2); color: var(--text); }
 .ed-btn.active { background: var(--active); color: var(--text); }

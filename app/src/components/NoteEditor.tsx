@@ -1,9 +1,10 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, type ReactNode } from 'react';
 import { useEditor, EditorContent } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
 import TaskList from '@tiptap/extension-task-list';
 import TaskItem from '@tiptap/extension-task-item';
 import Link from '@tiptap/extension-link';
+import { Bold, Italic, List, ListOrdered, ListChecks, Link as LinkIcon } from 'lucide-react';
 
 // Rich-text notes: ProseMirror JSON in noteDoc, plain-text mirror in note
 // (search reads `note`). Debounced saves so typing isn't a write storm.
@@ -47,21 +48,28 @@ export default function NoteEditor(props: {
 
   if (!editor) return null;
 
-  const btn = (label: string, active: boolean, onClick: () => void, title: string) => (
-    <button type="button" className={`ed-btn ${active ? 'active' : ''}`} title={title} onMouseDown={(e) => { e.preventDefault(); onClick(); }}>
-      {label}
+  const btn = (icon: ReactNode, active: boolean, onClick: () => void, title: string) => (
+    <button
+      type="button"
+      className={`ed-btn ${active ? 'active' : ''}`}
+      title={title}
+      aria-label={title}
+      aria-pressed={active}
+      onMouseDown={(e) => { e.preventDefault(); onClick(); }}
+    >
+      {icon}
     </button>
   );
 
   return (
     <div className="note-editor">
       <div className="ed-toolbar">
-        {btn('B', editor.isActive('bold'), () => editor.chain().focus().toggleBold().run(), 'Bold')}
-        {btn('I', editor.isActive('italic'), () => editor.chain().focus().toggleItalic().run(), 'Italic')}
-        {btn('Bullets', editor.isActive('bulletList'), () => editor.chain().focus().toggleBulletList().run(), 'Bullet list')}
-        {btn('Numbered', editor.isActive('orderedList'), () => editor.chain().focus().toggleOrderedList().run(), 'Numbered list')}
-        {btn('Checklist', editor.isActive('taskList'), () => editor.chain().focus().toggleTaskList().run(), 'Checklist')}
-        {btn('Link', editor.isActive('link'), () => {
+        {btn(<Bold size={15} strokeWidth={2} aria-hidden="true" />, editor.isActive('bold'), () => editor.chain().focus().toggleBold().run(), 'Bold')}
+        {btn(<Italic size={15} strokeWidth={2} aria-hidden="true" />, editor.isActive('italic'), () => editor.chain().focus().toggleItalic().run(), 'Italic')}
+        {btn(<List size={15} strokeWidth={2} aria-hidden="true" />, editor.isActive('bulletList'), () => editor.chain().focus().toggleBulletList().run(), 'Bullet list')}
+        {btn(<ListOrdered size={15} strokeWidth={2} aria-hidden="true" />, editor.isActive('orderedList'), () => editor.chain().focus().toggleOrderedList().run(), 'Numbered list')}
+        {btn(<ListChecks size={15} strokeWidth={2} aria-hidden="true" />, editor.isActive('taskList'), () => editor.chain().focus().toggleTaskList().run(), 'Checklist')}
+        {btn(<LinkIcon size={15} strokeWidth={2} aria-hidden="true" />, editor.isActive('link'), () => {
           if (editor.isActive('link')) {
             editor.chain().focus().unsetLink().run();
             return;
