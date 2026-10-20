@@ -878,3 +878,17 @@ h2 { font-size: var(--fs-section); font-weight: 600; letter-spacing: -0.01em; ma
 }
 .btn-secondary:hover:not(:disabled) { background: var(--surface-2); }
 .btn-secondary:disabled { opacity: 0.5; cursor: default; }
+
+/* ---------- Search filter chips ---------- */
+.filter-chips { display: flex; flex-wrap: wrap; gap: 6px; margin: 2px 0 14px; }
+.chip {
+  display: inline-flex; align-items: center; gap: 5px;
+  border: 1px solid var(--control); border-radius: 999px;
+  background: var(--surface); color: var(--muted);
+  font-size: var(--fs-small); font-weight: 500; font-family: var(--font);
+  padding: 4px 12px; cursor: pointer; transition: background 160ms ease, color 160ms ease, border-color 160ms ease;
+}
+.chip:hover { background: var(--surface-2); }
+.chip.active { background: var(--primary-btn); border-color: var(--primary-btn); color: var(--primary-btn-ink); }
+.chip.tag { color: var(--accent-strong); border-color: var(--accent); background: var(--accent-soft); }
+.chip.select { appearance: none; padding-right: 22px; background-image: none; }

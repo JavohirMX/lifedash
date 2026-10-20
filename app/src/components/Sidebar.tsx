@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
   Sun, CalendarDays, Archive, Clock, CalendarRange, Repeat, CheckCircle2,
   Search, Plus, Menu, X, Download, Upload, Moon, Monitor, Zap, Cloud,
@@ -10,7 +10,7 @@ import { cycleTheme, getTheme, type Theme } from '../theme';
 export type Selection =
   | { kind: 'today' | 'upcoming' | 'backlog' | 'completed' | 'habits' | 'planner' | 'week' }
   | { kind: 'project'; id: string }
-  | { kind: 'search'; query: string };
+  | { kind: 'search'; query: string; status?: 'all' | 'open' | 'done'; projectId?: string | null };
 
 const COLORS = ['#0f766e', '#2563eb', '#b45309', '#be123c', '#4d7c0f', '#0e7490'];
 
@@ -53,6 +53,10 @@ export default function Sidebar(props: {
   const [adding, setAdding] = useState(false);
   const [name, setName] = useState('');
   const [query, setQuery] = useState('');
+  // Keep the box in step with external query changes (filter chips, Esc).
+  useEffect(() => {
+    setQuery(props.selection.kind === 'search' ? props.selection.query : '');
+  }, [props.selection]);
   const [sheet, setSheet] = useState(false);
   const [theme, setTheme] = useState<Theme>(getTheme());
 
@@ -104,6 +108,7 @@ export default function Sidebar(props: {
         onChange={(e) => {
           setQuery(e.target.value);
           if (e.target.value.trim()) props.onSelect({ kind: 'search', query: e.target.value });
+          else props.onSelect({ kind: 'today' });
         }}
         onKeyDown={(e) => {
           if (e.key === 'Escape') {
