@@ -16,11 +16,12 @@
 target's webview (browser, Tauri, Capacitor), so one data layer covers all six
 platforms with zero native code. Swap-in SQLite later only if profiling demands.
 
-**Sync (Phase 4):** small self-hosted server (FastAPI + SQLite/Postgres) on the
-homelab, single user, conflict strategy: last-writer-wins per field with
-tombstones. Not needed for MVP.
+**Sync (Phase 4, shipped):** small self-hosted server (FastAPI + SQLite, in
+`server/`), single user, conflict strategy: last-writer-wins per field with
+tombstones. The web client queues changes offline and syncs when configured;
+the app never requires it.
 
-**Rich text (Phase 2):** TipTap (ProseMirror). **Recurrence:** rrule.
+**Rich text (shipped):** TipTap (ProseMirror). **Recurrence:** rrule.
 
 ## Alternatives considered
 

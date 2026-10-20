@@ -22,7 +22,7 @@ Funnel) before exposing it beyond localhost - tokens are bearer tokens.
 ```bash
 pip install -r requirements-dev.txt
 SYNC_DB=./dev.db SYNC_OPEN_REGISTRATION=1 uvicorn app.main:app --port 8787
-pytest            # 12 tests
+pytest            # 15 tests
 ```
 
 ## API
