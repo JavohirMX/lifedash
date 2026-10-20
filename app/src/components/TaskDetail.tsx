@@ -1,4 +1,4 @@
-import { Check, StickyNote } from 'lucide-react';
+import { X, Check, StickyNote } from 'lucide-react';
 import { useState } from 'react';
 import NoteEditor from './NoteEditor';
 import Attachments from './Attachments';
@@ -58,7 +58,7 @@ export default function TaskDetail(props: { taskId: string; onClose: () => void;
   return (
     <aside className="detail">
       <div className="detail-head">
-        <button className="close" aria-label="Close task details" onClick={props.onClose}>×</button>
+        <button className="close" aria-label="Close task details" onClick={props.onClose}><X size={16} strokeWidth={2} /></button>
       </div>
       <input
         className="detail-title"
@@ -172,7 +172,7 @@ export default function TaskDetail(props: { taskId: string; onClose: () => void;
           <div key={b.id} className={`sub-row ${b.status === 'done' ? 'done' : ''}`}>
             <span className={`dep-dot ${b.status}`} />
             <span style={{ flex: 1 }}>{b.title}</span>
-            <button className="mini" onClick={() => void removeBlocker(task.id, b.id)}>×</button>
+            <button className="mini" aria-label={`Remove blocker ${b.title}`} onClick={() => void removeBlocker(task.id, b.id)}><X size={13} strokeWidth={2} /></button>
           </div>
         ))}
         <div className="dep-add">
@@ -207,7 +207,7 @@ export default function TaskDetail(props: { taskId: string; onClose: () => void;
           {(task.tags ?? []).map((t) => (
             <span key={t} className="chip">
               #{t}
-              <button onClick={() => void removeTag(task.id, t)}>×</button>
+              <button aria-label={`Remove tag ${t}`} onClick={() => void removeTag(task.id, t)}><X size={12} strokeWidth={2} /></button>
             </span>
           ))}
           <input

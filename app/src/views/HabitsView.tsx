@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Flame } from 'lucide-react';
+import { ChevronDown, ChevronRight, Flame, Plus } from 'lucide-react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db } from '../db';
 import { addHabit, archiveHabit, restoreHabit, toggleHabitForDate, updateHabit } from '../repo';
@@ -53,7 +53,7 @@ export default function HabitsView() {
       <h1>
         Habits
         <button className="mini" style={{ marginLeft: 'auto' }} onClick={() => setAdding(!adding)}>
-          {adding ? 'Cancel' : '+ New habit'}
+          {adding ? 'Cancel' : <><Plus size={14} strokeWidth={2} aria-hidden="true" /> New habit</>}
         </button>
       </h1>
 
@@ -178,7 +178,7 @@ export default function HabitsView() {
       {archived.length > 0 && (
         <div className="archived-habits">
           <button className="archived-toggle" onClick={() => setShowArchived(!showArchived)} aria-expanded={showArchived}>
-            Archived ({archived.length}) {showArchived ? '−' : '+'}
+            Archived ({archived.length}) {showArchived ? <ChevronDown size={13} strokeWidth={2} aria-hidden="true" /> : <ChevronRight size={13} strokeWidth={2} aria-hidden="true" />}
           </button>
           {showArchived && (
             <div className="archived-list">

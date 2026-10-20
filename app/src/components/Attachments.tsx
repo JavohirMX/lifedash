@@ -1,4 +1,4 @@
-import { Paperclip } from 'lucide-react';
+import { X, Paperclip } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db } from '../db';
@@ -35,7 +35,7 @@ export default function Attachments(props: { taskId: string }) {
           <Thumb att={a} />
           <span className="att-name" title={a.name}>{a.name}</span>
           <span className="att-size">{fmtSize(a.byteSize)}</span>
-          <button className="mini" title="Remove" onClick={() => void deleteAttachment(a.id)}>×</button>
+          <button className="mini" title="Remove" aria-label="Remove attachment" onClick={() => void deleteAttachment(a.id)}><X size={13} strokeWidth={2} /></button>
         </div>
       ))}
       <input aria-label="Attach files"
