@@ -16,7 +16,7 @@ import SyncDialog from './components/SyncDialog';
 import { cycleTheme } from './theme';
 import { loadRules, saveRules, type AutomationRules } from './automation';
 import { applyRollover } from './repo';
-import { installSyncHooks } from './sync';
+import { startAutoSync } from './sync';
 import {
   todayTasks,
   upcomingTasks,
@@ -47,7 +47,7 @@ export default function App() {
 
   useEffect(() => {
     void ensureSeed();
-    installSyncHooks();
+    startAutoSync();
     if (loadRules().rollover) void applyRollover(todayStr());
   }, []);
 

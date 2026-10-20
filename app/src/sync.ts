@@ -74,6 +74,38 @@ async function getCursor(): Promise<number> {
 
 let applyingRemote = false;
 let hooksInstalled = false;
+let autoSyncStarted = false;
+let syncing = false;
+let debounceTimer: number | undefined;
+
+const AUTO_INTERVAL_MS = 5 * 60 * 1000;
+const EDIT_DEBOUNCE_MS = 4 * 1000;
+
+function scheduleSync(): void {
+  if (!loadSyncSettings()) return;
+  window.clearTimeout(debounceTimer);
+  debounceTimer = window.setTimeout(() => void runAutoSync(), EDIT_DEBOUNCE_MS);
+}
+
+async function runAutoSync(): Promise<void> {
+  const settings = loadSyncSettings();
+  if (!settings || syncing || !navigator.onLine) return;
+  try {
+    await syncNow(settings); // syncNow owns the in-flight guard
+  } catch (e) {
+    console.warn('auto-sync failed', e);
+  }
+}
+
+/** Focus/online/interval sync plus debounced push after local edits. */
+export function startAutoSync(): void {
+  if (autoSyncStarted) return;
+  autoSyncStarted = true;
+  installSyncHooks();
+  window.addEventListener('focus', () => void runAutoSync());
+  window.addEventListener('online', () => void runAutoSync());
+  window.setInterval(() => void runAutoSync(), AUTO_INTERVAL_MS);
+}
 
 export function installSyncHooks(): void {
   if (hooksInstalled) return;
@@ -85,7 +117,10 @@ export function installSyncHooks(): void {
       // Hooks fire inside the source transaction's zone; writing syncmeta
       // there makes Dexie join that transaction, which does not include
       // the syncmeta store. Escape the zone, then write.
-      setTimeout(() => void setMeta(dirtyKey(col, id), { deleted }), 0);
+      setTimeout(() => {
+        void setMeta(dirtyKey(col, id), { deleted });
+        scheduleSync();
+      }, 0);
     };
     table.hook('creating', (_pk, obj) => mark((obj as { id: string }).id));
     table.hook('updating', (_mods, pk) => mark(String(pk)));
@@ -116,6 +151,16 @@ export interface SyncResult {
 
 export async function syncNow(settings: SyncSettings): Promise<SyncResult> {
   installSyncHooks();
+  if (syncing) return { pushed: 0, conflicts: 0, pulled: 0, cursor: await getCursor() };
+  syncing = true;
+  try {
+    return await syncNowInner(settings);
+  } finally {
+    syncing = false;
+  }
+}
+
+async function syncNowInner(settings: SyncSettings): Promise<SyncResult> {
   const base = settings.url.replace(/\/$/, '');
   const headers = { 'Content-Type': 'application/json', Authorization: `Bearer ${settings.token}` };
 
