@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { ArrowRight, Pencil, X } from 'lucide-react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db, INBOX_ID, ensureSeed } from './db';
+import AssistantDialog from './ai/AssistantDialog';
 import Sidebar, { type Selection } from './components/Sidebar';
 import QuickAdd from './components/QuickAdd';
 import TaskList, { TASK_DRAG_MIME } from './components/TaskList';
@@ -50,6 +51,7 @@ export default function App() {
   const [importOpen, setImportOpen] = useState(false);
   const [automationOpen, setAutomationOpen] = useState(false);
   const [syncOpen, setSyncOpen] = useState(false);
+  const [aiOpen, setAiOpen] = useState(false);
   const [rules, setRules] = useState<AutomationRules>(loadRules);
   const [remindOn, setRemindOn] = useState(remindersEnabled);
   const tasksRef = useRef<Task[]>([]);
@@ -296,7 +298,7 @@ export default function App() {
           });
         }}
         onScheduleToday={(id) => void updateTask(id, { dueDate: today })}
-        onImport={() => setImportOpen(true)} onAutomation={() => setAutomationOpen(true)} onSync={() => setSyncOpen(true)} />
+        onAI={() => setAiOpen(true)} onImport={() => setImportOpen(true)} onAutomation={() => setAutomationOpen(true)} onSync={() => setSyncOpen(true)} />
       <main>
         {showQuickAdd && (
           <QuickAdd
@@ -315,6 +317,7 @@ export default function App() {
       )}
       {importOpen && <ImportDialog projects={projects} onClose={() => setImportOpen(false)} />}
       {automationOpen && <AutomationDialog rules={rules} onChange={changeRules} onClose={() => setAutomationOpen(false)} />}
+      {aiOpen && <AssistantDialog tasks={tasks} onClose={() => setAiOpen(false)} />}
       {syncOpen && <SyncDialog onClose={() => setSyncOpen(false)} />}
       <CommandPalette
         open={paletteOpen}

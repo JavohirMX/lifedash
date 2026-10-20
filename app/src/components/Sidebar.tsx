@@ -57,6 +57,7 @@ export default function Sidebar(props: {
   onImport: () => void;
   onAutomation: () => void;
   onSync: () => void;
+  onAI?: () => void;
   reminders: 'on' | 'off' | 'blocked' | 'unsupported';
   onToggleReminders: () => void;
 }) {
@@ -280,7 +281,7 @@ export default function Sidebar(props: {
         {searchBox}
         {MAIN_ITEMS.map(({ kind, label, Icon }) => item(kind, label, Icon))}
         {projectsBlock}
-        <div className="sidebar-foot">{importBtn}{remindersBtn}{themeBtn}{exportBtn}{restoreBtn}</div>
+        <div className="sidebar-foot">{props.onAI && <button className="nav foot-action" onClick={() => { setSheet(false); props.onAI?.(); }}>Plan with AI</button>}{importBtn}{remindersBtn}{themeBtn}{exportBtn}{restoreBtn}</div>
       </nav>
 
       <div className="mobile-topbar">
@@ -319,7 +320,7 @@ export default function Sidebar(props: {
           {searchBox}
           {MAIN_ITEMS.map(({ kind, label, Icon }) => item(kind, label, Icon, () => setSheet(false)))}
           {projectsBlock}
-          <div className="sidebar-foot">{importBtn}{remindersBtn}{themeBtn}{exportBtn}{restoreBtn}</div>
+          <div className="sidebar-foot">{props.onAI && <button className="nav foot-action" onClick={() => { setSheet(false); props.onAI?.(); }}>Plan with AI</button>}{importBtn}{remindersBtn}{themeBtn}{exportBtn}{restoreBtn}</div>
         </div>
       )}
     </>
