@@ -965,6 +965,13 @@ button.load-col:focus-visible { outline: 2px solid var(--accent); outline-offset
 .note-source:hover { color: var(--accent); }
 .habit-edit { margin: 8px 0 0; }
 .habit-edit-actions { display: flex; gap: 6px; }
+.proj-edit-btn { margin-left: 2px; }
+.proj-settings { margin-bottom: 12px; flex-wrap: wrap; }
+.proj-colors { display: flex; gap: 6px; flex-wrap: wrap; }
+.swatch { width: 20px; height: 20px; border-radius: 50%; border: 2px solid transparent; cursor: pointer; padding: 0; }
+.swatch.on { border-color: var(--ink); }
+.mini.danger { color: var(--danger, #be123c); }
+.proj-del-hint { font-size: 12.5px; color: var(--faint); margin-left: auto; }
 @media (max-width: 640px) {
   .widget-grid { grid-template-columns: 1fr; }
 }

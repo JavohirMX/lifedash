@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { ArrowRight, X } from 'lucide-react';
+import { ArrowRight, Pencil, X } from 'lucide-react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db, INBOX_ID, ensureSeed } from './db';
 import Sidebar, { type Selection } from './components/Sidebar';
@@ -32,12 +32,17 @@ import {
   searchTasks,
 } from './logic';
 import { todayStr, friendlyDate, weekdayLabel } from './dates';
-import { updateTask, moveTask } from './repo';
+import { updateTask, moveTask, updateProject, deleteProject } from './repo';
 
 export default function App() {
   const tasks = useLiveQuery(() => db.tasks.toArray(), []);
   const projects = useLiveQuery(() => db.projects.orderBy('order').toArray(), []);
   const [selection, setSelection] = useState<Selection>({ kind: 'home' });
+  const [projEditing, setProjEditing] = useState(false);
+  const [projName, setProjName] = useState('');
+  const [projColor, setProjColor] = useState('');
+  const [projConfirmDelete, setProjConfirmDelete] = useState(false);
+  useEffect(() => { setProjEditing(false); setProjConfirmDelete(false); }, [selection.kind, selection.kind === 'project' ? selection.id : null]);
   const [openId, setOpenId] = useState<string | null>(null);
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
@@ -189,6 +194,12 @@ export default function App() {
       <section>
         <h1>
           <span className="dot" style={{ background: project?.color }} /> {project?.name ?? 'Project'}
+          {project && project.id !== INBOX_ID && (
+            <button className="icon-btn proj-edit-btn" aria-label="Project settings" title="Project settings"
+              onClick={() => { setProjName(project.name); setProjColor(project.color); setProjEditing(!projEditing); setProjConfirmDelete(false); }}>
+              <Pencil size={15} strokeWidth={2} />
+            </button>
+          )}
           {projAll.length > 0 && (
             <span className="proj-progress">
               <span className="progress proj-bar"><span className="progress-fill" style={{ width: `${projPct}%` }} /></span>
@@ -196,6 +207,46 @@ export default function App() {
             </span>
           )}
         </h1>
+        {projEditing && project && (
+          <div className="goal-add proj-settings">
+            <input
+              autoFocus
+              value={projName}
+              aria-label="Project name"
+              onChange={(e) => setProjName(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && projName.trim()) {
+                  void updateProject(project.id, { name: projName, color: projColor });
+                  setProjEditing(false);
+                }
+                if (e.key === 'Escape') setProjEditing(false);
+              }}
+            />
+            <div className="proj-colors">
+              {['#0f766e', '#2563eb', '#b45309', '#be123c', '#4d7c0f', '#0e7490', '#6366f1', '#8b5cf6', '#22c55e', '#f59e0b', '#ef4444', '#38bdf8'].map((c) => (
+                <button key={c} className={`swatch ${projColor === c ? 'on' : ''}`} style={{ background: c }}
+                  aria-label={`Color ${c}`} aria-pressed={projColor === c} onClick={() => setProjColor(c)} />
+              ))}
+            </div>
+            <div className="habit-edit-actions">
+              <button className="btn-primary" disabled={!projName.trim()}
+                onClick={() => { void updateProject(project.id, { name: projName, color: projColor }); setProjEditing(false); }}>
+                Save
+              </button>
+              <button className="mini" onClick={() => setProjEditing(false)}>Cancel</button>
+              {projConfirmDelete ? (
+                <>
+                  <span className="proj-del-hint">Deletes {projAll.length} task{projAll.length === 1 ? '' : 's'}.</span>
+                  <button className="mini danger" onClick={() => { void deleteProject(project).then(() => setSelection({ kind: 'project', id: INBOX_ID })); }}>
+                    Confirm delete
+                  </button>
+                </>
+              ) : (
+                <button className="mini danger" style={{ marginLeft: 'auto' }} onClick={() => setProjConfirmDelete(true)}>Delete project</button>
+              )}
+            </div>
+          </div>
+        )}
         {list.length === 0 && <p className="empty">No active tasks in this project.</p>}
         <TaskList tasks={list} allTasks={tasks} showDate onOpen={setOpenId}
           onReorder={(dragId, targetId, after) => void moveTask(dragId, targetId, after, list)} />

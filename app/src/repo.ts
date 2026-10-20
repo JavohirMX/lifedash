@@ -109,6 +109,13 @@ export async function addProject(name: string, color: string): Promise<Project> 
   return project;
 }
 
+export async function updateProject(id: string, patch: { name?: string; color?: string }): Promise<void> {
+  const clean: { name?: string; color?: string } = {};
+  if (patch.name !== undefined) clean.name = patch.name.trim();
+  if (patch.color !== undefined) clean.color = patch.color;
+  await db.projects.update(id, clean);
+}
+
 export async function deleteProject(project: Project): Promise<void> {
   await db.transaction('rw', db.tasks, db.projects, async () => {
     const ids = await db.tasks.where('projectId').equals(project.id).primaryKeys();
