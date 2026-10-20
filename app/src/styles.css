@@ -7,7 +7,7 @@
   --active: #e9e9e3;
   --border: #e5e5df;
   --rule: #efefeb;
-  --control: #d2d2cb;
+  --control: #898a84;
   --text: #1c1e1a;
   --muted: #5c5f57;
   --faint: #6f7269;
@@ -35,6 +35,9 @@
   --ls-title: -0.02em;
   --btn-border: 1px;
   --h-weight: 600;
+  --prio-1: #c81e1e;
+  --prio-2: #b45309;
+  --prio-3: #1d4ed8;
 }
 :root[data-theme='dark'] {
   color-scheme: dark;
@@ -44,7 +47,7 @@
   --active: #2b2b27;
   --border: #2d2d2a;
   --rule: #232321;
-  --control: #45453f;
+  --control: #6f6f69;
   --text: #f2f2ed;
   --muted: #aeaea6;
   --faint: #8b8b83;
@@ -57,6 +60,9 @@
   --positive: #3fc07a;
   --negative: #e0605a;
   --warning: #dfa050;
+  --prio-1: #f07070;
+  --prio-2: #e8a550;
+  --prio-3: #7ba6ff;
 }
 
 * { box-sizing: border-box; }
@@ -419,7 +425,7 @@ h2 { font-family: var(--font-display); font-size: var(--fs-section); font-weight
   padding: 8px;
   cursor: pointer;
 }
-.danger:hover { background: var(--negative); color: #fff; }
+.danger:hover { background: var(--negative); color: var(--ground); }
 
 /* ---------- Dependencies / tags / search ---------- */
 .blocked-by { font-size: var(--fs-small); }
@@ -1042,7 +1048,7 @@ button.cal-more:hover { color: var(--accent); }
 .mood-row { display: flex; gap: 6px; margin-bottom: 12px; }
 .mood-btn { width: 38px; height: 38px; border-radius: 50%; border: 1px solid var(--control); background: var(--surface); color: var(--muted); display: grid; place-items: center; cursor: pointer; transition: all 160ms ease; }
 .mood-btn:hover { border-color: var(--accent); color: var(--accent); }
-.mood-btn.active { background: var(--accent); border-color: var(--accent); color: #fff; }
+.mood-btn.active { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
 .journal-editor { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-card); padding: 14px; max-width: 720px; min-height: 260px; }
 .journal-editor + .empty { margin-top: 12px; }
 
@@ -1073,7 +1079,7 @@ button.cal-more:hover { color: var(--accent); }
 .cal-cell.today .cal-day { color: var(--accent); font-weight: 700; }
 .cal-tasks { display: flex; flex-direction: column; gap: 2px; overflow: hidden; }
 .cal-task { font-size: 11.5px; line-height: 1.3; text-align: left; background: var(--accent-soft, rgba(15,118,110,0.08)); color: var(--text); border: none; border-radius: 4px; padding: 2px 5px; cursor: pointer; font-family: var(--font); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.cal-task:hover { background: var(--accent); color: #fff; }
+.cal-task:hover { background: var(--accent); color: var(--accent-ink); }
 .cal-task.done { opacity: 0.55; text-decoration: line-through; }
 .cal-more { font-size: 11px; color: var(--muted); padding-left: 5px; }
 @media (max-width: 700px) {
@@ -1087,9 +1093,9 @@ button.cal-more:hover { color: var(--accent); }
 
 /* ---------- Priority flags ---------- */
 .prio { flex: none; }
-.prio-1 { color: #dc2626; fill: #dc2626; }
-.prio-2 { color: #d97706; fill: #d97706; }
-.prio-3 { color: #2563eb; fill: #2563eb; }
+.prio-1 { color: var(--prio-1); fill: var(--prio-1); }
+.prio-2 { color: var(--prio-2); fill: var(--prio-2); }
+.prio-3 { color: var(--prio-3); fill: var(--prio-3); }
 
 /* ---------- Habit stats ---------- */
 .habit-stats { margin-left: auto; font-size: var(--fs-small); color: var(--muted); }
@@ -1252,7 +1258,7 @@ button.cal-more:hover { color: var(--accent); }
   --text: #2a2118; --muted: #5e5240; --faint: #6e6149;
   --accent: #8c2f39; --accent-strong: #6e2029; --accent-soft: #f3dcd9; --accent-ink: #fff;
   --primary-btn: #2a2118; --primary-btn-ink: #fffaf0;
-  --positive: #3b6b3a; --negative: #a3231f; --warning: #9a5b0e;
+  --positive: #3b6b3a; --negative: #a3231f; --warning: #864c06;
   --radius-card: 2px; --radius-control: 2px; --radius-panel: 3px;
   --fs-title: 30px; --fs-section: 18px; --fs-body: 15px; --fs-small: 12.5px;
   --row-h: 48px; --ls-title: -0.015em; --h-weight: 500;
@@ -1337,3 +1343,7 @@ button.cal-more:hover { color: var(--accent); }
 :root[data-style='contrast'] .task-row.done { opacity: 0.75; }
 
 .nav.active .count { color: var(--muted); }
+
+/* Native controls and the AI dialog follow the active style. */
+input[type='checkbox'], input[type='radio'], input[type='range'] { accent-color: var(--accent); }
+:root .ai-dialog { border-radius: var(--radius-panel); font-family: var(--font); }
