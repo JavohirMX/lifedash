@@ -979,6 +979,7 @@ button.cal-day:focus-visible { outline: 2px solid var(--accent); outline-offset:
 button.cal-more { background: none; border: 0; font: inherit; cursor: pointer; color: var(--faint); padding: 0; }
 button.cal-more:hover { color: var(--accent); }
 .cal-drill { max-width: 480px; }
+.journal-jump { margin-left: auto; width: auto; padding: 4px 8px; font-size: 12.5px; }
 @media (max-width: 640px) {
   .widget-grid { grid-template-columns: 1fr; }
 }

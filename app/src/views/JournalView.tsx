@@ -50,6 +50,14 @@ export default function JournalView(props: { initialDate?: string }) {
         {date !== today && (
           <button className="mini" onClick={() => setDate(today)}>Today</button>
         )}
+        <input
+          type="date"
+          className="journal-jump"
+          aria-label="Jump to date"
+          value={date}
+          max={today}
+          onChange={(e) => { if (e.target.value) setDate(e.target.value); }}
+        />
       </div>
       <div className="mood-row" role="radiogroup" aria-label="Mood">
         {MOODS.map(({ v, Icon, label }) => (
