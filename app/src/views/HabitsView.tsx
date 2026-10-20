@@ -150,9 +150,13 @@ export default function HabitsView() {
                 <div className="grid7">
                   {grid.map((c) => (
                     <div key={c.date} className="cell-wrap">
-                      <div
+                      <button
                         className={`cell ${c.done ? 'done' : ''} ${!c.scheduled ? 'off' : ''} ${c.isToday ? 'today' : ''}`}
-                        title={`${c.date}${c.scheduled ? '' : ' (not scheduled)'}`}
+                        title={`${c.date}${c.scheduled ? (c.done ? ' - tap to undo' : ' - tap to mark done') : ' (not scheduled)'}`}
+                        aria-label={`${c.done ? 'Unmark' : 'Mark'} ${h.name} for ${c.date}`}
+                        aria-pressed={c.done}
+                        disabled={!c.scheduled}
+                        onClick={() => void toggleHabitForDate(h.id, c.date)}
                       />
                       <span className="cell-label">{weekdayLabel(c.date)}</span>
                     </div>

@@ -1103,3 +1103,42 @@ button.cal-more:hover { color: var(--accent); }
 .archived-list { display: flex; flex-direction: column; gap: 4px; margin-top: 6px; }
 .archived-row { display: flex; align-items: center; gap: 8px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-control); padding: 8px 12px; opacity: 0.8; }
 .archived-row .mini { margin-left: auto; }
+
+/* Planner: tap-to-schedule rows */
+.plan-row { display: flex; align-items: center; gap: 2px; }
+.plan-row .plan-drag { flex: 1; min-width: 0; }
+.plan-row .icon-btn { flex-shrink: 0; opacity: 0.55; }
+.plan-row:hover .icon-btn, .plan-row .icon-btn:focus-visible { opacity: 1; }
+.time-pop { display: flex; align-items: center; gap: 8px; padding: 6px 8px 10px 34px; }
+.time-pop input[type="time"] {
+  font: inherit;
+  padding: 6px 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--text);
+}
+@media (max-width: 700px) {
+  .plan-row .icon-btn { opacity: 0.8; } /* always visible on touch */
+  .time-pop { padding-left: 8px; }
+}
+
+/* Notes filter */
+.notes-filter { max-width: 420px; margin-bottom: 12px; }
+
+/* Week nav + overdue strip */
+.week-nav { display: inline-flex; align-items: center; gap: 4px; margin-left: auto; }
+.week-overdue {
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--danger, #be123c);
+  border-radius: var(--radius-control);
+  padding: 8px 10px 4px;
+  margin-bottom: 10px;
+  background: var(--surface);
+}
+.week-overdue h2 { margin: 0 0 6px; }
+
+/* Habit grid cells are toggle buttons */
+.cell:disabled { cursor: default; }
+.cell:not(:disabled):hover { border-color: var(--accent); }
+.cell:not(:disabled):focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
