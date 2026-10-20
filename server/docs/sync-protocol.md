@@ -7,7 +7,7 @@ real-time collaboration).
 
 ## Model
 
-- Collections: `tasks`, `projects`, `tags`, `habits`, `habitLogs`, `goals`. An entity is an opaque JSON
+- Collections: `tasks`, `projects`, `tags`, `habits`, `habitLogs`, `goals`, `notes`. An entity is an opaque JSON
   blob (`data`) keyed by `(collection, id)`; ids are client-generated.
 - Each user has one monotonic revision counter. Every applied change
   increments it and stamps the entity with the new `rev`. The counter
