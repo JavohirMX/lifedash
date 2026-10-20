@@ -54,14 +54,16 @@ export default function AssistantDialog({ tasks, onClose }: { tasks: Task[]; onC
         <button key={id} role="radio" aria-checked={mode === id} className={mode === id ? 'active' : ''} onClick={() => setMode(id)}>{label}</button>)}
     </div>
     {mode === 'local'
-      ? <p className="ai-hint">Local rule-based planning on this device: ranks the tasks you select by due date and priority. No model, no network request, no account, no cost. This is not the requested local-model capability - it does not understand free text.</p>
+      ? <p className="ai-hint">Rule-based task ranking on this device: orders the tasks you select by due date and priority. No AI model or network request; free text isn't supported.</p>
       : <p className="ai-hint">Ollama: localhost:11434/v1. LM Studio: localhost:1234/v1. Cloud: your HTTPS OpenAI-compatible API base URL. Local servers must allow this app's origin (CORS). A localhost endpoint can still route to a cloud model.</p>}
     <fieldset disabled={busy}>
       {mode === 'provider' && <>
         <div className="ai-fields"><label>Provider API base URL<input type="url" value={baseUrl} onChange={e => setBaseUrl(e.target.value)} placeholder="http://localhost:11434/v1" /></label><label>Model ID<input value={model} onChange={e => setModel(e.target.value)} placeholder="Your installed or cloud model ID" autoComplete="off" /></label></div>
         <label>API key (optional, held only while this window is open)<input type="password" value={apiKey} onChange={e => setApiKey(e.target.value)} autoComplete="off" /></label>
       </>}
-      <h3>Choose what to share</h3><p className="ai-hint">Nothing is selected by default. Only titles, due dates, priority and status are included. Notes, journal, attachments and sync credentials stay out.</p>
+      <h3>{mode === 'local' ? 'Choose tasks to summarize' : 'Choose what to share'}</h3><p className="ai-hint">{mode === 'local'
+        ? 'Only titles, due dates, priority and status are used, on this device only.'
+        : 'Nothing is selected by default. Only titles, due dates, priority and status are included. Notes, journal, attachments and sync credentials stay out.'}</p>
       <div className="ai-task-picker">{tasks.filter(t => t.status === 'active').map(t => <label key={t.id}><input type="checkbox" checked={selected.includes(t.id)} onChange={e => setSelected(ids => e.target.checked ? [...ids, t.id] : ids.filter(id => id !== t.id))} /><span>{t.title}</span></label>)}{!tasks.some(t => t.status === 'active') && <p>No active tasks. You can still ask a planning question.</p>}</div>
       {mode === 'provider' && <>
         <label>Your request<textarea rows={3} value={prompt} onChange={e => setPrompt(e.target.value)} /></label>
