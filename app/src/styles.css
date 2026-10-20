@@ -1137,3 +1137,8 @@ button.cal-more:hover { color: var(--accent); }
   background: var(--surface);
 }
 .week-overdue h2 { margin: 0 0 6px; }
+
+/* Habit grid cells are toggle buttons */
+.cell:disabled { cursor: default; }
+.cell:not(:disabled):hover { border-color: var(--accent); }
+.cell:not(:disabled):focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
