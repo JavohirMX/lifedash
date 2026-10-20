@@ -149,3 +149,41 @@ def test_habits_collections_accepted(client):
     assert statuses == ["ok", "ok"]
     body = client.get("/api/changes?since=0", headers=auth(token)).json()
     assert {c["collection"] for c in body["changes"]} == {"habits", "habitLogs"}
+
+
+def test_goals_notes_journal_collections_accepted(client):
+    _, token = register(client)
+    r = client.post("/api/changes", headers=auth(token), json={"changes": [
+        {"collection": "goals", "id": uuid.uuid4().hex, "base_rev": 0, "data": {"title": "Run a marathon"}},
+        {"collection": "notes", "id": uuid.uuid4().hex, "base_rev": 0, "data": {"title": "Ideas", "body": "..."}},
+        {"collection": "journal", "id": uuid.uuid4().hex, "base_rev": 0, "data": {"date": "2026-10-20", "body": "..."}},
+    ]})
+    statuses = [x["status"] for x in r.json()["results"]]
+    assert statuses == ["ok", "ok", "ok"]
+    body = client.get("/api/changes?since=0", headers=auth(token)).json()
+    assert {c["collection"] for c in body["changes"]} == {"goals", "notes", "journal"}
+
+
+def test_notes_conflict_and_journal_tombstone(client):
+    _, token = register(client)
+    note_id = uuid.uuid4().hex
+    client.post("/api/changes", headers=auth(token), json={"changes": [
+        {"collection": "notes", "id": note_id, "base_rev": 0, "data": {"title": "server v1"}}]})
+    r = client.post("/api/changes", headers=auth(token), json={"changes": [
+        {"collection": "notes", "id": note_id, "base_rev": 0, "data": {"title": "stale write"}}]})
+    result = r.json()["results"][0]
+    assert result["status"] == "conflict"
+    assert result["current"]["rev"] == 1
+    assert result["current"]["data"]["title"] == "server v1"
+
+    entry_id = uuid.uuid4().hex
+    created = client.post("/api/changes", headers=auth(token), json={"changes": [
+        {"collection": "journal", "id": entry_id, "base_rev": 0, "data": {"date": "2026-10-20"}}]})
+    # rev is a per-user global sequence: a create after other writes does not get rev 1
+    entry_rev = created.json()["results"][0]["rev"]
+    r = client.post("/api/changes", headers=auth(token), json={"changes": [
+        {"collection": "journal", "id": entry_id, "base_rev": entry_rev, "deleted": True, "data": {}}]})
+    assert r.json()["results"][0]["status"] == "ok"
+    changes = client.get("/api/changes?since=0", headers=auth(token)).json()["changes"]
+    assert changes[-1]["collection"] == "journal"
+    assert changes[-1]["deleted"] is True
