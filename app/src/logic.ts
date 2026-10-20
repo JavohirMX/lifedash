@@ -1,6 +1,6 @@
 import { RRule, Frequency } from 'rrule';
 import type { Task, Note, JournalEntry, Goal } from './types';
-import { utcNoon, fromUtcNoon, parseLocalDate } from './dates';
+import { utcNoon, fromUtcNoon, parseLocalDate, toLocalDateStr, addDays } from './dates';
 
 export type RecurrenceKind = 'daily' | 'weekly' | 'monthly' | 'ndays';
 
@@ -137,6 +137,35 @@ export function completedTasks(tasks: Task[]): Task[] {
   return [...tasks]
     .filter((t) => t.status === 'done')
     .sort((a, b) => (b.completedAt ?? 0) - (a.completedAt ?? 0));
+}
+
+export type CompletedGroup = { day: string; label: string; tasks: Task[] };
+
+// Group a completedAt-desc list of done tasks into calendar-day buckets with
+// friendly labels (Today / Yesterday / weekday within the last week / date).
+export function groupCompletedByDay(tasks: Task[], today: string): CompletedGroup[] {
+  const groups: CompletedGroup[] = [];
+  for (const t of tasks) {
+    const day = t.completedAt ? toLocalDateStr(new Date(t.completedAt)) : '';
+    const last = groups[groups.length - 1];
+    if (last && last.day === day) last.tasks.push(t);
+    else groups.push({ day, label: completedDayLabel(day, today), tasks: [t] });
+  }
+  return groups;
+}
+
+function completedDayLabel(day: string, today: string): string {
+  if (!day) return 'Unknown date';
+  if (day === today) return 'Today';
+  if (day === addDays(today, -1)) return 'Yesterday';
+  const sameYear = day.slice(0, 4) === today.slice(0, 4);
+  const ageDays = Math.round((parseLocalDate(today).getTime() - parseLocalDate(day).getTime()) / 86400000);
+  if (ageDays > 0 && ageDays < 7 && sameYear) {
+    return parseLocalDate(day).toLocaleDateString('en-US', { weekday: 'long' });
+  }
+  const opts: Intl.DateTimeFormatOptions = { month: 'short', day: 'numeric' };
+  if (!sameYear) opts.year = 'numeric';
+  return parseLocalDate(day).toLocaleDateString('en-US', opts);
 }
 
 export function subtasksOf(tasks: Task[], parentId: string): Task[] {

@@ -28,7 +28,7 @@ import {
   upcomingTasks,
   backlogTasks,
   projectTasks,
-  completedTasks,
+  completedTasks, groupCompletedByDay,
   searchTasks,
 } from './logic';
 import { todayStr, friendlyDate, weekdayLabel } from './dates';
@@ -152,11 +152,18 @@ export default function App() {
     );
   } else if (selection.kind === 'completed') {
     const list = completedTasks(tasks);
+    const groups = groupCompletedByDay(list.slice(0, 200), today);
     body = (
       <section>
-        <h1>Completed</h1>
+        <h1>Completed {list.length > 0 && <span className="date-sub num">{list.length} task{list.length === 1 ? '' : 's'}</span>}</h1>
         {list.length === 0 && <p className="empty">Nothing completed yet.</p>}
-        <TaskList tasks={list.slice(0, 100)} allTasks={tasks} showDate onOpen={setOpenId} />
+        {groups.map((g) => (
+          <div key={g.day || 'unknown'} className="day-group">
+            <h2>{g.label} <span className="date-sub num">{g.tasks.length}</span></h2>
+            <TaskList tasks={g.tasks} allTasks={tasks} showDate onOpen={setOpenId} />
+          </div>
+        ))}
+        {list.length > 200 && <p className="empty">Showing the 200 most recent.</p>}
       </section>
     );
   } else if (selection.kind === 'calendar') {
