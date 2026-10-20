@@ -187,6 +187,20 @@ export function normalizeTag(raw: string): string {
   return raw.trim().replace(/^#+/, '').toLowerCase().replace(/\s+/g, '-');
 }
 
+/** Pull "#tag" tokens out of quick-add text; returns the cleaned title and tags. */
+export function parseQuickAdd(raw: string): { title: string; tags: string[] } {
+  const tags: string[] = [];
+  const words = raw.trim().split(/\s+/).filter(Boolean);
+  const kept = words.filter((w) => {
+    if (w.startsWith('#') && w.length > 1) {
+      tags.push(normalizeTag(w));
+      return false;
+    }
+    return true;
+  });
+  return { title: kept.join(' '), tags };
+}
+
 // Tokens: "#tag" filters by tag, other tokens substring-match title/note.
 // All tokens must match (AND). Matches active and done tasks.
 export function searchTasks(tasks: Task[], query: string): Task[] {

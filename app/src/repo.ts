@@ -14,6 +14,7 @@ export async function addTask(input: {
   projectId: string;
   dueDate?: string | null;
   parentId?: string | null;
+  tags?: string[];
 }): Promise<Task> {
   const now = Date.now();
   const task: Task = {
@@ -29,7 +30,7 @@ export async function addTask(input: {
     dueTime: null,
     recurrence: null,
     blockedBy: [],
-    tags: [],
+    tags: input.tags ?? [],
     order: await nextOrder(input.projectId),
     seriesId: null,
     createdAt: now,

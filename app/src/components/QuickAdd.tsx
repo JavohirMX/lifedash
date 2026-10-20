@@ -1,6 +1,7 @@
 import { useRef, useState } from 'react';
 import { Plus } from 'lucide-react';
 import { addTask } from '../repo';
+import { parseQuickAdd } from '../logic';
 
 export default function QuickAdd(props: { projectId: string; dueDate?: string | null; placeholder?: string }) {
   const [title, setTitle] = useState('');
@@ -11,8 +12,10 @@ export default function QuickAdd(props: { projectId: string; dueDate?: string | 
     const t = title.trim();
     if (!t) return;
     setTitle(''); // clear before the async write; fast follow-ups start fresh
+    const parsed = parseQuickAdd(t);
+    if (!parsed.title) return;
     chain.current = chain.current.then(() =>
-      addTask({ title: t, projectId: props.projectId, dueDate: props.dueDate ?? null }),
+      addTask({ title: parsed.title, tags: parsed.tags, projectId: props.projectId, dueDate: props.dueDate ?? null }),
     );
   }
 
