@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
-import { Check, Plus, Target, X } from 'lucide-react';
+import { Check, Pencil, Plus, Target, X } from 'lucide-react';
 import { db } from '../db';
 import { addGoal, updateGoal } from '../repo';
 import { todayStr, friendlyDate } from '../dates';
@@ -16,6 +16,21 @@ export default function GoalsView(props: { tasks: Task[]; onOpenGoalTasks: (goal
   const [adding, setAdding] = useState(false);
   const [title, setTitle] = useState('');
   const [target, setTarget] = useState('');
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editTitle, setEditTitle] = useState('');
+  const [editTarget, setEditTarget] = useState('');
+
+  function startEdit(g: Goal) {
+    setEditingId(g.id);
+    setEditTitle(g.title);
+    setEditTarget(g.targetDate ?? '');
+  }
+
+  function saveEdit() {
+    if (!editingId || !editTitle.trim()) return;
+    void updateGoal(editingId, { title: editTitle.trim(), targetDate: editTarget || null });
+    setEditingId(null);
+  }
   const today = todayStr();
 
   const active = (goals ?? []).filter((g) => g.status === 'active');
@@ -69,6 +84,10 @@ export default function GoalsView(props: { tasks: Task[]; onOpenGoalTasks: (goal
               <div className="goal-top">
                 <strong>{g.title}</strong>
                 <div className="goal-actions">
+                  <button className="icon-btn" aria-label={`Edit ${g.title}`} title="Edit"
+                    onClick={() => (editingId === g.id ? setEditingId(null) : startEdit(g))}>
+                    <Pencil size={15} strokeWidth={2} />
+                  </button>
                   <button className="icon-btn" aria-label={`Mark ${g.title} done`} title="Mark done"
                     onClick={() => void updateGoal(g.id, { status: 'done' })}>
                     <Check size={15} strokeWidth={2} />
@@ -79,13 +98,30 @@ export default function GoalsView(props: { tasks: Task[]; onOpenGoalTasks: (goal
                   </button>
                 </div>
               </div>
-              <div className="progress"><div className="progress-fill" style={{ width: `${pct}%` }} /></div>
-              <div className="goal-meta">
-                <span className="num">{p.total ? `${pct}% - ${p.done} of ${p.total} tasks` : 'No linked tasks yet'}</span>
-                {g.targetDate && (
-                  <span className={overdue ? 'goal-when overdue' : 'goal-when'}>{friendlyDate(g.targetDate, today)}</span>
-                )}
-              </div>
+              {editingId === g.id ? (
+                <div className="goal-add goal-edit">
+                  <input
+                    autoFocus
+                    value={editTitle}
+                    aria-label="Goal title"
+                    onChange={(e) => setEditTitle(e.target.value)}
+                    onKeyDown={(e) => { if (e.key === 'Enter') saveEdit(); if (e.key === 'Escape') setEditingId(null); }}
+                  />
+                  <input type="date" value={editTarget} aria-label="Target date (optional)" onChange={(e) => setEditTarget(e.target.value)} />
+                  <button className="btn-primary" onClick={saveEdit} disabled={!editTitle.trim()}>Save</button>
+                  <button className="mini" onClick={() => setEditingId(null)}>Cancel</button>
+                </div>
+              ) : (
+                <>
+                  <div className="progress"><div className="progress-fill" style={{ width: `${pct}%` }} /></div>
+                  <div className="goal-meta">
+                    <span className="num">{p.total ? `${pct}% - ${p.done} of ${p.total} tasks` : 'No linked tasks yet'}</span>
+                    {g.targetDate && (
+                      <span className={overdue ? 'goal-when overdue' : 'goal-when'}>{friendlyDate(g.targetDate, today)}</span>
+                    )}
+                  </div>
+                </>
+              )}
             </div>
           );
         })}
