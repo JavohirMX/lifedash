@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import {
   Sun, CalendarDays, Archive, Clock, CalendarRange, Repeat, CheckCircle2,
-  Search, Plus, Menu, X, Download, Moon, Monitor,
+  Search, Plus, Menu, X, Download, Upload, Moon, Monitor,
 } from 'lucide-react';
 import type { Project } from '../types';
 import { addProject, exportJson } from '../repo';
@@ -46,6 +46,7 @@ export default function Sidebar(props: {
   onSelect: (s: Selection) => void;
   counts: { today: number; backlog: number };
   onScheduleToday?: (taskId: string) => void;
+  onImport: () => void;
 }) {
   const [adding, setAdding] = useState(false);
   const [name, setName] = useState('');
@@ -173,6 +174,13 @@ export default function Sidebar(props: {
     </button>
   );
 
+  const importBtn = (
+    <button className="nav foot-action" onClick={props.onImport}>
+      <Upload size={16} strokeWidth={1.75} aria-hidden="true" />
+      <span>Import</span>
+    </button>
+  );
+
   const themeBtn = (
     <button
       className="nav foot-action"
@@ -191,7 +199,7 @@ export default function Sidebar(props: {
         {searchBox}
         {MAIN_ITEMS.map(({ kind, label, Icon }) => item(kind, label, Icon))}
         {projectsBlock}
-        <div className="sidebar-foot">{themeBtn}{exportBtn}</div>
+        <div className="sidebar-foot">{importBtn}{themeBtn}{exportBtn}</div>
       </nav>
 
       <div className="mobile-topbar">
@@ -230,7 +238,7 @@ export default function Sidebar(props: {
           {searchBox}
           {MAIN_ITEMS.map(({ kind, label, Icon }) => item(kind, label, Icon, () => setSheet(false)))}
           {projectsBlock}
-          <div className="sidebar-foot">{themeBtn}{exportBtn}</div>
+          <div className="sidebar-foot">{importBtn}{themeBtn}{exportBtn}</div>
         </div>
       )}
     </>

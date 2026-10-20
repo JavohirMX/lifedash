@@ -10,6 +10,7 @@ import PlannerView from './views/PlannerView';
 import WeekView from './views/WeekView';
 import TaskDetail from './components/TaskDetail';
 import CommandPalette, { useGlobalKeys } from './components/CommandPalette';
+import ImportDialog from './components/ImportDialog';
 import { cycleTheme } from './theme';
 import {
   todayTasks,
@@ -28,6 +29,7 @@ export default function App() {
   const [selection, setSelection] = useState<Selection>({ kind: 'today' });
   const [openId, setOpenId] = useState<string | null>(null);
   const [paletteOpen, setPaletteOpen] = useState(false);
+  const [importOpen, setImportOpen] = useState(false);
   const quickAddFocus = () => document.querySelector<HTMLInputElement>('.quick-add input')?.focus();
   useGlobalKeys({
     onPalette: () => setPaletteOpen((o) => !o),
@@ -156,7 +158,8 @@ export default function App() {
   return (
     <div className="app">
       <Sidebar projects={projects} selection={selection} onSelect={setSelection} counts={counts}
-        onScheduleToday={(id) => void updateTask(id, { dueDate: today })} />
+        onScheduleToday={(id) => void updateTask(id, { dueDate: today })}
+        onImport={() => setImportOpen(true)} />
       <main>
         {showQuickAdd && (
           <QuickAdd
@@ -167,6 +170,7 @@ export default function App() {
         {body}
       </main>
       {openId && <TaskDetail taskId={openId} onClose={() => setOpenId(null)} />}
+      {importOpen && <ImportDialog projects={projects} onClose={() => setImportOpen(false)} />}
       <CommandPalette
         open={paletteOpen}
         tasks={tasks}

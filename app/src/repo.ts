@@ -178,3 +178,44 @@ export async function toggleHabitForDate(habitId: string, date: string): Promise
   if (existing) await db.habitLogs.delete(id);
   else await db.habitLogs.add({ id, habitId, date, doneAt: Date.now() });
 }
+
+export async function importTasks(
+  items: import('./import').ImportedTask[],
+  projectIdFor: (sourceName?: string) => string,
+): Promise<number> {
+  await db.transaction('rw', db.tasks, async () => {
+    const counters = new Map<string, number>();
+    const stack: string[] = []; // last task id per indent level
+    for (const item of items) {
+      const projectId = projectIdFor(item.project);
+      const order = (counters.get(projectId) ?? (await db.tasks.where('projectId').equals(projectId).toArray()).reduce((m, t) => Math.max(m, t.order), 0)) + 1;
+      counters.set(projectId, order);
+      const now = Date.now();
+      const indent = Math.min(item.indent, stack.length);
+      const id = newId();
+      await db.tasks.add({
+        id,
+        title: item.title,
+        note: '',
+        noteDoc: null,
+        projectId,
+        parentId: indent > 0 ? stack[indent - 1] : null,
+        status: item.done ? 'done' : 'active',
+        pinned: item.pinned,
+        dueDate: item.dueDate,
+        dueTime: null,
+        recurrence: null,
+        blockedBy: [],
+        tags: item.tags,
+        order,
+        seriesId: null,
+        createdAt: now,
+        updatedAt: now,
+        completedAt: item.done ? now : null,
+      });
+      stack[indent] = id;
+      stack.length = indent + 1;
+    }
+  });
+  return items.length;
+}
