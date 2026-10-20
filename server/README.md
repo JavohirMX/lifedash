@@ -3,6 +3,9 @@
 Self-hosted sync backend for the Lifedash PWA. FastAPI + SQLite, one
 file database, no other services. Protocol: `docs/sync-protocol.md`.
 
+See **SELFHOST.md** for the full deployment guide (TLS, accounts,
+backups, upgrades, troubleshooting).
+
 ## Quick start (Docker)
 
 ```bash
