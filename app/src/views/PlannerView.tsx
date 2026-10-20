@@ -13,6 +13,7 @@ const END_HOUR = 23;
 // to schedule it; drag a scheduled task onto Anytime to unschedule.
 export default function PlannerView(props: { tasks: Task[]; onOpen: (id: string) => void }) {
   const today = todayStr();
+  const nowHour = new Date().getHours();
   const [overHour, setOverHour] = useState<number | 'anytime' | null>(null);
 
   const dueToday = props.tasks.filter((t) => t.status === 'active' && t.dueDate === today && t.parentId === null);
@@ -73,7 +74,7 @@ export default function PlannerView(props: { tasks: Task[]; onOpen: (id: string)
       </div>
       <div className="timeline">
         {hours.map((h) => (
-          <div key={h} className={`hour-row ${overHour === h ? 'drop-hot' : ''}`} {...dropProps(h)}>
+          <div key={h} className={`hour-row ${overHour === h ? 'drop-hot' : ''} ${h === nowHour ? 'now' : ''}`} {...dropProps(h)}>
             <span className="hour-label">{String(h).padStart(2, '0')}:00</span>
             <div className="hour-body">
               {(byHour.get(h) ?? []).map((t) => (

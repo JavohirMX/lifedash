@@ -25,6 +25,7 @@ export default function QuickAdd(props: { projectId: string; dueDate?: string | 
         onChange={(e) => setTitle(e.target.value)}
         onKeyDown={(e) => {
           if (e.key === 'Enter') submit();
+          if (e.key === 'Escape') (e.target as HTMLInputElement).blur();
         }}
       />
     </div>

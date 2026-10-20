@@ -766,3 +766,24 @@ h2 { font-size: var(--fs-section); font-weight: 600; letter-spacing: -0.01em; ma
 .palette-item svg { color: var(--muted); flex-shrink: 0; }
 .palette-item span { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .palette-item.active { background: var(--active); }
+
+/* ---------- Nudge + now marker ---------- */
+.nudge {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 8px 12px;
+  margin-bottom: 14px;
+  background: var(--surface);
+  border: 1px solid var(--rule);
+  border-radius: var(--radius-card);
+  color: var(--muted);
+  font-size: var(--fs-small);
+  cursor: pointer;
+  text-align: left;
+}
+.nudge:hover { border-color: var(--control); color: var(--text); }
+.nudge-cta { margin-left: auto; color: var(--accent); font-weight: 500; }
+.hour-row.now { background: var(--accent-soft); }
+.hour-row.now .hour-label { color: var(--accent); font-weight: 600; }

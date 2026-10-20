@@ -66,6 +66,12 @@ export default function App() {
     body = (
       <section>
         <h1>Today <span className="date-sub">{friendlyDate(today, today)} · {weekdayLabel(today)}</span></h1>
+        {counts.backlog > 0 && (
+          <button className="nudge" onClick={() => setSelection({ kind: 'backlog' })}>
+            {counts.backlog} task{counts.backlog === 1 ? '' : 's'} parked in Backlog
+            <span className="nudge-cta">Review</span>
+          </button>
+        )}
         {list.length === 0 && <p className="empty">Nothing due today. Enjoy, or pull something in from Backlog.</p>}
         <TaskList tasks={list} allTasks={tasks} showDate onOpen={setOpenId}
           onReorder={(dragId, targetId, after) => void moveTask(dragId, targetId, after, list)} />
