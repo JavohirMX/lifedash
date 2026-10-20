@@ -3,8 +3,8 @@ import { db } from './db';
 /**
  * Sync client for the Lifedash self-hosted server (protocol v1,
  * server/docs/sync-protocol.md). Server wins on conflict in v1.
- * Syncs the `tasks` and `projects` collections; attachments (blobs)
- * and habits stay local until the protocol grows those collections.
+ * Syncs tasks, projects, habits and habit logs; attachment blobs
+ * stay local until the protocol grows blob storage.
  */
 
 export interface SyncSettings {
@@ -14,7 +14,7 @@ export interface SyncSettings {
 }
 
 const SETTINGS_KEY = 'lifedash-sync';
-const COLLECTIONS = ['tasks', 'projects'] as const;
+const COLLECTIONS = ['tasks', 'projects', 'habits', 'habitLogs'] as const;
 type Collection = (typeof COLLECTIONS)[number];
 
 export function loadSyncSettings(): SyncSettings | null {
@@ -170,7 +170,9 @@ async function syncNowInner(settings: SyncSettings): Promise<SyncResult> {
   const dirtyRows = await db.syncmeta.where('key').startsWith('dirty:').toArray();
   const changes = [];
   for (const row of dirtyRows) {
-    const [, col, id] = row.key.split(':') as [string, Collection, string];
+    const [, colRaw, ...rest] = row.key.split(':');
+    const col = colRaw as Collection;
+    const id = rest.join(':'); // habitLog ids contain a colon (habitId:date)
     const tomb = (row.value as { deleted?: boolean }).deleted === true;
     const data = tomb ? null : await db.table(col).get(id);
     const baseRev = ((await getMeta(revKey(col, id))) as number | undefined) ?? 0;

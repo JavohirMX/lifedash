@@ -83,7 +83,7 @@ export default function SyncDialog(props: { onClose: () => void }) {
         {!settings ? (
           <>
             <p className="rule-note">
-              Connect to a self-hosted Lifedash sync server. Your tasks and projects stay on your own server; registration closes after the first account.
+              Connect to a self-hosted Lifedash sync server. Your tasks, projects and habits stay on your own server; registration closes after the first account.
             </p>
             <label className="field">
               <span>Server URL</span>
