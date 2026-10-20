@@ -11,7 +11,10 @@ import WeekView from './views/WeekView';
 import TaskDetail from './components/TaskDetail';
 import CommandPalette, { useGlobalKeys } from './components/CommandPalette';
 import ImportDialog from './components/ImportDialog';
+import AutomationDialog from './components/AutomationDialog';
 import { cycleTheme } from './theme';
+import { loadRules, saveRules, type AutomationRules } from './automation';
+import { applyRollover } from './repo';
 import {
   todayTasks,
   upcomingTasks,
@@ -30,6 +33,8 @@ export default function App() {
   const [openId, setOpenId] = useState<string | null>(null);
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
+  const [automationOpen, setAutomationOpen] = useState(false);
+  const [rules, setRules] = useState<AutomationRules>(loadRules);
   const quickAddFocus = () => document.querySelector<HTMLInputElement>('.quick-add input')?.focus();
   useGlobalKeys({
     onPalette: () => setPaletteOpen((o) => !o),
@@ -39,6 +44,7 @@ export default function App() {
 
   useEffect(() => {
     void ensureSeed();
+    if (loadRules().rollover) void applyRollover(todayStr());
   }, []);
 
   const today = todayStr();
@@ -54,6 +60,12 @@ export default function App() {
   if (!tasks || !projects) {
     return <div className="boot">Loading LifeDash...</div>;
   }
+
+  const changeRules = (next: AutomationRules) => {
+    setRules(next);
+    saveRules(next);
+    if (next.rollover && !rules.rollover) void applyRollover(todayStr());
+  };
 
   const quickAddContext = (() => {
     if (selection.kind === 'today') return { projectId: INBOX_ID, dueDate: today };
@@ -159,7 +171,7 @@ export default function App() {
     <div className="app">
       <Sidebar projects={projects} selection={selection} onSelect={setSelection} counts={counts}
         onScheduleToday={(id) => void updateTask(id, { dueDate: today })}
-        onImport={() => setImportOpen(true)} />
+        onImport={() => setImportOpen(true)} onAutomation={() => setAutomationOpen(true)} />
       <main>
         {showQuickAdd && (
           <QuickAdd
@@ -171,6 +183,7 @@ export default function App() {
       </main>
       {openId && <TaskDetail taskId={openId} onClose={() => setOpenId(null)} />}
       {importOpen && <ImportDialog projects={projects} onClose={() => setImportOpen(false)} />}
+      {automationOpen && <AutomationDialog rules={rules} onChange={changeRules} onClose={() => setAutomationOpen(false)} />}
       <CommandPalette
         open={paletteOpen}
         tasks={tasks}

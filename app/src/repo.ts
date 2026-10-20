@@ -1,3 +1,4 @@
+import { loadRules, rolloverTargets, shouldCompleteParent } from './automation';
 import { db, newId } from './db';
 import type { Task, Project } from './types';
 import { completeTask, wouldCreateCycle, normalizeTag, normalizeTask, reorderedPosition } from './logic';
@@ -58,6 +59,25 @@ export async function toggleComplete(task: Task): Promise<void> {
       await db.tasks.add({ ...spawned, id: newId(), createdAt: now, updatedAt: now });
     }
   });
+  // Automation: completing the last open subtask completes the parent
+  // (through this same function, so recurrence spawns the next occurrence).
+  if (task.parentId && loadRules().completeParent) {
+    const all = await db.tasks.toArray();
+    if (shouldCompleteParent(all, task.parentId)) {
+      const parent = all.find((x) => x.id === task.parentId);
+      if (parent) await toggleComplete(parent);
+    }
+  }
+}
+
+/** Move every overdue active task into Today. Returns how many moved. */
+export async function applyRollover(today: string): Promise<number> {
+  const all = await db.tasks.toArray();
+  const ids = rolloverTargets(all, today);
+  if (ids.length === 0) return 0;
+  const now = Date.now();
+  await db.tasks.where('id').anyOf(ids).modify({ dueDate: today, updatedAt: now });
+  return ids.length;
 }
 
 export async function togglePin(task: Task): Promise<void> {
