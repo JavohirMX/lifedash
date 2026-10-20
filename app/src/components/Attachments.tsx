@@ -23,6 +23,15 @@ function Thumb(props: { att: Attachment }) {
   return <img src={url} alt={props.att.name} className="att-thumb" />;
 }
 
+function downloadAttachment(a: Attachment): void {
+  const url = URL.createObjectURL(a.blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = a.name;
+  link.click();
+  setTimeout(() => URL.revokeObjectURL(url), 10_000);
+}
+
 export default function Attachments(props: { taskId: string }) {
   const atts = useLiveQuery(() => db.attachments.where('taskId').equals(props.taskId).toArray(), [props.taskId]);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -33,7 +42,7 @@ export default function Attachments(props: { taskId: string }) {
       {(atts ?? []).map((a) => (
         <div key={a.id} className="att-row">
           <Thumb att={a} />
-          <span className="att-name" title={a.name}>{a.name}</span>
+          <button className="att-name att-open" title={`Download ${a.name}`} aria-label={`Download ${a.name}`} onClick={() => downloadAttachment(a)}>{a.name}</button>
           <span className="att-size">{fmtSize(a.byteSize)}</span>
           <button className="mini" title="Remove" aria-label="Remove attachment" onClick={() => void deleteAttachment(a.id)}><X size={13} strokeWidth={2} /></button>
         </div>
