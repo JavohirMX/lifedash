@@ -59,6 +59,25 @@ export default function JournalView(props: { initialDate?: string }) {
           onChange={(e) => { if (e.target.value) setDate(e.target.value); }}
         />
       </div>
+      <div className="mood-strip" role="navigation" aria-label="Recent days">
+        {Array.from({ length: 14 }, (_, i) => addDays(today, i - 13)).map((d) => {
+          const e = (entries ?? []).find((x) => x.date === d);
+          const MoodIcon = e?.mood ? MOODS.find((m) => m.v === e.mood)?.Icon : null;
+          const hasText = !!e?.note.trim();
+          return (
+            <button
+              key={d}
+              className={`mood-dot${d === date ? ' current' : ''}${e?.mood ? ` mood-${e.mood}` : ''}`}
+              title={friendlyDate(d, today) + (e?.mood ? ` - ${MOODS.find((m) => m.v === e.mood)?.label}` : hasText ? ' - entry' : ' - no entry')}
+              aria-label={`${friendlyDate(d, today)}${e?.mood ? `, mood ${MOODS.find((m) => m.v === e.mood)?.label}` : hasText ? ', entry' : ', no entry'}`}
+              onClick={() => setDate(d)}
+            >
+              {MoodIcon ? <MoodIcon size={13} strokeWidth={2} aria-hidden="true" /> : <span className={`mood-dot-inner${hasText ? ' has-text' : ''}`} />}
+              <span className="mood-dot-day num">{Number(d.slice(8))}</span>
+            </button>
+          );
+        })}
+      </div>
       <div className="mood-row" role="radiogroup" aria-label="Mood">
         {MOODS.map(({ v, Icon, label }) => (
           <button

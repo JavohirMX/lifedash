@@ -1348,3 +1348,17 @@ button.cal-more:hover { color: var(--accent); }
 /* Native controls and the AI dialog follow the active style. */
 input[type='checkbox'], input[type='radio'], input[type='range'] { accent-color: var(--accent); }
 :root .ai-dialog { border-radius: var(--radius-panel); font-family: var(--font); }
+
+/* ---------- Journal mood strip ---------- */
+.mood-strip { display: flex; gap: 2px; margin: 4px 0 14px; flex-wrap: wrap; }
+.mood-dot { display: flex; flex-direction: column; align-items: center; gap: 2px; width: 30px; padding: 5px 0 3px; border: 1px solid transparent; border-radius: var(--radius-btn, 8px); background: none; cursor: pointer; color: var(--muted); }
+.mood-dot:hover { border-color: var(--control); color: var(--text); }
+.mood-dot.current { border-color: var(--accent); color: var(--accent); }
+.mood-dot-inner { width: 13px; height: 13px; border-radius: 50%; border: 1px solid var(--control); display: block; }
+.mood-dot-inner.has-text { background: var(--control); }
+.mood-dot.mood-1 { color: var(--prio-1); }
+.mood-dot.mood-2 { color: var(--prio-2); }
+.mood-dot.mood-3 { color: var(--muted); }
+.mood-dot.mood-4 { color: var(--prio-3); }
+.mood-dot.mood-5 { color: var(--accent); }
+.mood-dot-day { font-size: 10px; line-height: 1; color: var(--faint); }
