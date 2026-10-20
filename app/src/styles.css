@@ -661,6 +661,7 @@ h2 { font-family: var(--font-display); font-size: var(--fs-section); font-weight
     padding: 8px 16px;
   }
   .mobile-topbar .brand { padding: 0; }
+  .mobile-topbar-actions { display: flex; align-items: center; gap: 4px; }
 
   .bottombar {
     display: grid;

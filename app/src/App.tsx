@@ -290,6 +290,7 @@ export default function App() {
   return (
     <div className="app">
       <Sidebar projects={projects} selection={selection} onSelect={setSelection} counts={counts} activeByProject={activeByProject}
+        onPalette={() => setPaletteOpen(true)}
         reminders={typeof Notification === 'undefined' ? 'unsupported' : Notification.permission === 'denied' ? 'blocked' : remindOn ? 'on' : 'off'}
         onToggleReminders={() => {
           if (remindOn) { setRemindersEnabled(false); setRemindOn(false); return; }

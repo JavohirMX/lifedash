@@ -60,6 +60,7 @@ export default function Sidebar(props: {
   reminders: 'on' | 'off' | 'blocked' | 'unsupported';
   onToggleReminders: () => void;
   onAppearance: () => void;
+  onPalette?: () => void;
 }) {
   const [adding, setAdding] = useState(false);
   const [name, setName] = useState('');
@@ -284,9 +285,16 @@ export default function Sidebar(props: {
 
       <div className="mobile-topbar">
         <div className="brand"><Mark /><span>Lifedash</span></div>
-        <button className="icon-btn" title="Appearance" aria-label="Appearance" onClick={props.onAppearance}>
-          <ThemeIcon size={18} strokeWidth={1.75} />
-        </button>
+        <div className="mobile-topbar-actions">
+          {props.onPalette && (
+            <button className="icon-btn" title="Search (Ctrl+K)" aria-label="Search tasks, notes and journal" onClick={props.onPalette}>
+              <Search size={18} strokeWidth={1.75} />
+            </button>
+          )}
+          <button className="icon-btn" title="Appearance" aria-label="Appearance" onClick={props.onAppearance}>
+            <ThemeIcon size={18} strokeWidth={1.75} />
+          </button>
+        </div>
       </div>
 
       <div className="bottombar">
