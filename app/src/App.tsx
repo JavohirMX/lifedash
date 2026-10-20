@@ -217,7 +217,13 @@ export default function App() {
         )}
         {body}
       </main>
-      {openId && <TaskDetail taskId={openId} onClose={() => setOpenId(null)} />}
+      {openId && (
+        <TaskDetail
+          taskId={openId}
+          onClose={() => setOpenId(null)}
+          onOpenNote={(nid) => { setOpenId(null); setSelection({ kind: 'notes', openId: nid }); }}
+        />
+      )}
       {importOpen && <ImportDialog projects={projects} onClose={() => setImportOpen(false)} />}
       {automationOpen && <AutomationDialog rules={rules} onChange={changeRules} onClose={() => setAutomationOpen(false)} />}
       {syncOpen && <SyncDialog onClose={() => setSyncOpen(false)} />}

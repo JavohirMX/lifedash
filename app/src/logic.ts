@@ -75,6 +75,7 @@ export function completeTask(task: Task, today: string, now: number): Completion
       projectId: task.projectId,
       parentId: task.parentId,
       goalId: task.goalId,
+      noteId: task.noteId,
       status: 'active',
       pinned: task.pinned,
       priority: task.priority,

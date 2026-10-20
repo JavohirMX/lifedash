@@ -22,6 +22,7 @@ function task(partial: Partial<Task>): Task {
     note: '',
     noteDoc: null,
     goalId: null,
+    noteId: null,
     projectId: 'inbox',
     parentId: null,
     status: 'active',

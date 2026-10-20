@@ -18,6 +18,7 @@ export async function addTask(input: {
   priority?: number;
   parentId?: string | null;
   goalId?: string | null;
+  noteId?: string | null;
   tags?: string[];
 }): Promise<Task> {
   const now = Date.now();
@@ -29,6 +30,7 @@ export async function addTask(input: {
     projectId: input.projectId,
     parentId: input.parentId ?? null,
     goalId: input.goalId ?? null,
+    noteId: input.noteId ?? null,
     status: 'active',
     pinned: false,
     priority: input.priority ?? 0,
@@ -215,6 +217,13 @@ export async function addHabit(name: string, color: string, weekdays: number[] |
   });
 }
 
+export async function updateHabit(id: string, patch: { name?: string; weekdays?: number[] | null }): Promise<void> {
+  const clean: { name?: string; weekdays?: number[] | null } = {};
+  if (patch.name !== undefined) clean.name = patch.name.trim();
+  if (patch.weekdays !== undefined) clean.weekdays = patch.weekdays;
+  await db.habits.update(id, clean);
+}
+
 export async function archiveHabit(id: string): Promise<void> {
   await db.habits.update(id, { archived: true });
 }
@@ -250,6 +259,7 @@ export async function importTasks(
         note: '',
         noteDoc: null,
         goalId: null,
+        noteId: null,
         projectId,
         priority: 0,
         parentId: indent > 0 ? stack[indent - 1] : null,

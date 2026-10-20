@@ -1,8 +1,8 @@
 import { useMemo, useState } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
-import { ListPlus, Pin, PinOff, Plus, StickyNote, Trash2 } from 'lucide-react';
+import { Check, ListPlus, Pin, PinOff, Plus, StickyNote, Trash2 } from 'lucide-react';
 
-import { addNote, updateNote, deleteNote, addTask } from '../repo';
+import { addNote, updateNote, deleteNote, addTask, toggleComplete } from '../repo';
 import { extractChecklistItems } from '../logic';
 import { db, INBOX_ID } from '../db';
 import NoteEditor from '../components/NoteEditor';
@@ -34,6 +34,11 @@ export default function NotesView(props: { initialOpenId?: string }) {
     [notes],
   );
   const open = sorted.find((n) => n.id === openId) ?? null;
+  const linked = useLiveQuery(
+    () => (openId ? db.tasks.where('noteId').equals(openId).toArray() : []),
+    [openId],
+  );
+  const linkedActive = (linked ?? []).filter((t) => t.status !== 'archived');
 
   return (
     <section>
@@ -92,7 +97,7 @@ export default function NotesView(props: { initialOpenId?: string }) {
                     onClick={() => {
                       const items = extractChecklistItems(open.noteDoc);
                       void items.reduce(
-                        (chain, title) => chain.then(() => addTask({ title, projectId: INBOX_ID })),
+                        (chain, title) => chain.then(() => addTask({ title, projectId: INBOX_ID, noteId: open.id })),
                         Promise.resolve<unknown>(null),
                       ).then(() => {
                         setExtracted(items.length);
@@ -131,6 +136,25 @@ export default function NotesView(props: { initialOpenId?: string }) {
                 noteDoc={open.noteDoc}
                 onSave={(doc, text) => void updateNote(open.id, { noteDoc: doc, note: text })}
               />
+              {linkedActive.length > 0 && (
+                <div className="note-linked">
+                  <p className="widget-meta num">{linkedActive.length} linked task{linkedActive.length === 1 ? '' : 's'}</p>
+                  <ul className="widget-list">
+                    {linkedActive.map((t) => (
+                      <li key={t.id}>
+                        <button
+                          className={`checkbox ${t.status === 'done' ? 'checked' : ''}`}
+                          aria-label={t.status === 'done' ? 'Mark not done' : 'Mark done'}
+                          onClick={() => void toggleComplete(t)}
+                        >
+                          {t.status === 'done' ? <Check size={13} strokeWidth={2.5} aria-hidden="true" /> : null}
+                        </button>
+                        <span className={`widget-task ${t.status === 'done' ? 'done' : ''}`}>{t.title}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
             </div>
           )}
         </div>
