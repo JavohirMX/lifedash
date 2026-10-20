@@ -1,0 +1,13 @@
+services:
+  sync:
+    build: .
+    ports:
+      - "8787:8787"
+    environment:
+      # Allow account creation. Set to "0" after creating your account(s).
+      SYNC_OPEN_REGISTRATION: "1"
+    volumes:
+      - lifedash-data:/data
+    restart: unless-stopped
+volumes:
+  lifedash-data:
