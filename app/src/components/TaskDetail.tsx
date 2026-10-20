@@ -1,5 +1,5 @@
 import { X, Check, StickyNote } from 'lucide-react';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import NoteEditor from './NoteEditor';
 import Attachments from './Attachments';
 import { useLiveQuery } from 'dexie-react-hooks';
@@ -38,6 +38,21 @@ export default function TaskDetail(props: { taskId: string; onClose: () => void;
   const [blockerPick, setBlockerPick] = useState('');
   const [blockerError, setBlockerError] = useState('');
   const [newTag, setNewTag] = useState('');
+
+  // Esc closes the panel - but not when it was pressed inside a dialog or
+  // the palette on top (those handle Escape themselves; by the time the
+  // event reaches window, their React handler may have already unmounted
+  // the overlay, so we check the event target, not the live DOM).
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape') return;
+      if (e.target instanceof HTMLElement && e.target.closest('.palette-overlay')) return;
+      props.onClose();
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   if (!task || !projects) return null;
   const choice = currentChoice(task);
