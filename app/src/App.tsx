@@ -41,6 +41,8 @@ import type { Task } from './types';
 export default function App() {
   const tasks = useLiveQuery(() => db.tasks.toArray(), []);
   const projects = useLiveQuery(() => db.projects.orderBy('order').toArray(), []);
+  const notes = useLiveQuery(() => db.notes.toArray(), []);
+  const journal = useLiveQuery(() => db.journal.toArray(), []);
   const [selection, setSelection] = useState<Selection>({ kind: 'home' });
   const [projEditing, setProjEditing] = useState(false);
   const [projName, setProjName] = useState('');
@@ -325,6 +327,8 @@ export default function App() {
       <CommandPalette
         open={paletteOpen}
         tasks={tasks}
+        notes={notes ?? []}
+        journal={journal ?? []}
         onClose={() => setPaletteOpen(false)}
         onSelect={setSelection}
         onOpenTask={setOpenId}

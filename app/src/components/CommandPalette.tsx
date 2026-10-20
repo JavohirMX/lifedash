@@ -3,7 +3,7 @@ import {
   Sun, CalendarDays, Archive, Clock, CalendarRange, Repeat, CheckCircle2,
   Search, Plus, Moon, Check, Pin, Home, Target, StickyNote, BookOpen, Calendar,
 } from 'lucide-react';
-import type { Task } from '../types';
+import type { JournalEntry, Note, Task } from '../types';
 import type { Selection } from './Sidebar';
 
 type Action = {
@@ -17,6 +17,8 @@ type Action = {
 export default function CommandPalette(props: {
   open: boolean;
   tasks: Task[];
+  notes: Note[];
+  journal: JournalEntry[];
   onClose: () => void;
   onSelect: (s: Selection) => void;
   onOpenTask: (id: string) => void;
@@ -62,13 +64,30 @@ export default function CommandPalette(props: {
     if (!q) return base;
     const taskActions: Action[] = props.tasks
       .filter((t) => t.status !== 'done' && t.title.toLowerCase().includes(q))
-      .slice(0, 8)
+      .slice(0, 6)
       .map((t) => ({
         id: `task-${t.id}`, label: t.title, hint: 'task', Icon: Search,
         run: () => { props.onOpenTask(t.id); props.onClose(); },
       }));
+    const noteActions: Action[] = props.notes
+      .filter((n) => (n.title + ' ' + n.note).toLowerCase().includes(q))
+      .slice(0, 4)
+      .map((n) => ({
+        id: `note-${n.id}`, label: n.title || 'Untitled note', hint: 'note', Icon: StickyNote,
+        run: () => { props.onSelect({ kind: 'notes', openId: n.id } as Selection); props.onClose(); },
+      }));
+    const journalActions: Action[] = props.journal
+      .filter((j) => j.note.toLowerCase().includes(q))
+      .sort((a, b) => b.date.localeCompare(a.date))
+      .slice(0, 3)
+      .map((j) => ({
+        id: `journal-${j.id}`, label: j.note.replace(/\s+/g, ' ').trim().slice(0, 60) || 'Journal entry', hint: j.date, Icon: BookOpen,
+        run: () => { props.onSelect({ kind: 'journal', date: j.date } as Selection); props.onClose(); },
+      }));
     return [
       ...taskActions,
+      ...noteActions,
+      ...journalActions,
       ...base.filter((a) => a.label.toLowerCase().includes(q)),
       { id: 'search', label: `Search for "${query.trim()}"`, Icon: Search,
         run: () => { props.onSelect({ kind: 'search', query: query.trim() }); props.onClose(); } },
@@ -87,7 +106,7 @@ export default function CommandPalette(props: {
           <input
             ref={inputRef}
             value={query}
-            placeholder="Type a command or search tasks"
+            placeholder="Type a command or search tasks, notes, journal"
             onChange={(e) => setQuery(e.target.value)}
             onKeyDown={(e) => {
               if (e.key === 'Escape') props.onClose();
