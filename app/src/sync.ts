@@ -74,6 +74,24 @@ async function authCall(url: string, path: string, username: string, password: s
   return body.token;
 }
 
+/** Best-effort server-side token revocation for Disconnect. Returns
+ *  'revoked' only when the server confirmed it; 'unavailable' when the
+ *  endpoint is missing (older server), the token was already invalid, or
+ *  the server could not be reached - callers must still clear local
+ *  settings and must not claim the session was ended. */
+export async function logout(settings: SyncSettings): Promise<'revoked' | 'unavailable'> {
+  try {
+    const res = await fetch(`${settings.url.replace(/\/$/, '')}/api/logout`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${settings.token}` },
+      signal: AbortSignal.timeout(8000),
+    });
+    return res.ok ? 'revoked' : 'unavailable';
+  } catch {
+    return 'unavailable';
+  }
+}
+
 /* ---------- local state (syncmeta table) ---------- */
 
 const revKey = (col: Collection, id: string) => `rev:${col}:${id}`;

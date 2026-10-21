@@ -48,7 +48,7 @@ vi.mock('./db', () => ({
   },
 }));
 
-import { acknowledgeConflictNotice, getConflictNotice, syncNow } from './sync';
+import { acknowledgeConflictNotice, getConflictNotice, logout, syncNow } from './sync';
 
 const settings = { url: 'http://test', username: 'u', token: 'tok' };
 
@@ -262,5 +262,39 @@ describe('sync edit-edit conflicts', () => {
     expect(r.pushed).toBe(1);
     expect(pushes[0][0].base_rev).toBe(0);
     expect(meta.get('rev:tasks:N')).toBe(1);
+  });
+});
+
+describe('logout', () => {
+  const s = { url: 'https://sync.example.com/', username: 'u', token: 'tok123' };
+
+  it("returns 'revoked' when the server confirms and sends the bearer token", async () => {
+    const calls: [string, RequestInit | undefined][] = [];
+    vi.stubGlobal('fetch', vi.fn(async (url: string, init?: RequestInit) => {
+      calls.push([url, init]);
+      return new Response('{}', { status: 200 });
+    }));
+    expect(await logout(s)).toBe('revoked');
+    expect(calls[0][0]).toBe('https://sync.example.com/api/logout');
+    expect((calls[0][1]?.headers as Record<string, string>).Authorization).toBe('Bearer tok123');
+    vi.unstubAllGlobals();
+  });
+
+  it("returns 'unavailable' when the server predates the logout endpoint (404)", async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => new Response('not found', { status: 404 })));
+    expect(await logout(s)).toBe('unavailable');
+    vi.unstubAllGlobals();
+  });
+
+  it("returns 'unavailable' when the server is unreachable", async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => { throw new TypeError('Failed to fetch'); }));
+    expect(await logout(s)).toBe('unavailable');
+    vi.unstubAllGlobals();
+  });
+
+  it("returns 'unavailable' when the token was already invalid (401)", async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => new Response('unauthorized', { status: 401 })));
+    expect(await logout(s)).toBe('unavailable');
+    vi.unstubAllGlobals();
   });
 });

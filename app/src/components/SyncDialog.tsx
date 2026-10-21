@@ -5,6 +5,7 @@ import {
   loadSyncSettings,
   loadSyncStatus,
   login,
+  logout,
   register,
   saveSyncSettings,
   syncNow,
@@ -63,10 +64,21 @@ export default function SyncDialog(props: { onClose: () => void }) {
     }
   }
 
-  function disconnect() {
-    saveSyncSettings(null);
-    setSettings(null);
-    setStatus('');
+  async function disconnect() {
+    if (!settings) return;
+    setBusy(true);
+    try {
+      const result = await logout(settings);
+      setStatus(
+        result === 'revoked'
+          ? 'Disconnected - the server ended the session.'
+          : 'Disconnected on this device. The server did not confirm logout (older server or unreachable), so the token may stay valid there until it expires.',
+      );
+    } finally {
+      saveSyncSettings(null);
+      setSettings(null);
+      setBusy(false);
+    }
   }
 
   return (
@@ -112,7 +124,7 @@ export default function SyncDialog(props: { onClose: () => void }) {
             </p>
             <div className="sync-actions">
               <button className="btn-primary" disabled={busy} onClick={() => void doSync()}>Sync now</button>
-              <button className="btn-secondary" disabled={busy} onClick={disconnect}>Disconnect</button>
+              <button className="btn-secondary" disabled={busy} onClick={() => void disconnect()}>Disconnect</button>
             </div>
           </>
         )}
