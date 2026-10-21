@@ -19,11 +19,12 @@ function shiftMonth(key: string, n: number): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
 }
 
-// Sunday-first grid cells covering the month, padded with neighbor-month days.
+// Monday-first grid cells covering the month, padded with neighbor-month
+// days - same week start as the Week view.
 export function monthCells(key: string): string[] {
   const [y, m] = key.split('-').map(Number);
   const first = `${key}-01`;
-  const startOffset = new Date(y, m - 1, 1).getDay();
+  const startOffset = (new Date(y, m - 1, 1).getDay() + 6) % 7; // Mon=0
   const daysInMonth = new Date(y, m, 0).getDate();
   const cells: string[] = [];
   for (let i = startOffset; i > 0; i--) cells.push(addDays(first, -i));
@@ -32,7 +33,7 @@ export function monthCells(key: string): string[] {
   return cells;
 }
 
-const WEEKDAYS = ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'];
+const WEEKDAYS = ['Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa', 'Su'];
 
 export default function CalendarView(props: { tasks: Task[]; onOpen: (id: string) => void }) {
   const today = todayStr();
