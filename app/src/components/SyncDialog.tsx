@@ -1,4 +1,5 @@
-import { useEffect, useRef, useState } from 'react';
+import { useState } from 'react';
+import { useDialogFocus } from '../hooks/useDialogFocus';
 import { X } from 'lucide-react';
 import {
   loadSyncSettings,
@@ -20,17 +21,8 @@ export default function SyncDialog(props: { onClose: () => void }) {
   const [status, setStatus] = useState('');
   const last = loadSyncStatus();
   const [busy, setBusy] = useState(false);
-  const urlRef = useRef<HTMLInputElement>(null);
 
-  useEffect(() => {
-    (settings ? undefined : urlRef.current)?.focus();
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') props.onClose();
-    };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  const panel = useDialogFocus<HTMLDivElement>(props.onClose, existing ? undefined : 'input[type="url"]');
 
   const fail = (e: unknown) => {
     const msg = e instanceof Error ? e.message : String(e);
@@ -79,7 +71,7 @@ export default function SyncDialog(props: { onClose: () => void }) {
 
   return (
     <div className="palette-overlay" onClick={props.onClose}>
-      <div className="import-panel sync-panel" role="dialog" aria-modal="true" aria-label="Sync" onClick={(e) => e.stopPropagation()}>
+      <div ref={panel} className="import-panel sync-panel" role="dialog" aria-modal="true" aria-label="Sync" onClick={(e) => e.stopPropagation()}>
         <div className="import-head">
           <h2>Sync</h2>
           <button className="icon-btn" aria-label="Close" onClick={props.onClose}><X size={18} strokeWidth={1.75} /></button>
@@ -91,7 +83,7 @@ export default function SyncDialog(props: { onClose: () => void }) {
             </p>
             <label className="field">
               <span>Server URL</span>
-              <input ref={urlRef} type="url" inputMode="url" autoCapitalize="off" autoCorrect="off" value={url} onChange={(e) => setUrl(e.target.value)} placeholder="https://sync.example.com" />
+              <input type="url" inputMode="url" autoCapitalize="off" autoCorrect="off" value={url} onChange={(e) => setUrl(e.target.value)} placeholder="https://sync.example.com" />
             </label>
             <form
               onSubmit={(e) => {

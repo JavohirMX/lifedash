@@ -1,5 +1,5 @@
-import { useEffect, useRef } from 'react';
 import { X, Zap } from 'lucide-react';
+import { useDialogFocus } from '../hooks/useDialogFocus';
 import type { AutomationRules } from '../automation';
 
 export default function AutomationDialog(props: {
@@ -8,21 +8,11 @@ export default function AutomationDialog(props: {
   onClose: () => void;
 }) {
   const { rules } = props;
-  const firstRef = useRef<HTMLButtonElement>(null);
-
-  useEffect(() => {
-    firstRef.current?.focus();
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') props.onClose();
-    };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  const panel = useDialogFocus<HTMLDivElement>(props.onClose, '.switch');
   const set = (patch: Partial<AutomationRules>) => props.onChange({ ...rules, ...patch });
   return (
     <div className="palette-overlay" onClick={props.onClose}>
-      <div className="import-panel automation-panel" role="dialog" aria-modal="true" aria-label="Automation rules" onClick={(e) => e.stopPropagation()}>
+      <div ref={panel} className="import-panel automation-panel" role="dialog" aria-modal="true" aria-label="Automation rules" onClick={(e) => e.stopPropagation()}>
         <div className="import-head">
           <h2>Automation</h2>
           <button className="icon-btn" onClick={props.onClose} aria-label="Close">
@@ -38,7 +28,6 @@ export default function AutomationDialog(props: {
             <span>When you open Lifedash, anything past its due date moves to today so nothing slips by.</span>
           </div>
           <button
-            ref={firstRef}
             className={`switch${rules.rollover ? ' on' : ''}`}
             role="switch"
             aria-checked={rules.rollover}

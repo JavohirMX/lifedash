@@ -1,6 +1,7 @@
-import { useEffect, useRef, useState } from 'react';
+import { useState } from 'react';
 import { Monitor, Moon, Sun, X } from 'lucide-react';
 import { STYLES, applyStyle, applyTheme, getStyle, getTheme, type StyleId, type Theme } from '../theme';
+import { useDialogFocus } from '../hooks/useDialogFocus';
 
 const MODES: { id: Theme; label: string; Icon: typeof Sun }[] = [
   { id: 'system', label: 'System', Icon: Monitor },
@@ -12,24 +13,7 @@ export default function AppearanceDialog(props: { onClose: () => void }) {
   const [style, setStyle] = useState<StyleId>(getStyle());
   const [mode, setMode] = useState<Theme>(getTheme());
 
-  const panel = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    const opener = document.activeElement as HTMLElement | null;
-    panel.current?.querySelector<HTMLElement>('[aria-checked="true"]')?.focus();
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') { props.onClose(); return; }
-      if (e.key !== 'Tab' || !panel.current) return;
-      const f = Array.from(panel.current.querySelectorAll<HTMLElement>('button'));
-      if (!f.length) return;
-      const first = f[0], last = f[f.length - 1];
-      if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
-      else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
-    };
-    window.addEventListener('keydown', onKey);
-    return () => { window.removeEventListener('keydown', onKey); opener?.focus?.(); };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  const panel = useDialogFocus<HTMLDivElement>(props.onClose, '[aria-checked="true"]');
 
   return (
     <div className="palette-overlay" onClick={props.onClose}>
