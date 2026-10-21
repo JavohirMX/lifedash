@@ -154,6 +154,21 @@ describe('sync edit-edit conflicts', () => {
     expect((await getConflictNotice())?.count).toBe(2);
   });
 
+  it('does not record a notice for an identical-content conflict (default Inbox first join)', async () => {
+    const inbox = { id: 'inbox', name: 'Inbox', color: '#0f766e', order: 0, archived: false };
+    tables.set('projects', new Map([['inbox', inbox]]));
+    meta.set('dirty:projects:inbox', { deleted: false });
+    mockFetch({
+      changesResponses: [{ changes: [], rev: 1 }, { changes: [], rev: 1 }],
+      pushResults: [
+        { id: 'inbox', collection: 'projects', status: 'conflict', current: { rev: 1, deleted: false, data: { ...inbox } } },
+      ],
+    });
+    const r = await syncNow(settings);
+    expect(r.conflicts).toBe(1);
+    expect(await getConflictNotice()).toBeNull();
+  });
+
   it('does not record a notice when a sync has no conflicts', async () => {
     mockFetch({ changesResponses: [{ changes: [], rev: 0 }, { changes: [], rev: 0 }], pushResults: [] });
     const r = await syncNow(settings);

@@ -240,6 +240,7 @@ async function syncNowInner(settings: SyncSettings): Promise<SyncResult> {
   }
   let pushed = 0;
   let conflicts = 0;
+  let replaced = 0;
   if (changes.length > 0) {
     const res = await fetch(`${base}/api/changes`, { method: 'POST', headers, body: JSON.stringify({ changes }) });
     if (!res.ok) throw new Error(`push failed: ${res.status} ${await res.text()}`);
@@ -261,6 +262,11 @@ async function syncNowInner(settings: SyncSettings): Promise<SyncResult> {
       } else if (r.status === 'conflict' && r.current) {
         // Server wins: take the server's version, drop our local edit.
         conflicts += 1;
+        // A conflict whose local content is identical to the server's
+        // (e.g. the default Inbox seeded on first join) loses nothing, so
+        // it must not count as a replaced edit in the persistent notice.
+        const ch = changes.find((c) => c.collection === col && c.id === r.id);
+        if (ch && JSON.stringify(ch.data) !== JSON.stringify(r.current.data)) replaced += 1;
         await applyRemote(col, {
           collection: r.collection,
           id: r.id,
@@ -275,7 +281,7 @@ async function syncNowInner(settings: SyncSettings): Promise<SyncResult> {
   const pulled2 = await pull(base, headers);
   // Server-wins drops the conflicting local edits: keep a persistent notice
   // so an auto-sync cannot erase awareness before the user sees it.
-  await recordConflicts(conflicts);
+  await recordConflicts(replaced);
   return { pushed, conflicts, pulled: pulled1 + pulled2, cursor: await getCursor() };
 }
 
