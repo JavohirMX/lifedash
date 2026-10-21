@@ -13,10 +13,10 @@ const SOURCES: { id: ImportSource; label: string }[] = [
   { id: 'lifedash-json', label: 'Lifedash JSON export' },
 ];
 
-export default function ImportDialog(props: { projects: Project[]; onClose: () => void }) {
+export default function ImportDialog(props: { projects: Project[]; initialSource?: ImportSource | null; onClose: () => void }) {
   const [text, setText] = useState('');
   const [filename, setFilename] = useState('');
-  const [source, setSource] = useState<ImportSource | null>(null);
+  const [source, setSource] = useState<ImportSource | null>(props.initialSource ?? null);
   const [result, setResult] = useState<ParseResult | null>(null);
   const [target, setTarget] = useState<string>(INBOX_ID);
   const [imported, setImported] = useState<number | null>(null);
@@ -95,9 +95,9 @@ export default function ImportDialog(props: { projects: Project[]; onClose: () =
 
   return (
     <div className="palette-overlay" onClick={props.onClose}>
-      <div ref={panel} className="import-panel" role="dialog" aria-modal="true" aria-label="Import tasks" onClick={(e) => e.stopPropagation()}>
+      <div ref={panel} className="import-panel" role="dialog" aria-modal="true" aria-label={props.initialSource === 'lifedash-json' ? 'Restore backup' : 'Import tasks'} onClick={(e) => e.stopPropagation()}>
         <div className="import-head">
-          <h2>Import tasks</h2>
+          <h2>{props.initialSource === 'lifedash-json' ? 'Restore backup' : 'Import tasks'}</h2>
           <button className="icon-btn" aria-label="Close" onClick={props.onClose}><X size={18} strokeWidth={1.75} /></button>
         </div>
 

@@ -19,6 +19,7 @@ import TaskDetail from './components/TaskDetail';
 import CommandPalette, { useGlobalKeys } from './components/CommandPalette';
 import ShortcutsDialog from './components/ShortcutsDialog';
 import ImportDialog from './components/ImportDialog';
+import type { ImportSource } from './import';
 import AutomationDialog from './components/AutomationDialog';
 import SyncDialog from './components/SyncDialog';
 import AppearanceDialog from './components/AppearanceDialog';
@@ -52,7 +53,7 @@ export default function App() {
   useEffect(() => { setProjEditing(false); setProjConfirmDelete(false); }, [selection.kind, selection.kind === 'project' ? selection.id : null]);
   const [openId, setOpenId] = useState<string | null>(null);
   const [paletteOpen, setPaletteOpen] = useState(false);
-  const [importOpen, setImportOpen] = useState(false);
+  const [importPreset, setImportPreset] = useState<ImportSource | null | false>(false);
   const [automationOpen, setAutomationOpen] = useState(false);
   const [syncOpen, setSyncOpen] = useState(false);
   const [aiOpen, setAiOpen] = useState(false);
@@ -306,7 +307,7 @@ export default function App() {
           });
         }}
         onScheduleToday={(id) => void updateTask(id, { dueDate: today })}
-        onAI={() => setAiOpen(true)} onImport={() => setImportOpen(true)} onAutomation={() => setAutomationOpen(true)} onSync={() => setSyncOpen(true)} onAppearance={() => setAppearanceOpen(true)} />
+        onAI={() => setAiOpen(true)} onImport={() => setImportPreset(null)} onRestore={() => setImportPreset('lifedash-json')} onAutomation={() => setAutomationOpen(true)} onSync={() => setSyncOpen(true)} onAppearance={() => setAppearanceOpen(true)} />
       <main>
         {showQuickAdd && (
           <QuickAdd
@@ -323,7 +324,7 @@ export default function App() {
           onOpenNote={(nid) => { setOpenId(null); setSelection({ kind: 'notes', openId: nid }); }}
         />
       )}
-      {importOpen && <ImportDialog projects={projects} onClose={() => setImportOpen(false)} />}
+      {importPreset !== false && <ImportDialog projects={projects} initialSource={importPreset} onClose={() => setImportPreset(false)} />}
       {automationOpen && <AutomationDialog rules={rules} onChange={changeRules} onClose={() => setAutomationOpen(false)} />}
       {aiOpen && <AssistantDialog tasks={tasks} onClose={() => setAiOpen(false)} />}
       {syncOpen && <SyncDialog onClose={() => setSyncOpen(false)} />}

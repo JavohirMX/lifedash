@@ -4,7 +4,7 @@ import { Bell, BellRing,
   Search, Plus, Menu, X, Download, Upload, Palette, Zap, Cloud, House, Target, StickyNote, BookOpen,
 } from 'lucide-react';
 import type { Project } from '../types';
-import { addProject, exportJson, importBackup } from '../repo';
+import { addProject, countAttachments, exportJson } from '../repo';
 
 export type Selection =
   | { kind: 'home' | 'today' | 'upcoming' | 'backlog' | 'completed' | 'habits' | 'planner' | 'week' | 'goals' | 'calendar' }
@@ -54,6 +54,7 @@ export default function Sidebar(props: {
   activeByProject?: Record<string, number>;
   onScheduleToday?: (taskId: string) => void;
   onImport: () => void;
+  onRestore: () => void;
   onAutomation: () => void;
   onSync: () => void;
   onAI?: () => void;
@@ -182,13 +183,18 @@ export default function Sidebar(props: {
     <button
       className="nav foot-action"
       onClick={() => {
-        void exportJson().then((json) => {
+        void Promise.all([exportJson(), countAttachments()]).then(([json, files]) => {
           const blob = new Blob([json], { type: 'application/json' });
           const a = document.createElement('a');
           a.href = URL.createObjectURL(blob);
           a.download = `lifedash-export-${new Date().toISOString().slice(0, 10)}.json`;
           a.click();
           URL.revokeObjectURL(a.href);
+          if (files > 0) {
+            window.alert(
+              `Exported. Note: ${files} attachment file${files === 1 ? ' stays' : 's stay'} on this device - the export keeps only their names and metadata.`,
+            );
+          }
         });
       }}
     >
@@ -198,28 +204,7 @@ export default function Sidebar(props: {
   );
 
   const restoreBtn = (
-    <button
-      className="nav foot-action"
-      onClick={() => {
-        const input = document.createElement('input');
-        input.type = 'file';
-        input.accept = 'application/json';
-        input.onchange = () => {
-          const file = input.files?.[0];
-          if (!file) return;
-          void file.text().then(async (text) => {
-            try {
-              const { restored } = await importBackup(text);
-              const total = Object.values(restored).reduce((a, b) => a + b, 0);
-              window.alert(`Backup restored: ${total} records merged.`);
-            } catch {
-              window.alert('That file is not a valid Lifedash backup.');
-            }
-          });
-        };
-        input.click();
-      }}
-    >
+    <button className="nav foot-action" onClick={props.onRestore}>
       <Upload size={16} strokeWidth={1.75} aria-hidden="true" />
       <span>Restore backup</span>
     </button>

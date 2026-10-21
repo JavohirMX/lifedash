@@ -345,6 +345,10 @@ export async function updateJournalEntry(id: string, patch: Partial<JournalEntry
 
 // Restore a full backup (exportJson v2). Merges by id - existing rows with
 // the same id are overwritten, nothing is deleted.
+export async function countAttachments(): Promise<number> {
+  return db.attachments.count();
+}
+
 export async function importBackup(json: string): Promise<{ restored: Record<string, number> }> {
   const data = JSON.parse(json) as Record<string, unknown>;
   if (data?.version !== 2) throw new Error('Not a Lifedash version 2 backup.');
