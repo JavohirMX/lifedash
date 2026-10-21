@@ -48,7 +48,7 @@ vi.mock('./db', () => ({
   },
 }));
 
-import { syncNow } from './sync';
+import { acknowledgeConflictNotice, getConflictNotice, syncNow } from './sync';
 
 const settings = { url: 'http://test', username: 'u', token: 'tok' };
 
@@ -110,6 +110,55 @@ describe('sync edit-edit conflicts', () => {
     expect((tables.get('tasks')!.get('X') as { title: string }).title).toBe('server v2');
     expect(meta.get('rev:tasks:X')).toBe(2);
     expect(meta.has('dirty:tasks:X')).toBe(false);
+  });
+
+  it('records a persistent conflict notice and clears it on acknowledgement', async () => {
+    tables.get('tasks') ?? tables.set('tasks', new Map());
+    tables.get('tasks')!.set('X', serverTask('X', 'local edit'));
+    meta.set('rev:tasks:X', 1);
+    meta.set('dirty:tasks:X', { deleted: false });
+    mockFetch({
+      changesResponses: [
+        { changes: [{ collection: 'tasks', id: 'X', rev: 2, deleted: false, data: serverTask('X', 'server v2') }], rev: 2 },
+        { changes: [], rev: 2 },
+      ],
+      pushResults: [
+        { id: 'X', collection: 'tasks', status: 'conflict', current: { rev: 2, deleted: false, data: serverTask('X', 'server v2') } },
+      ],
+    });
+    const r = await syncNow(settings);
+    expect(r.conflicts).toBe(1);
+    const notice = await getConflictNotice();
+    expect(notice?.count).toBe(1);
+    expect(typeof notice?.at).toBe('number');
+    await acknowledgeConflictNotice();
+    expect(await getConflictNotice()).toBeNull();
+  });
+
+  it('accumulates unacknowledged conflicts across syncs', async () => {
+    tables.get('tasks') ?? tables.set('tasks', new Map());
+    for (const id of ['X', 'Y']) {
+      tables.get('tasks')!.set(id, serverTask(id, 'local'));
+      meta.set(`rev:tasks:${id}`, 1);
+      meta.set(`dirty:tasks:${id}`, { deleted: false });
+    }
+    mockFetch({
+      changesResponses: [{ changes: [], rev: 1 }, { changes: [], rev: 1 }],
+      pushResults: [
+        { id: 'X', collection: 'tasks', status: 'conflict', current: { rev: 2, deleted: false, data: serverTask('X', 'server') } },
+        { id: 'Y', collection: 'tasks', status: 'conflict', current: { rev: 2, deleted: false, data: serverTask('Y', 'server') } },
+      ],
+    });
+    const r = await syncNow(settings);
+    expect(r.conflicts).toBe(2);
+    expect((await getConflictNotice())?.count).toBe(2);
+  });
+
+  it('does not record a notice when a sync has no conflicts', async () => {
+    mockFetch({ changesResponses: [{ changes: [], rev: 0 }, { changes: [], rev: 0 }], pushResults: [] });
+    const r = await syncNow(settings);
+    expect(r.conflicts).toBe(0);
+    expect(await getConflictNotice()).toBeNull();
   });
 
   it('applies remote changes for non-dirty entities and pushes clean edits with the fresh rev', async () => {

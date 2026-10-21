@@ -28,6 +28,7 @@ import { loadRules, saveRules, type AutomationRules } from './automation';
 import { remindersEnabled, setRemindersEnabled, startReminders } from './reminders';
 import { applyRollover } from './repo';
 import { startAutoSync } from './sync';
+import { SyncConflictBanner } from './components/SyncConflictBanner';
 import {
   todayTasks,
   upcomingTasks,
@@ -309,6 +310,7 @@ export default function App() {
         onScheduleToday={(id) => void updateTask(id, { dueDate: today })}
         onAI={() => setAiOpen(true)} onImport={() => setImportPreset(null)} onRestore={() => setImportPreset('lifedash-json')} onAutomation={() => setAutomationOpen(true)} onSync={() => setSyncOpen(true)} onAppearance={() => setAppearanceOpen(true)} />
       <main>
+        <SyncConflictBanner />
         {showQuickAdd && (
           <QuickAdd
             projectId={quickAddContext.projectId}

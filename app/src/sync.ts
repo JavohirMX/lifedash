@@ -92,6 +92,29 @@ async function getCursor(): Promise<number> {
   return ((await getMeta('cursor')) as number | undefined) ?? 0;
 }
 
+export interface ConflictNotice {
+  count: number;
+  at: number;
+}
+
+const CONFLICT_NOTICE_KEY = 'sync:conflict-notice';
+
+/** Unacknowledged server-wins conflict count, persisted across sessions. */
+export async function getConflictNotice(): Promise<ConflictNotice | null> {
+  return ((await getMeta(CONFLICT_NOTICE_KEY)) as ConflictNotice | undefined) ?? null;
+}
+
+export async function acknowledgeConflictNotice(): Promise<void> {
+  await db.syncmeta.delete(CONFLICT_NOTICE_KEY);
+}
+
+async function recordConflicts(conflicts: number): Promise<void> {
+  if (conflicts <= 0) return;
+  const prior = await getConflictNotice();
+  await setMeta(CONFLICT_NOTICE_KEY, { count: (prior?.count ?? 0) + conflicts, at: Date.now() });
+  if (typeof window !== 'undefined') window.dispatchEvent(new CustomEvent('lifedash:sync-conflict'));
+}
+
 /* ---------- dirty tracking via Dexie hooks ---------- */
 
 let applyingRemote = false;
@@ -250,6 +273,9 @@ async function syncNowInner(settings: SyncSettings): Promise<SyncResult> {
   }
   // Final pull to settle on anything the server applied.
   const pulled2 = await pull(base, headers);
+  // Server-wins drops the conflicting local edits: keep a persistent notice
+  // so an auto-sync cannot erase awareness before the user sees it.
+  await recordConflicts(conflicts);
   return { pushed, conflicts, pulled: pulled1 + pulled2, cursor: await getCursor() };
 }
 
