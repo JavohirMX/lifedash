@@ -10,16 +10,20 @@ describe('localPlan', () => {
   it('ranks overdue first, then due-today by time, then high-priority undated', () => {
     const out = localPlan('', [
       mk('later task', { dueDate: '2026-10-25' }),
-      mk('undated high', { priority: 3 }),
+      mk('undated high', { priority: 1 }),
       mk('today 5pm', { dueDate: '2026-10-20', dueTime: '17:00' }),
       mk('overdue one', { dueDate: '2026-10-18' }),
       mk('today 9am', { dueDate: '2026-10-20', dueTime: '09:00' }),
-      mk('undated low', { priority: 1 }),
+      mk('undated low', { priority: 3 }),
     ], NOW);
     const order = ['overdue one', 'today 9am', 'today 5pm', 'undated high', 'later task', 'undated low'];
     const positions = order.map((t) => out.indexOf(t));
     expect(positions.every((p) => p >= 0)).toBe(true);
     expect([...positions].sort((a, b) => a - b)).toEqual(positions);
+    // The high-priority bucket must hold the p1 task, not the p3 one (1=high, 3=low).
+    const highSection = out.split('High priority, no date')[1]?.split('Coming up')[0] ?? '';
+    expect(highSection).toContain('undated high');
+    expect(highSection).not.toContain('undated low');
   });
   it('excludes done and archived tasks', () => {
     const out = localPlan('', [mk('done task', { status: 'done', dueDate: '2026-10-19' }), mk('live', { dueDate: '2026-10-20' })], NOW);

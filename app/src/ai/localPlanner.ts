@@ -22,8 +22,9 @@ export function localPlan(prompt: string, tasks: LocalPlanTask[], now: Date = ne
   const dueToday = active.filter((t) => t.dueDate === today);
   const later = active.filter((t) => t.dueDate && t.dueDate > today).sort((a, b) => String(a.dueDate).localeCompare(String(b.dueDate)));
   const undated = active.filter((t) => !t.dueDate);
-  const high = undated.filter((t) => t.priority >= 3);
-  const rest = undated.filter((t) => t.priority < 3);
+  // Priority scale: 1 high, 2 medium, 3 low (see types.ts). High means p1.
+  const high = undated.filter((t) => t.priority === 1);
+  const rest = undated.filter((t) => t.priority !== 1);
 
   const lines: string[] = [];
   lines.push('On-device summary (rule-based - no model involved, nothing left this device).');
