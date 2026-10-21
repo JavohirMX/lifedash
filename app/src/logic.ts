@@ -62,6 +62,22 @@ export function describeRecurrence(rule: string | null): string {
   }
 }
 
+// First date strictly after `base` (local YYYY-MM-DD) on which a monthly rule
+// anchored at `day` fires, clamping to the month's last day when the month is
+// shorter. Without this, a monthly task on the 29th-31st silently skips
+// February (RRule omits months without the day).
+function nextMonthlyClamped(day: number, base: string): string {
+  let [year, month] = base.split('-').map(Number);
+  for (let i = 0; i < 2400; i++) {
+    const dim = new Date(year, month, 0).getDate(); // last day of `month` (local)
+    const cand = `${year}-${String(month).padStart(2, '0')}-${String(Math.min(day, dim)).padStart(2, '0')}`;
+    if (cand > base) return cand;
+    month += 1;
+    if (month === 13) { month = 1; year += 1; }
+  }
+  return base;
+}
+
 // Next occurrence strictly after max(dueDate, today), as a local date string.
 // Skipping missed occurrences is intentional: completing an overdue daily task
 // today schedules it for tomorrow, not for a pile of past days.
@@ -74,6 +90,17 @@ export function nextOccurrenceDate(rule: string, dueDate: string, today: string)
     return null;
   }
   const base = dueDate > today ? dueDate : today;
+  const o = rr.origOptions;
+  // bymonthday comes back as a scalar when the rule names a single day.
+  const mdays = Array.isArray(o.bymonthday) ? o.bymonthday : o.bymonthday != null ? [o.bymonthday] : [];
+  if (
+    o.freq === Frequency.MONTHLY &&
+    (o.interval ?? 1) === 1 &&
+    mdays.length === 1 &&
+    !o.byweekday && !o.bysetpos
+  ) {
+    return nextMonthlyClamped(Number(mdays[0]), base);
+  }
   const next = rr.after(utcNoon(base), false);
   return next ? fromUtcNoon(next) : null;
 }

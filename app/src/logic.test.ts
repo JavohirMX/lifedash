@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { parseQuickAdd, groupCompletedByDay, renamedTags, completeTask, describeRecurrence, isRecurrenceValid } from './logic';
+import { parseQuickAdd, groupCompletedByDay, renamedTags, completeTask, describeRecurrence, isRecurrenceValid, nextOccurrenceDate, makeRecurrence } from './logic';
 import type { Task } from './types';
 
 describe('parseQuickAdd', () => {
@@ -156,5 +156,36 @@ describe('isRecurrenceValid', () => {
     expect(isRecurrenceValid(null)).toBe(true);
     expect(isRecurrenceValid('DTSTART:20261022T120000Z\nRRULE:FREQ=DAILY;INTERVAL=1')).toBe(true);
     expect(isRecurrenceValid('GARBAGE-NOT-A-RULE')).toBe(false);
+  });
+});
+
+describe('nextOccurrenceDate monthly clamping', () => {
+  it("clamps a monthly rule on the 31st to February's last day instead of skipping it", () => {
+    const rule = makeRecurrence('monthly', '2025-01-31');
+    expect(nextOccurrenceDate(rule, '2025-01-31', '2025-01-31')).toBe('2025-02-28');
+    // Anchored day is preserved after the clamped month.
+    expect(nextOccurrenceDate(rule, '2025-02-28', '2025-02-28')).toBe('2025-03-31');
+  });
+
+  it('clamps the 29th in non-leap years and keeps it in leap years', () => {
+    const rule = makeRecurrence('monthly', '2025-01-29');
+    expect(nextOccurrenceDate(rule, '2025-01-29', '2025-01-29')).toBe('2025-02-28');
+    expect(nextOccurrenceDate(rule, '2026-01-29', '2026-01-29')).toBe('2026-02-28');
+    const leap = makeRecurrence('monthly', '2024-01-29');
+    expect(nextOccurrenceDate(leap, '2024-01-29', '2024-01-29')).toBe('2024-02-29');
+  });
+
+  it('does not clamp short months when the day fits, and skips missed occurrences', () => {
+    const rule = makeRecurrence('monthly', '2025-01-15');
+    expect(nextOccurrenceDate(rule, '2025-01-15', '2025-01-15')).toBe('2025-02-15');
+    // Overdue by two months: schedules the next month, not a pile of past days.
+    expect(nextOccurrenceDate(rule, '2025-01-15', '2025-03-20')).toBe('2025-04-15');
+  });
+
+  it('leaves daily and weekly rules untouched', () => {
+    const daily = makeRecurrence('daily', '2025-01-31');
+    expect(nextOccurrenceDate(daily, '2025-01-31', '2025-01-31')).toBe('2025-02-01');
+    const weekly = makeRecurrence('weekly', '2025-01-31');
+    expect(nextOccurrenceDate(weekly, '2025-01-31', '2025-01-31')).toBe('2025-02-07');
   });
 });
