@@ -96,9 +96,16 @@ export async function togglePin(task: Task): Promise<void> {
 export async function deleteTask(task: Task): Promise<void> {
   await db.transaction('rw', db.tasks, db.attachments, async () => {
     const childIds = (await db.tasks.where('parentId').equals(task.id).primaryKeys()) as string[];
+    const gone = new Set([task.id, ...childIds]);
     await db.tasks.where('parentId').equals(task.id).delete();
     await db.tasks.delete(task.id);
-    await db.attachments.where('taskId').anyOf([task.id, ...childIds]).delete();
+    await db.attachments.where('taskId').anyOf([...gone]).delete();
+    // Strip dead dependency references so they don't linger and sync forever.
+    await db.tasks
+      .filter((t) => (t.blockedBy ?? []).some((id) => gone.has(id)))
+      .modify((t) => {
+        t.blockedBy = (t.blockedBy ?? []).filter((id) => !gone.has(id));
+      });
   });
 }
 
@@ -327,7 +334,11 @@ export async function updateNote(id: string, patch: Partial<Note>): Promise<void
 }
 
 export async function deleteNote(id: string): Promise<void> {
-  await db.notes.delete(id);
+  await db.transaction('rw', db.notes, db.tasks, async () => {
+    await db.notes.delete(id);
+    // Tasks created from this note keep their text; drop the dead link.
+    await db.tasks.where('noteId').equals(id).modify({ noteId: null });
+  });
 }
 
 export async function getOrCreateJournalEntry(date: string): Promise<JournalEntry> {

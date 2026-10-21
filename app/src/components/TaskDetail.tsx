@@ -142,6 +142,11 @@ export default function TaskDetail(props: { taskId: string; onClose: () => void;
           {(goals ?? []).filter((g) => g.status === 'active').map((g) => (
             <option key={g.id} value={g.id}>{g.title}</option>
           ))}
+          {task.goalId && !(goals ?? []).some((g) => g.id === task.goalId && g.status === 'active') && (
+            <option value={task.goalId} disabled>
+              {(goals ?? []).find((g) => g.id === task.goalId)?.title ?? 'Linked goal'} (archived)
+            </option>
+          )}
         </select>
       </label>
       <label className="field">
