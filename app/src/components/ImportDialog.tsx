@@ -54,9 +54,17 @@ export default function ImportDialog(props: { projects: Project[]; initialSource
       return d;
     } catch { return null; }
   }, [source, text]);
-  const COLL_LABELS: [string, string][] = [['projects', 'projects'], ['tasks', 'tasks'], ['habits', 'habits'], ['goals', 'goals'], ['notes', 'notes'], ['journal', 'journal entries']];
+  const COLL_LABELS: [string, string, string][] = [
+    ['projects', 'project', 'projects'],
+    ['tasks', 'task', 'tasks'],
+    ['habits', 'habit', 'habits'],
+    ['goals', 'goal', 'goals'],
+    ['notes', 'note', 'notes'],
+    ['journal', 'journal entry', 'journal entries'],
+  ];
+  const countText = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
   const backupCounts = fullBackup
-    ? COLL_LABELS.map(([k, label]) => [label, Array.isArray(fullBackup[k]) ? (fullBackup[k] as unknown[]).length : 0] as const)
+    ? COLL_LABELS.map(([k, one, many]) => ({ n: Array.isArray(fullBackup[k]) ? (fullBackup[k] as unknown[]).length : 0, text: countText(Array.isArray(fullBackup[k]) ? (fullBackup[k] as unknown[]).length : 0, one, many) }))
     : [];
 
   async function runFullRestore() {
@@ -103,7 +111,7 @@ export default function ImportDialog(props: { projects: Project[]; initialSource
 
         {restored !== null ? (
           <div className="import-done">
-            <p>Backup restored: {COLL_LABELS.filter(([k]) => (restored[k] ?? 0) > 0).map(([k, label]) => `${restored[k]} ${label}`).join(', ') || 'nothing found'}.</p>
+            <p>Backup restored: {COLL_LABELS.filter(([k]) => (restored[k] ?? 0) > 0).map(([k, one, many]) => countText(restored[k], one, many)).join(', ') || 'nothing found'}.</p>
             <button className="btn-primary" onClick={props.onClose}>Done</button>
           </div>
         ) : imported !== null ? (
@@ -127,7 +135,7 @@ export default function ImportDialog(props: { projects: Project[]; initialSource
               <textarea ref={areaRef}
                 rows={5}
                 value={text}
-                placeholder={'- [ ] A task\n- [x] A finished one'}
+                placeholder={source === 'lifedash-json' ? '{"version": 2, "tasks": [ ... ], ...}' : '- [ ] A task\n- [x] A finished one'}
                 onChange={(e) => {
                   setText(e.target.value);
                   setFilename('');
@@ -147,10 +155,10 @@ export default function ImportDialog(props: { projects: Project[]; initialSource
 
             {fullBackup && (
               <div className="import-summary">
-                <p className="import-count">Full Lifedash backup: {backupCounts.filter(([, n]) => n > 0).map(([label, n]) => `${n} ${label}`).join(', ')}.</p>
-                <p className="import-warnings">Restoring merges by id: items in the backup overwrite matching existing items; nothing is deleted. Attachments are not part of exports.</p>
+                <p className="import-count">Backup data: {backupCounts.filter((c) => c.n > 0).map((c) => c.text).join(', ')}.</p>
+                <p className="import-warnings">Restoring merges by id: items in the backup overwrite matching existing items; nothing is deleted. Attachment files are not included in backups - only their names and metadata.</p>
                 <button className="btn-primary" disabled={busy} onClick={() => void runFullRestore()}>
-                  {busy ? 'Restoring...' : 'Restore full backup'}
+                  {busy ? 'Restoring...' : 'Restore backup data'}
                 </button>
                 {restoreError && <p role="alert" className="import-warnings">{restoreError}</p>}
                 <p className="import-count" style={{ marginTop: 8 }}>Or import only the tasks:</p>
