@@ -1632,3 +1632,27 @@ main.home-main { max-width: 1200px; width: 100%; }
 .home-primary, .home-support { display: flex; flex-direction: column; gap: 18px; min-width: 0; }
 .home-cockpit .widget { flex-shrink: 0; }
 @media(max-width:800px) { .home-primary, .home-support { gap: 16px; } }
+
+/* Shared page rhythm follows the task-first Home, without changing themes. */
+main > section:not(.home) { padding-top: 4px; }
+main > section:not(.home) > h1 { margin-bottom: 24px; padding-bottom: 16px; border-bottom: 1px solid var(--border); flex-wrap: wrap; row-gap: 6px; }
+main > .quick-add { margin-bottom: 24px; }
+.task-row { padding: 11px 13px; margin-bottom: 8px; border-color: var(--border); }
+.task-row .task-title { white-space: normal; overflow-wrap: anywhere; line-height: 1.45; }
+.task-meta { flex-wrap: wrap; column-gap: 10px; row-gap: 3px; }
+.task-row.blocked { opacity: 1; }
+.task-row.blocked .task-main { color: var(--muted); }
+.day-group { margin-bottom: 24px; }
+.day-group > h2 { display: flex; align-items: baseline; gap: 8px; font-size: 14px; padding: 8px 0; margin: 12px 0 6px; }
+.goal-card, .habit-card { padding: 18px; }
+.goal-card { gap: 13px; }
+.note-item { padding: 17px 18px; }
+.journal-nav { background: var(--surface); padding: 10px; border: 1px solid var(--border); border-radius: var(--radius-card); margin-bottom: 18px; flex-wrap: wrap; }
+.cal-grid { border-radius: var(--radius-card); overflow: hidden; }
+@media(max-width:640px) {
+ main > section:not(.home) > h1 { margin-bottom: 20px; padding-bottom: 14px; }
+ .task-row { padding: 12px; }
+ .goal-card, .habit-card { padding: 16px; }
+ .task-meta { font-size: 11px; }
+ .backlog-row { margin-bottom: 14px; }
+}

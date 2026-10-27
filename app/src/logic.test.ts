@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { parseQuickAdd, groupCompletedByDay, renamedTags, completeTask, skipOccurrence, searchJournal, blockerCandidates, extractChecklistItems, filterNewChecklistItems, describeRecurrence, isRecurrenceValid, nextOccurrenceDate, makeRecurrence, upNextGroups } from './logic';
+import { upcomingTasks, parseQuickAdd, groupCompletedByDay, renamedTags, completeTask, skipOccurrence, searchJournal, blockerCandidates, extractChecklistItems, filterNewChecklistItems, describeRecurrence, isRecurrenceValid, nextOccurrenceDate, makeRecurrence, upNextGroups } from './logic';
 import type { Task } from './types';
 
 describe('parseQuickAdd', () => {
@@ -349,5 +349,14 @@ describe('blockerCandidates', () => {
   it('follows three-link chains when checking loops', () => {
     const a = task('a');
     expect(blockerCandidates([a, task('b',['a']), task('c',['b']), task('d',['c']), task('e')], a).map(t=>t.id)).toEqual(['e']);
+  });
+});
+
+
+describe('upcoming day order', () => {
+  it('orders days chronologically even when task priority puts a later day first', () => {
+    const task = (id: string, dueDate: string, priority: number) => ({id, title:id, status:'active', parentId:null, dueDate, priority, pinned:false, order:0} as Task);
+    const groups = upcomingTasks([task('later','2026-10-30',1),task('sooner','2026-10-29',0)],'2026-10-27');
+    expect([...groups.keys()]).toEqual(['2026-10-29','2026-10-30']);
   });
 });

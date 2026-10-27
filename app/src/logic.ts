@@ -190,7 +190,7 @@ export function upcomingTasks(tasks: Task[], today: string, days = 14): Map<stri
     if (!groups.has(key)) groups.set(key, []);
     groups.get(key)!.push(t);
   }
-  return groups;
+  return new Map([...groups.entries()].sort(([a], [b]) => a.localeCompare(b)));
 }
 
 // --- "Up next" suggestions (SPEC Phase 5) ---
