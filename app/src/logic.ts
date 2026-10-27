@@ -1,5 +1,6 @@
 import { RRule, Frequency } from 'rrule';
-import type { Task, Note, JournalEntry, Goal } from './types';
+import { projectWithDescendants } from './projects';
+import type { Project, Task, Note, JournalEntry, Goal } from './types';
 import { utcNoon, fromUtcNoon, parseLocalDate, toLocalDateStr, addDays } from './dates';
 
 export type RecurrenceKind = 'daily' | 'weekly' | 'monthly' | 'ndays';
@@ -205,6 +206,13 @@ export function backlogTasks(tasks: Task[]): Task[] {
 
 export function projectTasks(tasks: Task[], projectId: string): Task[] {
   return sortTasks(tasks.filter((t) => active(t) && topLevel(t) && t.projectId === projectId));
+}
+
+// A project's aggregate view: its own tasks plus every descendant
+// project's tasks, in the same order (John, Oct 27: "show both").
+export function projectTreeTasks(tasks: Task[], projects: Project[], projectId: string): Task[] {
+  const ids = projectWithDescendants(projects, projectId);
+  return sortTasks(tasks.filter((t) => active(t) && topLevel(t) && ids.has(t.projectId)));
 }
 
 export function completedTasks(tasks: Task[]): Task[] {

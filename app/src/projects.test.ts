@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { hasProjectCycle, projectTree, projectWithDescendants, wouldCycle } from './projects';
+import { projectTreeTasks } from './logic';
+import type { Task } from './types';
 import type { Project } from './types';
 
 let seq = 0;
@@ -95,5 +97,27 @@ describe('projectWithDescendants', () => {
     const d = proj('d');
     const ids = projectWithDescendants([a, b, c, d], a.id);
     expect([...ids].sort()).toEqual([a.id, b.id, c.id].sort());
+  });
+});
+
+describe('projectTreeTasks', () => {
+  let tseq = 0;
+  const mk = (title: string, projectId: string): Task => {
+    tseq++;
+    return { id: `t${tseq}`, title, note: '', noteDoc: null, projectId, parentId: null, goalId: null, noteId: null,
+      status: 'active', pinned: false, priority: 0, dueDate: null, dueTime: null, recurrence: null, blockedBy: [],
+      tags: [], order: tseq, seriesId: null, createdAt: tseq, updatedAt: tseq, completedAt: null };
+  };
+  it('includes direct and descendant tasks, excludes others and subtasks', () => {
+    const side = proj('Side projects');
+    const lifedash = proj('Lifedash', side.id);
+    const work = proj('Work');
+    const direct = mk('direct', side.id);
+    const child = mk('child task', lifedash.id);
+    const other = mk('other', work.id);
+    const sub = { ...mk('subtask', lifedash.id), parentId: 't2' };
+    const done = { ...mk('done', lifedash.id), status: 'done' as const, completedAt: 5 };
+    const list = projectTreeTasks([direct, child, other, sub, done], [side, lifedash, work], side.id);
+    expect(list.map((t) => t.title).sort()).toEqual(['child task', 'direct']);
   });
 });

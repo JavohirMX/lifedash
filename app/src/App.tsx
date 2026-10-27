@@ -25,6 +25,7 @@ import TVDashboard from './views/TVDashboard';
 import SyncDialog from './components/SyncDialog';
 import AppearanceDialog from './components/AppearanceDialog';
 import { cycleTheme } from './theme';
+import { projectWithDescendants } from './projects';
 import { loadRules, saveRules, loadUserRules, saveUserRules, type AutomationRules, type UserRule } from './automation';
 import { remindersEnabled, setRemindersEnabled, journalPromptEnabled, setJournalPromptEnabled, startReminders } from './reminders';
 import { applyRollover, applyWeeklyUserRules } from './repo';
@@ -37,6 +38,7 @@ import {
   projectTasks,
   completedTasks, groupCompletedByDay,
   searchTasks,
+  projectTreeTasks,
 } from './logic';
 import { todayStr, friendlyDate, weekdayLabel } from './dates';
 import { updateTask, moveTask, updateProject, deleteProject } from './repo';
@@ -259,8 +261,10 @@ export default function App() {
     );
   } else if (selection.kind === 'project') {
     const project = projects.find((p) => p.id === selection.id);
-    const list = projectTasks(tasks, selection.id);
-    const projAll = tasks.filter((t) => t.projectId === selection.id && t.parentId === null && t.status !== 'archived');
+    const list = projectTreeTasks(tasks, projects, selection.id);
+    const treeIds = projectWithDescendants(projects, selection.id);
+    const projNameById = new Map(projects.map((p) => [p.id, p.name]));
+    const projAll = tasks.filter((t) => treeIds.has(t.projectId) && t.parentId === null && t.status !== 'archived');
     const projDone = projAll.filter((t) => t.status === 'done').length;
     const projPct = projAll.length ? Math.round((projDone / projAll.length) * 100) : 0;
     body = (
@@ -320,8 +324,9 @@ export default function App() {
             </div>
           </div>
         )}
-        {list.length === 0 && <p className="empty">No active tasks in this project.</p>}
+        {list.length === 0 && <p className="empty">No active tasks in this project or its subprojects.</p>}
         <TaskList tasks={list} allTasks={tasks} showDate onOpen={setOpenId} onTag={openTag}
+          projectLabelFor={(t) => (t.projectId !== selection.id ? projNameById.get(t.projectId) : undefined)}
           onReorder={(dragId, targetId, after) => void moveTask(dragId, targetId, after, list)} />
       </section>
     );

@@ -13,6 +13,7 @@ export default function TaskList(props: {
   tasks: Task[];
   allTasks: Task[];
   showDate?: boolean;
+  projectLabelFor?: (t: Task) => string | undefined;
   onOpen: (id: string) => void;
   onTag?: (tag: string) => void;
   onReorder?: (dragId: string, targetId: string, after: boolean) => void;
@@ -136,7 +137,7 @@ export default function TaskList(props: {
               : undefined
           }
         >
-          <TaskRow task={t} allTasks={props.allTasks} showDate={props.showDate} onOpen={props.onOpen}
+          <TaskRow task={t} allTasks={props.allTasks} showDate={props.showDate} projectLabel={props.projectLabelFor?.(t)} onOpen={props.onOpen}
           onTag={props.onTag} />
         </div>
       ))}

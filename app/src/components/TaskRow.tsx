@@ -8,6 +8,7 @@ export default function TaskRow(props: {
   task: Task;
   allTasks: Task[];
   showDate?: boolean;
+  projectLabel?: string;
   onOpen: (id: string) => void;
   onTag?: (tag: string) => void;
 }) {
@@ -54,6 +55,7 @@ export default function TaskRow(props: {
           {blocked && (
             <span className="blocked-by">blocked by {blockers[0].title}{blockers.length > 1 ? ` +${blockers.length - 1}` : ''}</span>
           )}
+          {props.projectLabel && <span className="tag">{props.projectLabel}</span>}
           {tags.map((t) =>
             props.onTag ? (
               <span
