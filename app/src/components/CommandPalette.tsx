@@ -150,7 +150,7 @@ export function useGlobalKeys(handlers: {
     function onKey(e: KeyboardEvent) {
       const target = e.target as HTMLElement;
       const typing = target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable;
-      const dialog = document.querySelector('[role=dialog]');
+      const dialog = document.querySelector('[role=dialog], dialog[open]');
       if (dialog && dialog.getAttribute('aria-label') !== 'Command palette') return;
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') {
         e.preventDefault();

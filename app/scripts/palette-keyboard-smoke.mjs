@@ -32,6 +32,13 @@ try {
     await page.keyboard.press('?');
     assert.equal(await page.getByRole('dialog', { name: 'Keyboard shortcuts' }).count(), 0, 'help opened over Settings');
     await page.keyboard.press('Escape');
+    if (width < 500) await page.getByRole('button', { name: 'More', exact: true }).click();
+    await page.getByRole('button', { name: 'Plan with AI', exact: true }).click();
+    await page.getByRole('dialog', { name: 'Plan with AI', exact: true }).waitFor();
+    await page.keyboard.press('Control+k');
+    assert.equal(await page.getByRole('dialog', { name: 'Command palette' }).count(), 0, 'palette opened over native dialog');
+    await page.keyboard.press('Escape');
+    await page.getByRole('dialog', { name: 'Plan with AI', exact: true }).waitFor({ state: 'detached' });
     console.log(`${width}px palette containment, Escape, focus return and modal shortcut guard passed`);
     await page.close();
   }
