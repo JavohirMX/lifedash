@@ -23,7 +23,7 @@ export const WALLPAPERS = [
 export type WallpaperId = typeof WALLPAPERS[number]['id'] | 'custom';
 export type WallpaperPrefs = { id: WallpaperId; intensity: number; image?: string };
 const DEFAULT_WALLPAPER: WallpaperPrefs = {id:'none',intensity:20};
-export function parseFont(value: string | null): FontId { return FONTS.some(f=>f.id===value) ? value as FontId : 'style'; }
+export function parseFont(value: string | null): FontId { return FONTS.some(f=>f.id===value) ? value as FontId : 'inter'; }
 export function parseWallpaper(value: string | null): WallpaperPrefs {
   try {
     const p = JSON.parse(value ?? 'null');
@@ -32,15 +32,18 @@ export function parseWallpaper(value: string | null): WallpaperPrefs {
     return {id:p.id, intensity:typeof p.intensity==='number' && Number.isFinite(p.intensity) ? Math.max(0,Math.min(35,Math.round(p.intensity))) :20, ...(p.id==='custom'?{image:p.image}:{})};
   } catch {return {...DEFAULT_WALLPAPER};}
 }
-export function getFont(): FontId {try{return parseFont(localStorage.getItem(FONT_KEY));}catch{return 'style';}}
+export function getFont(): FontId {try{return parseFont(localStorage.getItem(FONT_KEY));}catch{return 'inter';}}
 export function getWallpaper(): WallpaperPrefs {try{return parseWallpaper(localStorage.getItem(WALLPAPER_KEY));}catch{return {...DEFAULT_WALLPAPER};}}
-export function applyFont(id:FontId) {
-  const font=FONTS.find(f=>f.id===id) ?? FONTS[0];
-  // Store before changing UI. A storage failure must not falsely claim persistence.
-  localStorage.setItem(FONT_KEY,font.id);
+function renderFont(id:FontId) {
+  const font=FONTS.find(f=>f.id===id) ?? FONTS.find(f=>f.id==='inter')!;
   if(font.family) {document.documentElement.style.setProperty('--font',font.family);document.documentElement.style.setProperty('--font-display',font.family);}
   else {document.documentElement.style.removeProperty('--font');document.documentElement.style.removeProperty('--font-display');}
   document.documentElement.dataset.font=font.id;
+}
+export function applyFont(id:FontId) {
+  // A failed user-initiated save keeps the previous rendered choice.
+  localStorage.setItem(FONT_KEY,id);
+  renderFont(id);
 }
 export function wallpaperImage(p:WallpaperPrefs):string {return p.id==='custom' && p.image ? `url("${p.image}")` : WALLPAPERS.find(w=>w.id===p.id)?.image ?? '';}
 export function applyWallpaper(input:WallpaperPrefs) {
@@ -50,7 +53,11 @@ export function applyWallpaper(input:WallpaperPrefs) {
   document.documentElement.style.setProperty('--wallpaper-intensity',String(p.intensity/100));
   document.documentElement.dataset.wallpaper=p.id;
 }
-export function initAppearancePrefs() {try {applyFont(getFont());applyWallpaper(getWallpaper());}catch {/* Storage can be unavailable. Keep safe style defaults. */}}
+export function initAppearancePrefs() {
+  // Reading may be blocked. Render the approved fallback without needing a write.
+  renderFont(getFont());
+  try {applyWallpaper(getWallpaper());}catch {/* Keep safe wallpaper defaults. */}
+}
 export async function prepareWallpaper(file:File):Promise<string> {
   if(!['image/jpeg','image/png','image/webp'].includes(file.type))throw new Error('Choose a JPG, PNG or WebP image.');
   if(file.size>10*1024*1024)throw new Error('Choose an image smaller than 10 MB.');

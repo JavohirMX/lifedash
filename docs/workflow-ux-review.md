@@ -2,7 +2,7 @@
 
 October 27, 2026. Local development candidates, not a user study or a deployment-readiness certificate.
 
-The refinement keeps the task-first Home layout and existing calculations. It makes scope, next actions and smaller-screen paths clearer. It does not settle data policies, change sync conflict handling or connect a real calendar account. Font comparisons remain choices for review; the default is unchanged.
+The refinement keeps the task-first Home layout and existing calculations. It makes scope, next actions and smaller-screen paths clearer. It does not settle data policies, change sync conflict handling or connect a real calendar account. Inter is the default, following the user's selection; the other fonts remain selectable.
 
 ## Source-to-change notes
 

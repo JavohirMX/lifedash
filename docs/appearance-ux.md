@@ -24,7 +24,7 @@ The focused script uses fictional sample data and no real provider, sync or noti
 
 ## Font and wallpaper extension
 
-John requested additional fonts, a better default, wallpaper and improved Settings on October 27. The current default remains unchanged until he picks from same-Home Inter / Manrope / IBM Plex Sans previews. All three use identical layout, sample data, style and mode. Inter and Manrope are bundled Fontsource variable font packages (5.3.0, OFL-1.1), not Google Fonts runtime requests. System/serif/monospace options use local device fonts. Match style restores the original style-specific typography.
+John requested additional fonts, a better default, wallpaper and improved Settings on October 27. John selected Inter as the default after reviewing same-Home previews. New or invalid font preferences use Inter; explicit saved font choices are preserved. All three use identical layout, sample data, style and mode. Inter and Manrope are bundled Fontsource variable font packages (5.3.0, OFL-1.1), not Google Fonts runtime requests. System/serif/monospace options use local device fonts. Match style restores the original style-specific typography.
 
 The Appearance dialog now groups controls into Style & mode, Font and Wallpaper tabs, with accessible arrow-key navigation. Fonts have a readable specimen. Reset style & mode is explicitly narrow: it does not reset fonts, wallpaper, data or notifications. Wallpaper has None, three bundled gradient presets, local image choice, replace/remove, and an intensity slider capped at 35%. Wallpaper is only behind main working screens; solid content surfaces preserve readable text. Wallpaper is off by default.
 
