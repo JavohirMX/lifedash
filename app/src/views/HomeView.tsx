@@ -1,8 +1,9 @@
 import { useLiveQuery } from 'dexie-react-hooks';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Check, Flame, ArrowRight, Target, SlidersHorizontal, Zap } from 'lucide-react';
 import { db } from '../db';
-import { toggleComplete, toggleHabitForDate } from '../repo';
+import { toggleComplete, toggleHabitForDate, stopFocus } from '../repo';
+import { runningSession, sessionSeconds, focusTotals, formatClock, formatDuration } from '../focus';
 import { todayTasks, upcomingTasks, suggestedTask, upNextGroups } from '../logic';
 import { currentStreak, isScheduledOn, logsByDate } from '../habits';
 import { todayStr, addDays, friendlyDate, weekdayLabel } from '../dates';
@@ -30,6 +31,16 @@ export default function HomeView(props: { tasks: Task[]; onSelect: (kind: string
   const today = todayStr();
   const suggestion = suggestedTask(props.tasks, today);
   const now = new Date();
+  const focusSessions = useLiveQuery(() => db.focusSessions.toArray(), []);
+  const [focusNow, setFocusNow] = useState(() => Date.now());
+  const running = focusSessions ? runningSession(focusSessions) : null;
+  const runningTask = running ? (props.tasks.find((t) => t.id === running.taskId) ?? null) : null;
+  useEffect(() => {
+    if (!running) return;
+    const id = setInterval(() => setFocusNow(Date.now()), 1000);
+    return () => clearInterval(id);
+  }, [running?.id]);
+  const focusedToday = focusSessions ? focusTotals(focusSessions, today, focusNow).todayTotal : 0;
 
   // todayTasks() is active-only; the progress count needs the done ones too.
   const dueTodayAll = props.tasks.filter((t) => t.parentId === null && t.dueDate !== null && t.dueDate <= today && t.status !== 'archived');
@@ -102,7 +113,22 @@ export default function HomeView(props: { tasks: Task[]; onSelect: (kind: string
       )}
 
       <div className="widget-grid">
-        {!hidden.includes('focus') && suggestion && (
+        {!hidden.includes('focus') && running && (
+        <div className="widget focus-widget">
+          <div className="widget-head">
+            <h2><Zap size={14} strokeWidth={2} aria-hidden="true" className="focus-icon" /> Focusing</h2>
+            <span className="focus-reason num">{formatClock(sessionSeconds(running, focusNow))}</span>
+          </div>
+          <div className="focus-task">
+            <button className="focus-title" onClick={() => runningTask && props.onOpen(runningTask.id)}>
+              {runningTask?.title ?? 'Task'}
+            </button>
+            <button className="btn-secondary focus-stop" onClick={() => void stopFocus()}>Stop</button>
+          </div>
+          {focusedToday > 0 && <p className="widget-meta num">Focused today: {formatDuration(focusedToday)}</p>}
+        </div>
+        )}
+        {!hidden.includes('focus') && !running && suggestion && (
         <div className="widget focus-widget">
           <div className="widget-head">
             <h2><Zap size={14} strokeWidth={2} aria-hidden="true" className="focus-icon" /> Focus next</h2>
@@ -187,7 +213,10 @@ export default function HomeView(props: { tasks: Task[]; onSelect: (kind: string
             <p className="widget-empty">No habits scheduled today.</p>
           ) : (
             <>
-              <p className="widget-meta num">{habitsDone} of {todaysHabits.length} done</p>
+              <p className="widget-meta num">
+                {habitsDone} of {todaysHabits.length} done
+                {!running && focusedToday > 0 && <> · Focused today: {formatDuration(focusedToday)}</>}
+              </p>
               <ul className="widget-list">
                 {todaysHabits.map((h) => {
                   const done = logsByDate(logs ?? [], h.id).has(today);

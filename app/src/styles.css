@@ -1445,3 +1445,8 @@ input[type='checkbox'], input[type='radio'], input[type='range'] { accent-color:
   min-height: 34px; padding: 6px 10px; border: 1px solid var(--control); border-radius: 8px;
   background: var(--surface); color: var(--text); font: inherit; width: 100%; box-sizing: border-box;
 }
+
+.focus-section { display: flex; align-items: center; gap: 10px; margin: 10px 0; }
+.focus-clock { font-variant-numeric: tabular-nums; font-size: 20px; font-weight: 600; }
+.focus-total { margin-left: auto; opacity: 0.7; font-size: var(--fs-small, 12px); }
+.focus-stop { flex: none; }

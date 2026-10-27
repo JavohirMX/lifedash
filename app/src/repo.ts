@@ -1,4 +1,6 @@
 import { loadRules, rolloverTargets, shouldCompleteParent, loadUserRules, saveUserRules, tagRulesFor, weeklyRulesDue, hasOpenTitle } from './automation';
+import { reconcileRunningSessions } from './focus';
+import type { FocusSession } from './types';
 import { parseLocalDate } from './dates';
 import { db, newId } from './db';
 import type { Task, Project, Goal, Note, JournalEntry } from './types';
@@ -119,6 +121,32 @@ export async function applyWeeklyUserRules(today: string): Promise<number> {
   return created;
 }
 
+/** Start focusing on a task. Any already-running session is finalized in
+ * the same readwrite transaction, so exactly one session runs at a time;
+ * IndexedDB serializes overlapping readwrite transactions even across tabs. */
+export async function startFocus(taskId: string): Promise<void> {
+  const now = Date.now();
+  await db.transaction('rw', db.focusSessions, async () => {
+    const running = await db.focusSessions.filter((s) => s.endedAt === null).toArray();
+    for (const s of running) {
+      await db.focusSessions.update(s.id, { endedAt: now, seconds: Math.max(0, Math.floor((now - s.startedAt) / 1000)) });
+    }
+    await db.focusSessions.add({ id: newId(), taskId, startedAt: now, endedAt: null, seconds: 0 });
+  });
+}
+
+/** Stop the running session, if any. Same single-transaction shape as
+ * startFocus: the read-then-write race cannot interleave. */
+export async function stopFocus(): Promise<void> {
+  const now = Date.now();
+  await db.transaction('rw', db.focusSessions, async () => {
+    const running = await db.focusSessions.filter((s) => s.endedAt === null).toArray();
+    for (const s of running) {
+      await db.focusSessions.update(s.id, { endedAt: now, seconds: Math.max(0, Math.floor((now - s.startedAt) / 1000)) });
+    }
+  });
+}
+
 /** Move every overdue active task into Today. Returns how many moved. */
 export async function applyRollover(today: string): Promise<number> {
   const all = await db.tasks.toArray();
@@ -174,7 +202,7 @@ export async function deleteProject(project: Project): Promise<void> {
 }
 
 export async function exportJson(): Promise<string> {
-  const [tasks, projects, attachments, habits, habitLogs, goals, notes, journal] = await Promise.all([
+  const [tasks, projects, attachments, habits, habitLogs, goals, notes, journal, focusSessions] = await Promise.all([
     db.tasks.toArray(),
     db.projects.toArray(),
     db.attachments.toArray(),
@@ -183,6 +211,7 @@ export async function exportJson(): Promise<string> {
     db.goals.toArray(),
     db.notes.toArray(),
     db.journal.toArray(),
+    db.focusSessions.toArray(),
   ]);
   // Attachment binaries stay on-device; metadata is exported for reference.
   const attachmentMeta = attachments.map(({ blob: _blob, ...meta }) => meta);
@@ -198,6 +227,7 @@ export async function exportJson(): Promise<string> {
       goals,
       notes,
       journal,
+      focusSessions,
     },
     null,
     2,
@@ -403,7 +433,7 @@ export async function countAttachments(): Promise<number> {
 export async function importBackup(json: string): Promise<{ restored: Record<string, number> }> {
   const data = JSON.parse(json) as Record<string, unknown>;
   if (data?.version !== 2) throw new Error('Not a Lifedash version 2 backup.');
-  const tables = ['projects', 'tasks', 'habits', 'habitLogs', 'goals', 'notes', 'journal'] as const;
+  const tables = ['projects', 'tasks', 'habits', 'habitLogs', 'goals', 'notes', 'journal', 'focusSessions'] as const;
   // Validate every row before writing anything: one bad row aborts the
   // whole restore instead of leaving a half-import (Dexie also rolls the
   // transaction back on any write error).
@@ -423,6 +453,14 @@ export async function importBackup(json: string): Promise<{ restored: Record<str
     for (const [t, rows] of valid) {
       await db.table(t).bulkPut(rows);
       restored[t] = rows.length;
+    }
+    // A backup can carry a running session while one is already running
+    // here; reconcile inside the restore transaction so at most one runs.
+    const all = (await db.focusSessions.toArray()) as FocusSession[];
+    for (const s of reconcileRunningSessions(all)) {
+      if (s.endedAt !== null && all.find((o) => o.id === s.id)?.endedAt === null) {
+        await db.focusSessions.put(s);
+      }
     }
   });
   return { restored };

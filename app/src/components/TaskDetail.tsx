@@ -3,6 +3,8 @@ import { useEffect, useState } from 'react';
 import NoteEditor from './NoteEditor';
 import Attachments from './Attachments';
 import { useLiveQuery } from 'dexie-react-hooks';
+import { runningSession, sessionSeconds, focusTotals, formatClock, formatDuration } from '../focus';
+import { startFocus, stopFocus } from '../repo';
 import { db, INBOX_ID } from '../db';
 import { addTask, deleteTask, toggleComplete, updateTask, addBlocker, removeBlocker, addTag, removeTag } from '../repo';
 import { makeRecurrence, describeRecurrence, isRecurrenceValid, blockersOf, normalizeTask } from '../logic';
@@ -30,6 +32,15 @@ export default function TaskDetail(props: { taskId: string; onClose: () => void;
     [props.taskId],
   );
   const allTasks = useLiveQuery(() => db.tasks.toArray(), []);
+  const focusSessions = useLiveQuery(() => db.focusSessions.toArray(), []);
+  const [focusNow, setFocusNow] = useState(() => Date.now());
+  const running = focusSessions ? runningSession(focusSessions) : null;
+  const runningHere = running?.taskId === props.taskId;
+  useEffect(() => {
+    if (!running) return;
+    const id = setInterval(() => setFocusNow(Date.now()), 1000);
+    return () => clearInterval(id);
+  }, [running?.id]);
   const sourceNote = useLiveQuery(
     () => (task?.noteId ? db.notes.get(task.noteId) : undefined),
     [task?.noteId],
@@ -82,6 +93,23 @@ export default function TaskDetail(props: { taskId: string; onClose: () => void;
         value={task.title}
         onChange={(e) => void updateTask(task.id, { title: e.target.value })}
       />
+      <div className="focus-section" aria-label="Focus timer">
+        {runningHere && running ? (
+          <>
+            <span className="focus-clock num">{formatClock(sessionSeconds(running, focusNow))}</span>
+            <button className="btn-secondary" onClick={() => void stopFocus()}>Stop</button>
+          </>
+        ) : (
+          <button className="btn-secondary" onClick={() => void startFocus(task.id)}>
+            {running ? 'Switch focus here' : 'Start focus'}
+          </button>
+        )}
+        {focusSessions && focusTotals(focusSessions, todayStr(), focusNow).perTask.get(task.id) ? (
+          <span className="focus-total num">
+            {formatDuration(focusTotals(focusSessions, todayStr(), focusNow).perTask.get(task.id) ?? 0)} total
+          </span>
+        ) : null}
+      </div>
       <NoteEditor key={task.id} docKey={task.id} note={task.note} noteDoc={task.noteDoc} onSave={(doc, text) => void updateTask(task.id, { noteDoc: doc, note: text })} />
       {task.noteId && sourceNote && (
         <button className="note-source" onClick={() => props.onOpenNote(task.noteId!)}>

@@ -1,5 +1,5 @@
 import Dexie, { type Table } from 'dexie';
-import type { Task, Project, Attachment, Habit, HabitLog, Goal, Note, JournalEntry } from './types';
+import type { Task, Project, Attachment, Habit, HabitLog, Goal, Note, JournalEntry, FocusSession } from './types';
 
 export const INBOX_ID = 'inbox';
 
@@ -13,6 +13,7 @@ export class LifeDashDB extends Dexie {
   notes!: Table<Note, string>;
   journal!: Table<JournalEntry, string>;
   habitLogs!: Table<HabitLog, string>;
+  focusSessions!: Table<FocusSession, string>;
 
   constructor() {
     super('lifedash');
@@ -131,6 +132,19 @@ export class LifeDashDB extends Dexie {
             t.priority ??= 0;
           }),
       );
+    this.version(11)
+      .stores({
+        tasks: 'id, status, projectId, parentId, dueDate, seriesId, goalId, noteId',
+        projects: 'id, order',
+        attachments: 'id, taskId',
+        habits: 'id, order',
+        habitLogs: 'id, habitId, date',
+        goals: 'id, order',
+        notes: 'id, updatedAt',
+        journal: 'id, date',
+        syncmeta: 'key',
+        focusSessions: 'id, taskId',
+      });
     this.version(10)
       .stores({
         tasks: 'id, status, projectId, parentId, dueDate, seriesId, goalId, noteId',

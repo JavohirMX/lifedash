@@ -90,3 +90,11 @@ export interface Project {
   order: number;
   archived: boolean;
 }
+
+export interface FocusSession {
+  id: string;
+  taskId: string;
+  startedAt: number;
+  endedAt: number | null;
+  seconds: number; // final total once endedAt is set; 0 while running
+}
