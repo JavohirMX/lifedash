@@ -171,9 +171,12 @@ export class LifeDashDB extends Dexie {
 export const db = new LifeDashDB();
 
 export async function ensureSeed(): Promise<void> {
-  if ((await db.projects.count()) === 0) {
-    await db.projects.add({ id: INBOX_ID, name: 'Inbox', color: '#0f766e', order: 0, archived: false });
-  }
+  // StrictMode can start two seed calls together. Keep count + insert atomic.
+  await db.transaction('rw', db.projects, async () => {
+    if ((await db.projects.count()) === 0) {
+      await db.projects.add({ id: INBOX_ID, name: 'Inbox', color: '#0f766e', order: 0, archived: false });
+    }
+  });
 }
 
 let seq = 0;
