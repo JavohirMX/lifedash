@@ -55,7 +55,8 @@ export default function NoteEditor(props: {
       title={title}
       aria-label={title}
       aria-pressed={active}
-      onMouseDown={(e) => { e.preventDefault(); onClick(); }}
+      onMouseDown={(e) => e.preventDefault()}
+      onClick={onClick}
     >
       {icon}
     </button>

@@ -92,6 +92,21 @@ try {
     await page.waitForFunction(() => document.querySelector('[role=radio][aria-checked=true]')?.textContent?.trim() === 'Great');
     await page.keyboard.press('ArrowRight');
     await page.waitForFunction(() => document.querySelector('[role=radio][aria-checked=true]')?.textContent?.trim() === 'Rough');
+    if (width < 500) await page.getByRole('button', { name: 'More', exact: true }).click();
+    await page.getByRole('button', { name: 'Settings', exact: true }).click();
+    await page.getByRole('button', { name: 'Sync Connect to your self-hosted server' }).click();
+    await page.getByRole('dialog', { name: 'Sync', exact: true }).waitFor();
+    assert(await page.evaluate(() => !!document.activeElement?.closest('[role=dialog]')));
+    await page.keyboard.press('Escape');
+    if (width < 500) await page.getByRole('button', { name: 'More', exact: true }).click();
+    await page.locator(width < 500 ? '.mobile-sheet' : '.sidebar').getByRole('button', { name: 'Notes', exact: true }).click();
+    await page.locator('.note-item').first().click();
+    await page.getByRole('button', { name: 'Bold', exact: true }).focus();
+    await page.keyboard.press('Enter');
+    assert(await page.evaluate(() => !!document.activeElement?.closest('.tiptap')), 'keyboard toolbar did not focus editor');
+    assert.equal(await page.getByRole('button', { name: 'Bold', exact: true }).getAttribute('aria-pressed'), 'true');
+    await page.getByRole('button', { name: 'Bold', exact: true }).click();
+    assert.equal(await page.getByRole('button', { name: 'Bold', exact: true }).getAttribute('aria-pressed'), 'false');
     console.log(`${width}px palette containment, Escape, focus return and modal shortcut guard passed`);
     await page.close();
   }

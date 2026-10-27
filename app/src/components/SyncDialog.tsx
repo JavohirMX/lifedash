@@ -84,7 +84,7 @@ export default function SyncDialog(props: { onClose: () => void }) {
 
   if (SAMPLE_MODE) return (
     <div className="palette-overlay" onClick={props.onClose}>
-      <div className="import-panel sync-panel" role="dialog" aria-modal="true" aria-label="Sync" onClick={e => e.stopPropagation()}>
+      <div ref={panel} className="import-panel sync-panel" role="dialog" aria-modal="true" aria-label="Sync" onClick={e => e.stopPropagation()}>
         <button className="icon-btn" aria-label="Close" onClick={props.onClose}><X size={18} /></button>
         <h2>Sample-data sandbox</h2>
         <p>Automatic sync is disabled in the sample-data sandbox, and the sandbox never uses your real sync account.</p>
