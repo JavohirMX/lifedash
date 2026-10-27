@@ -20,13 +20,13 @@ export type PanelState =
   | { kind: 'loading' }
   | { kind: 'unavailable' }
   | { kind: 'disconnected' }
-  | { kind: 'connected'; connectedAt: string | null }
+  | { kind: 'connected'; connectedAt: string | null; unavailable?: boolean }
   | { kind: 'reconnect' }
   | { kind: 'error'; message: string };
 
 export function stateFromStatus(s: GoogleStatus): PanelState {
+  if (s.connected) return { kind: 'connected', connectedAt: s.connectedAt, ...(!s.available ? {unavailable:true} : {}) };
   if (!s.available) return { kind: 'unavailable' };
-  if (s.connected) return { kind: 'connected', connectedAt: s.connectedAt };
   return { kind: 'disconnected' };
 }
 
@@ -72,6 +72,7 @@ export function GoogleCalendarView(props: {
           </ul></details>
         </>
       )}
+      {state.kind === 'connected' && state.unavailable && <p className="rule-note" role="alert">This server is not configured for calendar access, but a saved link remains. You can delete that link here. If Google revocation cannot be confirmed, remove Lifedash from your Google Account too.</p>}
       {state.kind === 'connected' && <p className="rule-note" role="status">Connected{since(state.connectedAt)}.</p>}
       {state.kind === 'reconnect' && <p className="rule-note" role="alert">Google access has expired or was removed. Connect again to restore read-only access.</p>}
       {state.kind === 'error' && <p className="rule-note" role="alert">{state.message}</p>}
@@ -93,19 +94,21 @@ export default function GoogleCalendarPanel(props: { settings: SyncSettings | nu
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
   const live = useRef(true);
+  const requestGeneration = useRef(0);
   const connectionCallback=useRef(props.onConnectionChange);connectionCallback.current=props.onConnectionChange;
-  useEffect(()=>{connectionCallback.current?.(state.kind==='connected');},[state.kind]);
-  useEffect(() => { live.current = true; return () => { live.current = false; }; }, []);
+  useEffect(()=>{connectionCallback.current?.(state.kind==='connected' && !state.unavailable);},[state]);
+  useEffect(() => { live.current = true; return () => { live.current = false; requestGeneration.current++; }; }, []);
 
   const refresh = useCallback(async () => {
     if (SAMPLE_MODE) return;
     if (!settings) return setState({ kind: 'signed_out' });
+    const request=++requestGeneration.current;
     setState({ kind: 'loading' });
     try {
       const s = await googleStatus(settings);
-      if (live.current) setState(stateFromStatus(s));
+      if (live.current && request===requestGeneration.current) setState(stateFromStatus(s));
     } catch (e) {
-      if (live.current) setState(stateFromError(e));
+      if (live.current && request===requestGeneration.current) setState(stateFromError(e));
     }
   }, [settings]);
 
@@ -113,22 +116,25 @@ export default function GoogleCalendarPanel(props: { settings: SyncSettings | nu
 
   async function connect() {
     if (SAMPLE_MODE || !settings) return;
+    const request=++requestGeneration.current;
     setBusy(true);
     setNotice(null);
     try {
       const url = await googleConnectUrl(settings);
+      if(!live.current || request!==requestGeneration.current)return;
       window.location.assign(url); // consent happens on accounts.google.com; the server finishes the link
     } catch (e) {
-      setState(stateFromError(e));
-      setBusy(false);
+      if(live.current && request===requestGeneration.current){setState(stateFromError(e));setBusy(false);}
     }
   }
 
   async function disconnect() {
     if (SAMPLE_MODE || !settings) return;
+    const request=++requestGeneration.current;
     setBusy(true);
     try {
       const r = await googleDisconnect(settings);
+      if(!live.current || request!==requestGeneration.current)return;
       setNotice(
         r.revoked
           ? 'Disconnected, and Google confirmed access was removed.'
@@ -136,9 +142,9 @@ export default function GoogleCalendarPanel(props: { settings: SyncSettings | nu
       );
       setState({ kind: 'disconnected' });
     } catch (e) {
-      setState(stateFromError(e));
+      if(live.current && request===requestGeneration.current)setState(stateFromError(e));
     } finally {
-      if (live.current) setBusy(false);
+      if (live.current && request===requestGeneration.current) setBusy(false);
     }
   }
 

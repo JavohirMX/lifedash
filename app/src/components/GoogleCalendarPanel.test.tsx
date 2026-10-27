@@ -12,6 +12,7 @@ describe('GoogleCalendarPanel states', () => {
     expect(stateFromStatus({ available: true, connected: false, connectedAt: null, problem: null })).toEqual({ kind: 'disconnected' });
     expect(stateFromStatus({ available: true, connected: true, connectedAt: '2026-11-03T01:00:00Z', problem: null })).toEqual({ kind: 'connected', connectedAt: '2026-11-03T01:00:00Z' });
   });
+  it('retains local disconnect when a saved link is unavailable',()=>{const state=stateFromStatus({available:false,connected:true,connectedAt:null,problem:null});expect(state).toEqual({kind:'connected',connectedAt:null,unavailable:true});expect(html(state)).toContain('Disconnect Google');});
   it('maps errors', () => {
     expect(stateFromError(new GoogleCalendarError('reconnect', 'x'))).toEqual({ kind: 'reconnect' });
     expect(stateFromError(new GoogleCalendarError('network', 'Could not reach the sync server.'))).toEqual({ kind: 'error', message: 'Could not reach the sync server.' });
