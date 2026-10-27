@@ -151,7 +151,14 @@ export default function HomeView(props: { tasks: Task[]; onSelect: (kind: string
             <p className="widget-empty">Nothing due today. Pull something in from Backlog.</p>
           ) : (
             <>
-              <div className="progress">
+              <div
+                className="progress"
+                role="progressbar"
+                aria-valuenow={doneToday}
+                aria-valuemin={0}
+                aria-valuemax={todays.length}
+                aria-label="Tasks done today"
+              >
                 <div className="progress-fill" style={{ width: `${todays.length ? (doneToday / todays.length) * 100 : 0}%` }} />
               </div>
               <p className="widget-meta num">{doneToday} of {todays.length} done</p>
