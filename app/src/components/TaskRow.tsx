@@ -1,7 +1,7 @@
 import { Flag, Check, Repeat } from 'lucide-react';
 import type { Task } from '../types';
-import { toggleComplete, togglePin } from '../repo';
-import { describeRecurrence, subtaskProgress, activeBlockers, normalizeTask } from '../logic';
+import { completeWithSubtasks, toggleComplete, togglePin } from '../repo';
+import { describeRecurrence, subtaskProgress, subtasksOf, activeBlockers, normalizeTask } from '../logic';
 import { friendlyDate, todayStr } from '../dates';
 
 export default function TaskRow(props: {
@@ -26,6 +26,16 @@ export default function TaskRow(props: {
     if (!done && blocked) {
       const names = blockers.map((b) => `"${b.title}"`).join(', ');
       if (!window.confirm(`This task is blocked by ${names}. Complete it anyway?`)) return;
+    }
+    if (!done) {
+      const open = subtasksOf(allTasks, task.id).filter((t) => t.status === 'active');
+      if (open.length > 0) {
+        const too = window.confirm(
+          `This task has ${open.length} open subtask${open.length === 1 ? '' : 's'}. Complete ${open.length === 1 ? 'it' : 'them'} too? (Cancel to leave ${open.length === 1 ? 'it' : 'them'} open.)`,
+        );
+        void completeWithSubtasks(task, too);
+        return;
+      }
     }
     void toggleComplete(task);
   }

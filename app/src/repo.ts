@@ -5,7 +5,7 @@ import type { FocusSession } from './types';
 import { parseLocalDate } from './dates';
 import { db, newId } from './db';
 import type { Task, Project, Goal, Note, JournalEntry } from './types';
-import { completeTask, wouldCreateCycle, normalizeTag, normalizeTask, reorderedPosition, renamedTags } from './logic';
+import { completeTask, skipOccurrence, subtasksOf, wouldCreateCycle, normalizeTag, normalizeTask, reorderedPosition, renamedTags } from './logic';
 import { todayStr } from './dates';
 
 async function nextOrder(projectId: string): Promise<number> {
@@ -82,6 +82,19 @@ export async function toggleComplete(task: Task): Promise<void> {
     }
   }
   await applyUserRulesForCompletion(task);
+}
+
+/** Complete a parent task, optionally completing its open subtasks first.
+ * Subtasks go through the normal completion path (toggleComplete), so
+ * recurring subtasks spawn their next occurrence and user rules fire. */
+export async function completeWithSubtasks(task: Task, includeSubtasks: boolean): Promise<void> {
+  if (includeSubtasks) {
+    const all = await db.tasks.toArray();
+    for (const sub of subtasksOf(all, task.id)) {
+      if (sub.status === 'active') await toggleComplete(sub);
+    }
+  }
+  await toggleComplete(task);
 }
 
 /** Fire user tag rules for a just-completed task. Created tasks carry no
