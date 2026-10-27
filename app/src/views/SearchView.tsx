@@ -57,6 +57,7 @@ export default function SearchView(props: {
   return (
     <section>
       <h1>Search <span className="date-sub">{total} result{total === 1 ? '' : 's'}</span></h1>
+      <p className="search-query">Results for <strong>{selection.query}</strong></p>
       {onlyTag && (
         <div className="tag-manage">
           {!renaming ? (

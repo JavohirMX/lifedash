@@ -1777,3 +1777,15 @@ main.tv-grid { max-width: none; width: 100%; }
  .tv-highlight-text { font-size: 22px; }
  .tv-list { font-size: 16px; }
 }
+.search-query { margin: -8px 0 20px; color: var(--muted); overflow-wrap: anywhere; }
+.search-query strong { color: var(--text); font-weight: 500; }
+.search-card-title { overflow-wrap: anywhere; }
+.proj-settings { padding: 16px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-card); }
+.proj-settings .habit-edit-actions { flex-wrap: wrap; gap: 8px; }
+.proj-settings .danger { margin-top: 0; }
+.proj-colors { gap: 8px; }
+@media(max-width:640px) {
+ .filter-chips .chip { min-height: 36px; padding: 7px 14px; }
+ .proj-colors .swatch { width: 28px; height: 28px; }
+ .proj-settings input { min-width: 0; width: 100%; flex-basis: 100%; }
+}
