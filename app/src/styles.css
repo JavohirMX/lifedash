@@ -350,8 +350,14 @@ h2 { font-family: var(--font-display); font-size: var(--fs-section); font-weight
 .pin.on { color: var(--accent); }
 .pin.on, .task-row:hover .pin { opacity: 1; }
 
-.backlog-row { display: flex; align-items: center; gap: 8px; }
+.backlog-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 .backlog-row .task-row { flex: 1; min-width: 0; }
+.backlog-row .backlog-date { width: auto; }
+@media (max-width: 700px) {
+  .backlog-row .backlog-task { flex: 1 1 100%; }
+  .backlog-row .backlog-task .task-row { width: 100%; }
+  .backlog-row > .mini { flex: 0 0 auto; }
+}
 .backlog-row .mini { flex-shrink: 0; }
 .backlog-task { flex: 1; min-width: 0; }
 .day-group { margin-bottom: 8px; }
