@@ -265,6 +265,7 @@ export default function App() {
     const treeIds = projectWithDescendants(projects, selection.id);
     const projNameById = new Map(projects.map((p) => [p.id, p.name]));
     const projAll = tasks.filter((t) => treeIds.has(t.projectId) && t.parentId === null && t.status !== 'archived');
+    const projDirect = tasks.filter((t) => t.projectId === selection.id && t.parentId === null && t.status !== 'archived');
     const projDone = projAll.filter((t) => t.status === 'done').length;
     const projPct = projAll.length ? Math.round((projDone / projAll.length) * 100) : 0;
     body = (
@@ -313,7 +314,10 @@ export default function App() {
               <button className="mini" onClick={() => setProjEditing(false)}>Cancel</button>
               {projConfirmDelete ? (
                 <>
-                  <span className="proj-del-hint">Deletes {projAll.length} task{projAll.length === 1 ? '' : 's'}.</span>
+                  <span className="proj-del-hint">
+                    Deletes its {projDirect.length} task{projDirect.length === 1 ? '' : 's'}
+                    {projects.some((p) => (p.parentId ?? null) === project.id) ? '; subprojects move up one level' : ''}.
+                  </span>
                   <button className="mini danger" onClick={() => { void deleteProject(project).then(() => setSelection({ kind: 'project', id: INBOX_ID })).catch((e: unknown) => window.alert(e instanceof Error ? e.message : 'Delete failed.')); }}>
                     Confirm delete
                   </button>

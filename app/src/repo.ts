@@ -208,15 +208,14 @@ export async function updateProject(
 }
 
 export async function deleteProject(project: Project): Promise<void> {
-  const hasChildren = await db.projects.filter((p) => (p.parentId ?? null) === project.id).count();
-  if (hasChildren > 0) {
-    throw new Error('This project has subprojects. Move or delete them first.');
-  }
   await db.transaction('rw', db.tasks, db.projects, async () => {
     const ids = await db.tasks.where('projectId').equals(project.id).primaryKeys();
     const idSet = new Set(ids as string[]);
     await db.tasks.where('parentId').anyOf([...idSet]).delete();
     await db.tasks.where('projectId').equals(project.id).delete();
+    // Approved policy (John, Oct 27): subprojects move up one level
+    // and stay intact; only this project's own tasks are deleted.
+    await db.projects.filter((p) => (p.parentId ?? null) === project.id).modify({ parentId: project.parentId ?? null });
     await db.projects.delete(project.id);
   });
 }
