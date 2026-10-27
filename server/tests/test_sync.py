@@ -205,3 +205,14 @@ def test_notes_conflict_and_journal_tombstone(client):
     changes = client.get("/api/changes?since=0", headers=auth(token)).json()["changes"]
     assert changes[-1]["collection"] == "journal"
     assert changes[-1]["deleted"] is True
+
+
+def test_push_change_limit(client):
+    _, token = register(client)
+    changes = [{"collection": "tasks", "id": f"limit-{i}", "base_rev": 0,
+                "data": {"title": "limit test"}} for i in range(1001)]
+    assert client.post("/api/changes", headers=auth(token), json={"changes": changes}).status_code == 422
+    accepted = client.post("/api/changes", headers=auth(token), json={"changes": changes[:1000]})
+    assert accepted.status_code == 200
+    assert len(accepted.json()["results"]) == 1000
+    assert all(r["status"] == "ok" for r in accepted.json()["results"])

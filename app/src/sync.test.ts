@@ -298,3 +298,53 @@ describe('logout', () => {
     vi.unstubAllGlobals();
   });
 });
+
+
+describe('sync push batching', () => {
+  it('sends 1200 dirty tasks as 500/500/200 and clears acknowledged keys', async () => {
+    const rows = new Map<string, unknown>();
+    for (let i = 0; i < 1200; i++) {
+      const id = `batch-${i}`;
+      rows.set(id, serverTask(id, 'Task'));
+      meta.set(`dirty:tasks:${id}`, { deleted: false });
+    }
+    tables.set('tasks', rows);
+    const sizes: number[] = [];
+    vi.stubGlobal('fetch', vi.fn(async (_url: string, init?: RequestInit) => {
+      if (init?.method === 'POST') {
+        const changes = JSON.parse(String(init.body)).changes as PushChange[];
+        sizes.push(changes.length);
+        return { ok: true, json: async () => ({ results: changes.map((c) => ({
+          collection: c.collection, id: c.id, status: 'ok', rev: 1,
+        })) }) } as Response;
+      }
+      return { ok: true, json: async () => ({ changes: [], rev: 0 }) } as Response;
+    }));
+    expect((await syncNow(settings)).pushed).toBe(1200);
+    expect(sizes).toEqual([500, 500, 200]);
+    expect([...meta.keys()].filter(k => k.startsWith('dirty:'))).toHaveLength(0);
+  });
+
+  it('leaves an unacknowledged failed batch dirty for retry', async () => {
+    const rows = new Map<string, unknown>();
+    for (let i = 0; i < 501; i++) {
+      const id = `retry-${i}`;
+      rows.set(id, serverTask(id, 'Task'));
+      meta.set(`dirty:tasks:${id}`, { deleted: false });
+    }
+    tables.set('tasks', rows);
+    let pushes = 0;
+    vi.stubGlobal('fetch', vi.fn(async (_url: string, init?: RequestInit) => {
+      if (init?.method === 'POST') {
+        if (++pushes === 2) return { ok: false, status: 503, text: async () => 'unavailable' } as Response;
+        const changes = JSON.parse(String(init.body)).changes as PushChange[];
+        return { ok: true, json: async () => ({ results: changes.map(c => ({
+          collection: c.collection, id: c.id, status: 'ok', rev: 1,
+        })) }) } as Response;
+      }
+      return { ok: true, json: async () => ({ changes: [], rev: 0 }) } as Response;
+    }));
+    await expect(syncNow(settings)).rejects.toThrow('push failed: 503');
+    expect([...meta.keys()].filter(k => k.startsWith('dirty:'))).toHaveLength(1);
+  });
+});

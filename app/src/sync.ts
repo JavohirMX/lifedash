@@ -259,8 +259,10 @@ async function syncNowInner(settings: SyncSettings): Promise<SyncResult> {
   let pushed = 0;
   let conflicts = 0;
   let replaced = 0;
-  if (changes.length > 0) {
-    const res = await fetch(`${base}/api/changes`, { method: 'POST', headers, body: JSON.stringify({ changes }) });
+  // Stay below the server max of 1000; acknowledge each successful batch.
+  for (let offset = 0; offset < changes.length; offset += 500) {
+    const batch = changes.slice(offset, offset + 500);
+    const res = await fetch(`${base}/api/changes`, { method: 'POST', headers, body: JSON.stringify({ changes: batch }) });
     if (!res.ok) throw new Error(`push failed: ${res.status} ${await res.text()}`);
     const body = (await res.json()) as {
       results: {
