@@ -4,7 +4,7 @@ import { useLiveQuery } from 'dexie-react-hooks';
 import { db } from '../db';
 import { addHabit, archiveHabit, restoreHabit, toggleHabitForDate, updateHabit } from '../repo';
 import { currentStreak, bestStreak, completionRate, weekGrid, logsByDate, isScheduledOn } from '../habits';
-import { todayStr, weekdayLabel } from '../dates';
+import { todayStr, parseLocalDate } from '../dates';
 
 const COLORS = ['#6366f1', '#8b5cf6', '#22c55e', '#f59e0b', '#ef4444', '#38bdf8'];
 const DAY_LETTERS = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
@@ -101,7 +101,7 @@ export default function HabitsView() {
           const best = bestStreak(h, logs);
           const rate = completionRate(h, logs, today);
           const total = logs.filter((l) => l.habitId === h.id).length;
-          const grid = weekGrid(h, logs, today);
+          const grid = weekGrid(h, logs, today, 28);
           const doneToday = logsByDate(logs, h.id).has(today);
           const scheduledToday = isScheduledOn(h, today);
           return (
@@ -162,7 +162,9 @@ export default function HabitsView() {
                         disabled={!c.scheduled}
                         onClick={() => void toggleHabitForDate(h.id, c.date)}
                       />
-                      <span className="cell-label">{weekdayLabel(c.date)}</span>
+                      <span className="cell-label">{c.date === grid[0].date || c.date.endsWith('-01')
+                        ? parseLocalDate(c.date).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
+                        : Number(c.date.slice(8))}</span>
                     </div>
                   ))}
                 </div>

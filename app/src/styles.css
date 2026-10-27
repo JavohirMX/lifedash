@@ -576,8 +576,8 @@ h2 { font-family: var(--font-display); font-size: var(--fs-section); font-weight
 .habit-head { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
 .habit-name { font-weight: 600; font-size: 15px; flex: 1; }
 .streak { color: var(--muted); font-size: var(--fs-small); font-weight: 500; font-variant-numeric: tabular-nums; }
-.habit-body { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
-.grid7 { display: flex; gap: 7px; }
+.habit-body { display: flex; flex-direction: column; align-items: flex-start; gap: 16px; }
+.grid7 { display: grid; grid-template-columns: repeat(7, 32px); gap: 10px 7px; }
 .cell-wrap { display: flex; flex-direction: column; align-items: center; gap: 4px; }
 .cell {
   width: 18px;
@@ -591,7 +591,7 @@ h2 { font-family: var(--font-display); font-size: var(--fs-section); font-weight
 .cell.done { background: var(--accent); border-color: var(--accent); }
 .cell.off { opacity: 0.2; }
 .cell.today { box-shadow: 0 0 0 2px var(--surface), 0 0 0 4px var(--accent); }
-.cell-label { font-size: 11px; color: var(--faint); }
+.cell-label { font-size: 11px; color: var(--faint); white-space: nowrap; }
 .habit-toggle {
   height: 32px;
   background: transparent;
@@ -1383,7 +1383,7 @@ input[type='checkbox'], input[type='radio'], input[type='range'] { accent-color:
 .mood-dot.viewing { border-color: var(--accent); color: var(--accent); }
 .mood-dot:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
 .mood-dot-inner { width: 13px; height: 13px; border-radius: 50%; border: 1px solid var(--control); display: block; }
-.mood-dot-inner.has-text { background: var(--control); }
+.mood-dot-inner.has-text { background: var(--accent); border-color: var(--accent); }
 .mood-dot.mood-1 { color: var(--prio-1); }
 .mood-dot.mood-2 { color: var(--prio-2); }
 .mood-dot.mood-3 { color: var(--muted); }

@@ -63,7 +63,7 @@ export default function JournalView(props: { initialDate?: string }) {
         {Array.from({ length: 14 }, (_, i) => addDays(today, i - 13)).map((d) => {
           const e = (entries ?? []).find((x) => x.date === d);
           const MoodIcon = e?.mood ? MOODS.find((m) => m.v === e.mood)?.Icon : null;
-          const hasText = !!e?.note.trim();
+          const hasText = !!(e?.note.trim() || e?.highlight?.trim());
           return (
             <button
               key={d}
