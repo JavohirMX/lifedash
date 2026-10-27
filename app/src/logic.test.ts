@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { parseQuickAdd, groupCompletedByDay, renamedTags, completeTask, skipOccurrence, searchJournal, extractChecklistItems, filterNewChecklistItems, describeRecurrence, isRecurrenceValid, nextOccurrenceDate, makeRecurrence, upNextGroups } from './logic';
+import { parseQuickAdd, groupCompletedByDay, renamedTags, completeTask, skipOccurrence, searchJournal, blockerCandidates, extractChecklistItems, filterNewChecklistItems, describeRecurrence, isRecurrenceValid, nextOccurrenceDate, makeRecurrence, upNextGroups } from './logic';
 import type { Task } from './types';
 
 describe('parseQuickAdd', () => {
@@ -332,5 +332,22 @@ describe('journal search highlights', () => {
     ] as Parameters<typeof searchJournal>[0];
     expect(searchJournal(entries, 'trail').map(e => e.id)).toEqual(['a', 'b']);
     expect(searchJournal(entries, 'first').map(e => e.id)).toEqual(['a']);
+  });
+});
+
+
+describe('blockerCandidates', () => {
+  const task = (id: string, blockedBy: string[] = [], status = 'active') => ({ id, blockedBy, status }) as Task;
+  it('omits self, existing blockers and inactive tasks', () => {
+    const a = task('a', ['b']);
+    expect(blockerCandidates([a, task('b'), task('c'), task('d', [], 'done')], a).map(t=>t.id)).toEqual(['c']);
+  });
+  it('omits a task that already depends on the target', () => {
+    const a = task('a');
+    expect(blockerCandidates([a, task('b', ['a']), task('c')], a).map(t=>t.id)).toEqual(['c']);
+  });
+  it('follows three-link chains when checking loops', () => {
+    const a = task('a');
+    expect(blockerCandidates([a, task('b',['a']), task('c',['b']), task('d',['c']), task('e')], a).map(t=>t.id)).toEqual(['e']);
   });
 });

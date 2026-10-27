@@ -314,6 +314,13 @@ export function wouldCreateCycle(tasks: Task[], taskId: string, blockerId: strin
   return false;
 }
 
+/** Offers only dependency choices that can actually be added. */
+export function blockerCandidates(tasks: Task[], task: Task): Task[] {
+  return tasks.filter(t => t.status === 'active' && t.id !== task.id
+    && !(task.blockedBy ?? []).includes(t.id)
+    && !wouldCreateCycle(tasks, task.id, t.id));
+}
+
 // --- Tags + search ---
 
 export function normalizeTag(raw: string): string {

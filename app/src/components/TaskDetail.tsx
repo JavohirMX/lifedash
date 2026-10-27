@@ -7,7 +7,7 @@ import { runningSession, sessionSeconds, focusTotals, formatClock, formatDuratio
 import { startFocus, stopFocus } from '../repo';
 import { db, INBOX_ID } from '../db';
 import { addTask, deleteTask, skipTask, toggleComplete, updateTask, addBlocker, removeBlocker, addTag, removeTag } from '../repo';
-import { makeRecurrence, describeRecurrence, isRecurrenceValid, blockersOf, normalizeTask } from '../logic';
+import { makeRecurrence, describeRecurrence, isRecurrenceValid, blockersOf, blockerCandidates, normalizeTask } from '../logic';
 import { todayStr } from '../dates';
 import { projectTree } from '../projects';
 import type { Task } from '../types';
@@ -246,8 +246,7 @@ export default function TaskDetail(props: { taskId: string; onClose: () => void;
         <div className="dep-add">
           <select aria-label="Add a blocker" value={blockerPick} onChange={(e) => setBlockerPick(e.target.value)}>
             <option value="">Add a blocker...</option>
-            {(allTasks ?? [])
-              .filter((t) => t.status === 'active' && t.id !== task.id && !(task.blockedBy ?? []).includes(t.id))
+            {blockerCandidates(allTasks ?? [], task)
               .slice(0, 200)
               .map((t) => (
                 <option key={t.id} value={t.id}>{t.title}</option>
