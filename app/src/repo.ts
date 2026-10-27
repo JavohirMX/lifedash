@@ -1,6 +1,6 @@
 import { loadRules, rolloverTargets, shouldCompleteParent, loadUserRules, saveUserRules, tagRulesFor, weeklyRulesDue, hasOpenTitle } from './automation';
 import { reconcileRunningSessions } from './focus';
-import { wouldCycle } from './projects';
+import { hasProjectCycle, wouldCycle } from './projects';
 import type { FocusSession } from './types';
 import { parseLocalDate } from './dates';
 import { db, newId } from './db';
@@ -208,6 +208,10 @@ export async function updateProject(
 }
 
 export async function deleteProject(project: Project): Promise<void> {
+  const hasChildren = await db.projects.filter((p) => (p.parentId ?? null) === project.id).count();
+  if (hasChildren > 0) {
+    throw new Error('This project has subprojects. Move or delete them first.');
+  }
   await db.transaction('rw', db.tasks, db.projects, async () => {
     const ids = await db.tasks.where('projectId').equals(project.id).primaryKeys();
     const idSet = new Set(ids as string[]);
@@ -463,6 +467,10 @@ export async function importBackup(json: string): Promise<{ restored: Record<str
       }
     }
     valid.push([t, rows as Record<string, unknown>[]]);
+  }
+  const projectRows = (valid.find(([t]) => t === 'projects')?.[1] ?? []) as unknown as Project[];
+  if (hasProjectCycle(projectRows)) {
+    throw new Error('Backup has a broken project hierarchy (cycle or missing parent). Nothing was restored.');
   }
   const restored: Record<string, number> = {};
   await db.transaction('rw', tables.map((t) => db.table(t)), async () => {

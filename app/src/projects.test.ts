@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { projectTree, projectWithDescendants, wouldCycle } from './projects';
+import { hasProjectCycle, projectTree, projectWithDescendants, wouldCycle } from './projects';
 import type { Project } from './types';
 
 let seq = 0;
@@ -49,6 +49,41 @@ describe('projectTree', () => {
     const tree = projectTree([a]);
     expect(tree).toHaveLength(1);
     expect(tree[0].depth).toBe(0);
+  });
+});
+
+describe('bad-data guards', () => {
+  it('hasProjectCycle catches a two-project cycle', () => {
+    const a = proj('a');
+    const b = proj('b', a.id);
+    a.parentId = b.id;
+    expect(hasProjectCycle([a, b])).toBe(true);
+  });
+  it('hasProjectCycle catches a dangling parent and passes clean trees', () => {
+    const orphan = proj('orphan', 'gone');
+    expect(hasProjectCycle([orphan])).toBe(true);
+    const a = proj('a');
+    const b = proj('b', a.id);
+    expect(hasProjectCycle([a, b])).toBe(false);
+    const legacy = proj('legacy');
+    delete (legacy as { parentId?: string | null }).parentId; // pre-nesting rows
+    expect(hasProjectCycle([legacy, a, b])).toBe(false);
+  });
+  it('projectTree never drops projects, even inside a cycle', () => {
+    const a = proj('a');
+    const b = proj('b', a.id);
+    a.parentId = b.id;
+    const c = proj('c', b.id);
+    const tree = projectTree([a, b, c]);
+    expect(tree).toHaveLength(3);
+    expect(tree.some((t) => t.project.name === 'c')).toBe(true);
+  });
+  it('treats legacy rows without the parentId field as top level', () => {
+    const legacy = proj('legacy');
+    delete (legacy as { parentId?: string | null }).parentId;
+    const tree = projectTree([legacy]);
+    expect(tree[0].depth).toBe(0);
+    expect(wouldCycle([legacy], legacy.id, null)).toBe(false);
   });
 });
 

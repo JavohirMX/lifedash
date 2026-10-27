@@ -310,7 +310,7 @@ export default function App() {
               {projConfirmDelete ? (
                 <>
                   <span className="proj-del-hint">Deletes {projAll.length} task{projAll.length === 1 ? '' : 's'}.</span>
-                  <button className="mini danger" onClick={() => { void deleteProject(project).then(() => setSelection({ kind: 'project', id: INBOX_ID })); }}>
+                  <button className="mini danger" onClick={() => { void deleteProject(project).then(() => setSelection({ kind: 'project', id: INBOX_ID })).catch((e: unknown) => window.alert(e instanceof Error ? e.message : 'Delete failed.')); }}>
                     Confirm delete
                   </button>
                 </>
