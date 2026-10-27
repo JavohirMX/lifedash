@@ -1735,3 +1735,45 @@ main.schedule-main { max-width: 1280px; width: 100%; min-width: 0; }
 :root[data-style='polar'][data-theme='light'] { --faint: #526a89; }
 :root[data-style='polar'][data-theme='dark'] { --faint: #7893ba; --negative: #ee827e; }
 :root[data-style='nexus'][data-theme='dark'] { --accent-ink: #13132b; }
+
+/* Keep modal navigation visible on short screens and touch controls usable. */
+.import-head { position: sticky; top: -16px; z-index: 2; background: var(--surface); padding: 12px 0; margin-top: -12px; border-bottom: 1px solid var(--border); }
+.import-head .icon-btn { width: 36px; height: 36px; flex: none; }
+.detail { max-height: 100dvh; position: sticky; top: 0; min-width: 0; }
+.detail-head { position: sticky; top: -16px; z-index: 3; background: var(--surface); margin-top: -8px; padding: 8px 0; border-bottom: 1px solid var(--border); }
+.detail-head .close { width: 36px; height: 36px; align-items: center; justify-content: center; }
+.detail-title { min-width: 0; width: 100%; }
+.detail .field, .detail .note-editor { min-width: 0; }
+.detail .field select { max-width: 100%; }
+.sub-row { align-items: flex-start; }
+.sub-row > span { overflow-wrap: anywhere; min-width: 0; }
+.settings-row > svg { flex: none; }
+.settings-row:disabled { opacity: 1; }
+.settings-row:disabled > span:last-child { border: 1px solid var(--border); border-radius: var(--radius-control); padding: 3px 6px; }
+.settings-row:disabled strong { color: var(--muted); }
+@media(max-width:640px) {
+ .palette-overlay { padding-top: 24px; padding-bottom: 24px; }
+ .import-panel { max-height: calc(100dvh - 48px); padding: 16px; }
+ .import-head .icon-btn, .detail-head .close { width: 44px; height: 44px; }
+ .detail { position: fixed; padding-bottom: 32px; }
+ .detail .field input:not([type='checkbox']), .detail .field select, .sub-add input { min-height: 44px; font-size: 16px; }
+ .detail .detail-title { font-size: 18px; }
+}
+main { min-width: 0; }
+@media(min-width:721px) and (max-width:1100px) {
+ .detail { position: fixed; right: 0; top: 0; bottom: 0; width: 400px; z-index: 25; box-shadow: var(--shadow-float); }
+}
+/* The wall display uses the screen rather than the app's reading-column cap. */
+main.tv-grid { max-width: none; width: 100%; }
+.tv-overdue { color: #f28585; }
+@media(max-width:720px) {
+ .tv-root { padding: 24px 16px; gap: 20px; }
+ .tv-head { flex-direction: column; gap: 4px; }
+ .tv-clock { font-size: 44px; white-space: nowrap; }
+ .tv-date { font-size: 18px; }
+ main.tv-grid { grid-template-columns: minmax(0, 1fr); padding: 0; gap: 16px; }
+ .tv-card { padding: 20px; min-width: 0; overflow-wrap: anywhere; }
+ .tv-top-title { font-size: 25px; }
+ .tv-highlight-text { font-size: 22px; }
+ .tv-list { font-size: 16px; }
+}
