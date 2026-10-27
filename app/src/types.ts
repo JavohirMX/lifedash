@@ -15,6 +15,7 @@ export interface Task {
   dueDate: string | null; // local YYYY-MM-DD
   dueTime: string | null; // local 'HH:MM', null = anytime
   recurrence: string | null; // RRULE string with DTSTART
+  skippedDates?: string[]; // occurrences explicitly skipped, kept so series history stays honest
   blockedBy: string[]; // task ids that gate this task
   tags: string[]; // lowercase, no '#'
   order: number;

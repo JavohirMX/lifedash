@@ -111,6 +111,23 @@ export interface CompletionResult {
   spawned: Omit<Task, 'id' | 'createdAt' | 'updatedAt'> | null;
 }
 
+/** Explicitly skip the current occurrence of a recurring task: the skipped
+ * date is recorded and the task advances to the next occurrence after today,
+ * mirroring how completion advances. Returns null when skipping is a no-op
+ * (no recurrence, no due date, or the rule yields no next occurrence). */
+export function skipOccurrence(task: Task, today: string, now: number): { updates: Partial<Task> } | null {
+  if (!task.recurrence || !task.dueDate) return null;
+  const nextDate = nextOccurrenceDate(task.recurrence, task.dueDate, today);
+  if (!nextDate) return null;
+  return {
+    updates: {
+      dueDate: nextDate,
+      skippedDates: [...(task.skippedDates ?? []), task.dueDate],
+      updatedAt: now,
+    },
+  };
+}
+
 export function completeTask(task: Task, today: string, now: number): CompletionResult {
   const updates: Partial<Task> = { status: 'done', completedAt: now, updatedAt: now };
   if (!task.recurrence || !task.dueDate) return { updates, spawned: null };
@@ -132,6 +149,7 @@ export function completeTask(task: Task, today: string, now: number): Completion
       dueDate: nextDate,
       dueTime: task.dueTime ?? null,
       recurrence: task.recurrence,
+      skippedDates: [...(task.skippedDates ?? [])],
       blockedBy: [...(task.blockedBy ?? [])],
       tags: [...(task.tags ?? [])],
       order: task.order,

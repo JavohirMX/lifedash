@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { parseQuickAdd, groupCompletedByDay, renamedTags, completeTask, describeRecurrence, isRecurrenceValid, nextOccurrenceDate, makeRecurrence, upNextGroups } from './logic';
+import { parseQuickAdd, groupCompletedByDay, renamedTags, completeTask, skipOccurrence, describeRecurrence, isRecurrenceValid, nextOccurrenceDate, makeRecurrence, upNextGroups } from './logic';
 import type { Task } from './types';
 
 describe('parseQuickAdd', () => {
@@ -241,5 +241,39 @@ describe('upNextGroups', () => {
     expect(g.dueSoon).toEqual([]);
     expect(g.staleBacklog).toEqual([]);
     expect(g.brokenRules).toEqual([]);
+  });
+});
+
+describe('skipOccurrence', () => {
+  const base = {
+    id: 't1', title: 'Daily standup', note: '', noteDoc: null, projectId: 'inbox',
+    parentId: null, goalId: null, noteId: null, status: 'active' as const,
+    pinned: false, priority: 0, dueDate: '2026-10-27', dueTime: null,
+    recurrence: 'DTSTART:20261027T000000\nRRULE:FREQ=DAILY', blockedBy: [], tags: [],
+    order: 0, seriesId: null, createdAt: 1, updatedAt: 1, completedAt: null,
+  };
+
+  it('advances to the next occurrence after today and records the skipped date', () => {
+    const r = skipOccurrence(base, '2026-10-27', 1000);
+    expect(r).not.toBeNull();
+    expect(r!.updates.dueDate).toBe('2026-10-28');
+    expect(r!.updates.skippedDates).toEqual(['2026-10-27']);
+  });
+
+  it('returns null without a recurrence rule', () => {
+    expect(skipOccurrence({ ...base, recurrence: null }, '2026-10-27', 1000)).toBeNull();
+  });
+
+  it('accumulates skipped dates across skips', () => {
+    const once = { ...base, skippedDates: ['2026-10-26'] };
+    const r = skipOccurrence(once, '2026-10-27', 1000);
+    expect(r!.updates.skippedDates).toEqual(['2026-10-26', '2026-10-27']);
+  });
+
+  it('carries skipped dates into the spawned occurrence on completion', () => {
+    const t = { ...base, skippedDates: ['2026-10-25', '2026-10-26'] };
+    const { spawned } = completeTask(t, '2026-10-27', 1000);
+    expect(spawned).not.toBeNull();
+    expect((spawned as { skippedDates?: string[] }).skippedDates).toEqual(['2026-10-25', '2026-10-26']);
   });
 });

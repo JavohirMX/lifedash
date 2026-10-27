@@ -6,7 +6,7 @@ import { useLiveQuery } from 'dexie-react-hooks';
 import { runningSession, sessionSeconds, focusTotals, formatClock, formatDuration } from '../focus';
 import { startFocus, stopFocus } from '../repo';
 import { db, INBOX_ID } from '../db';
-import { addTask, deleteTask, toggleComplete, updateTask, addBlocker, removeBlocker, addTag, removeTag } from '../repo';
+import { addTask, deleteTask, skipTask, toggleComplete, updateTask, addBlocker, removeBlocker, addTag, removeTag } from '../repo';
 import { makeRecurrence, describeRecurrence, isRecurrenceValid, blockersOf, normalizeTask } from '../logic';
 import { todayStr } from '../dates';
 import { projectTree } from '../projects';
@@ -214,6 +214,16 @@ export default function TaskDetail(props: { taskId: string; onClose: () => void;
             days
           </span>
         </label>
+      )}
+      {task.recurrence && task.dueDate && task.status !== 'done' && (
+        <div className="field row">
+          <button className="btn-secondary" onClick={() => void skipTask(task)}>
+            Skip this occurrence
+          </button>
+        </div>
+      )}
+      {(task.skippedDates?.length ?? 0) > 0 && (
+        <p className="date-sub">Skipped: {(task.skippedDates ?? []).join(', ')}</p>
       )}
       <label className="field row">
         <input

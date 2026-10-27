@@ -84,6 +84,13 @@ export async function toggleComplete(task: Task): Promise<void> {
   await applyUserRulesForCompletion(task);
 }
 
+/** Explicitly skip the current occurrence of a recurring task. */
+export async function skipTask(task: Task): Promise<void> {
+  const result = skipOccurrence(task, todayStr(), Date.now());
+  if (!result) return;
+  await db.tasks.update(task.id, result.updates);
+}
+
 /** Complete a parent task, optionally completing its open subtasks first.
  * Subtasks go through the normal completion path (toggleComplete), so
  * recurring subtasks spawn their next occurrence and user rules fire. */
