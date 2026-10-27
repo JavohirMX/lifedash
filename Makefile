@@ -4,7 +4,7 @@
 PYTHON ?= python3
 VENV = server/.venv
 
-.PHONY: help install test test-app test-server build dev dev-app dev-server docker-up docker-down docker-build docker-logs
+.PHONY: help install test test-app test-server test-keyboard build dev dev-app dev-server docker-up docker-down docker-build docker-logs
 
 help: ## List targets
 	@grep -E '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  %-15s %s\n", $$1, $$2}'
@@ -18,6 +18,9 @@ test: test-app test-server ## Run all tests
 
 test-app: ## Run app unit tests
 	cd app && npm test
+
+test-keyboard: ## Run sample-only desktop/phone keyboard browser checks (Chrome required)
+	cd app && npm run test:keyboard
 
 test-server: ## Run sync server tests
 	cd server && .venv/bin/python -m pytest -q

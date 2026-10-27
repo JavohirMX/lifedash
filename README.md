@@ -24,6 +24,14 @@ both. `make test` runs both suites; `make build` builds the frontend.
 venv support, Node/npm and make are required. Docker targets additionally
 need Docker Engine and the Compose plugin.
 
+`make test-keyboard` starts a temporary loopback Vite server and runs the
+sample-only desktop/phone keyboard checks for dialogs, Appearance, the command
+palette, mobile navigation and Export. It needs an installed Chrome/Chromium;
+set `CHROME_PATH` if it is not `/usr/bin/google-chrome`. No real user database,
+sync account or AI provider is used. The server stops when checks finish or are
+interrupted. The default port is 4174; use `KEYBOARD_TEST_PORT` to choose another
+free port. An occupied port fails rather than using an existing server.
+
 ## Docs
 
 - [docs/ROADMAP.md](docs/ROADMAP.md) - where the project is going, phase by phase
