@@ -1797,3 +1797,8 @@ main.tv-grid { max-width: none; width: 100%; }
 [data-preview='compact'] .style-preview .sp-row { padding-top: 1px; padding-bottom: 1px; }
 [data-preview='polar'] .style-preview { --p-ground: #f6f9fc; --p-surf: #fff; --p-rule: #b8cadd; --p-acc: #2563eb; --p-r: 8px; }
 .import-panel { scroll-padding-top: 84px; }
+
+/* Google Calendar panel (opt-in, unmounted until the owner places it) */
+.gcal-panel { display: flex; flex-direction: column; gap: 8px; margin-top: 16px; padding-top: 12px; border-top: 1px solid var(--border, rgba(127,127,127,.25)); }
+.gcal-panel h3 { margin: 0; font-size: var(--fs-small); }
+.gcal-limits { margin: 0; padding-left: 18px; font-size: var(--fs-small); color: var(--muted); }
