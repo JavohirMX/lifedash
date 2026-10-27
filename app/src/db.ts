@@ -1,3 +1,4 @@
+import { DATABASE_NAME, SAMPLE_MODE } from './dev/sampleMode';
 import Dexie, { type Table } from 'dexie';
 import type { Task, Project, Attachment, Habit, HabitLog, Goal, Note, JournalEntry, FocusSession } from './types';
 
@@ -16,7 +17,7 @@ export class LifeDashDB extends Dexie {
   focusSessions!: Table<FocusSession, string>;
 
   constructor() {
-    super('lifedash');
+    super(DATABASE_NAME);
     this.version(1).stores({
       tasks: 'id, status, projectId, parentId, dueDate, seriesId',
       projects: 'id, order',
@@ -171,6 +172,11 @@ export class LifeDashDB extends Dexie {
 export const db = new LifeDashDB();
 
 export async function ensureSeed(): Promise<void> {
+  if (SAMPLE_MODE) {
+    const { seedSample } = await import('./dev/seed');
+    await seedSample();
+    return;
+  }
   // StrictMode can start two seed calls together. Keep count + insert atomic.
   await db.transaction('rw', db.projects, async () => {
     if ((await db.projects.count()) === 0) {

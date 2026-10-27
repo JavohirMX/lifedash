@@ -1,3 +1,4 @@
+import { SAMPLE_MODE } from './dev/sampleMode';
 import { db } from './db';
 
 /**
@@ -16,6 +17,7 @@ export interface SyncStatus {
 const STATUS_KEY = 'lifedash-sync-status';
 
 export function loadSyncStatus(): SyncStatus | null {
+  if (SAMPLE_MODE) return null;
   try {
     const raw = localStorage.getItem(STATUS_KEY);
     return raw ? (JSON.parse(raw) as SyncStatus) : null;
@@ -40,6 +42,7 @@ const COLLECTIONS = ['tasks', 'projects', 'habits', 'habitLogs', 'goals', 'notes
 type Collection = (typeof COLLECTIONS)[number];
 
 export function loadSyncSettings(): SyncSettings | null {
+  if (SAMPLE_MODE) return null;
   try {
     const raw = localStorage.getItem(SETTINGS_KEY);
     if (!raw) return null;
@@ -51,6 +54,7 @@ export function loadSyncSettings(): SyncSettings | null {
 }
 
 export function saveSyncSettings(s: SyncSettings | null): void {
+  if (SAMPLE_MODE) return;
   if (s) localStorage.setItem(SETTINGS_KEY, JSON.stringify(s));
   else localStorage.removeItem(SETTINGS_KEY);
 }
@@ -64,6 +68,7 @@ export async function login(url: string, username: string, password: string): Pr
 }
 
 async function authCall(url: string, path: string, username: string, password: string): Promise<string> {
+  if (SAMPLE_MODE) throw new Error('Sync is disabled in the sample-data sandbox.');
   const res = await fetch(`${url.replace(/\/$/, '')}/api/${path}`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -80,6 +85,7 @@ async function authCall(url: string, path: string, username: string, password: s
  *  the server could not be reached - callers must still clear local
  *  settings and must not claim the session was ended. */
 export async function logout(settings: SyncSettings): Promise<'revoked' | 'unavailable'> {
+  if (SAMPLE_MODE) return 'unavailable';
   try {
     const res = await fetch(`${settings.url.replace(/\/$/, '')}/api/logout`, {
       method: 'POST',
@@ -170,6 +176,7 @@ function summaryOf(r: SyncResult): string {
 
 /** Focus/online/interval sync plus debounced push after local edits. */
 export function startAutoSync(): void {
+  if (SAMPLE_MODE) return;
   if (autoSyncStarted) return;
   autoSyncStarted = true;
   installSyncHooks();
@@ -179,6 +186,7 @@ export function startAutoSync(): void {
 }
 
 export function installSyncHooks(): void {
+  if (SAMPLE_MODE) return;
   if (hooksInstalled) return;
   hooksInstalled = true;
   for (const col of COLLECTIONS) {
@@ -221,6 +229,7 @@ export interface SyncResult {
 }
 
 export async function syncNow(settings: SyncSettings): Promise<SyncResult> {
+  if (SAMPLE_MODE) throw new Error('Sync is disabled in the sample-data sandbox.');
   installSyncHooks();
   if (syncing) return { pushed: 0, conflicts: 0, pulled: 0, cursor: await getCursor() };
   syncing = true;

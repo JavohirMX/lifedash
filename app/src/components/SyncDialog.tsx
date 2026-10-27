@@ -1,3 +1,4 @@
+import { SAMPLE_MODE } from '../dev/sampleMode';
 import { useState } from 'react';
 import { useDialogFocus } from '../hooks/useDialogFocus';
 import { X } from 'lucide-react';
@@ -80,6 +81,17 @@ export default function SyncDialog(props: { onClose: () => void }) {
       setBusy(false);
     }
   }
+
+  if (SAMPLE_MODE) return (
+    <div className="overlay" onClick={props.onClose}>
+      <div className="import-panel sync-panel" role="dialog" aria-modal="true" aria-label="Sync" onClick={e => e.stopPropagation()}>
+        <button className="icon-btn" aria-label="Close" onClick={props.onClose}><X size={18} /></button>
+        <h2>Sample-data sandbox</h2>
+        <p>Automatic sync is disabled in the sample-data sandbox, and the sandbox never uses your real sync account.</p>
+        <p className="rule-note">Export and AI tools remain available. Only use fictional test content here.</p>
+      </div>
+    </div>
+  );
 
   return (
     <div className="palette-overlay" onClick={props.onClose}>

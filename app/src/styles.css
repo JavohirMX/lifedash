@@ -1576,3 +1576,6 @@ input[type='checkbox'], input[type='radio'], input[type='range'] { accent-color:
 }
 :root[data-style='polar'] .task-row { border-width: 1.5px; }
 :root[data-style='polar'] h1 { letter-spacing: var(--ls-title); }
+
+.sample-banner { padding: 10px 14px; margin: 0 0 18px; border: 1px solid #a97416; border-radius: 8px; background: #fff3ce; color: #654100; font-size: 12px; }
+.sample-banner a { color: inherit; text-decoration: underline; }

@@ -1,3 +1,4 @@
+import { SAMPLE_MODE } from './dev/sampleMode';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { ArrowRight, Pencil, X } from 'lucide-react';
 import { useLiveQuery } from 'dexie-react-hooks';
@@ -369,6 +370,7 @@ export default function App() {
         onScheduleToday={(id) => void updateTask(id, { dueDate: today })}
         onAI={() => setAiOpen(true)} onImport={() => setImportPreset(null)} onRestore={() => setImportPreset('lifedash-json')} onAutomation={() => setAutomationOpen(true)} onSync={() => setSyncOpen(true)} onAppearance={() => setAppearanceOpen(true)} />
       <main>
+        {SAMPLE_MODE && <div className="sample-banner" role="status">Sample-data sandbox · Fictional data · <a href="/">Exit to your real data</a></div>}
         <SyncConflictBanner />
         {showQuickAdd && (
           <QuickAdd
