@@ -1,5 +1,6 @@
+import './workflow.css';
 import { requestComplete } from '../completionPrompt';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Check, ChevronLeft, ChevronRight } from 'lucide-react';
 import { todayStr, addDays, friendlyDate, weekdayLabel } from '../dates';
 import type { Task } from '../types';
@@ -40,6 +41,11 @@ export default function CalendarView(props: { tasks: Task[]; onOpen: (id: string
   const [month, setMonth] = useState(monthKey(today));
   const [day, setDay] = useState<string | null>(null);
 
+  const dayDetails = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (day !== null) dayDetails.current?.scrollIntoView({ block: 'nearest' });
+  }, [day]);
+
   const byDate = useMemo(() => {
     const map = new Map<string, Task[]>();
     for (const t of props.tasks) {
@@ -70,6 +76,7 @@ export default function CalendarView(props: { tasks: Task[]; onOpen: (id: string
           )}
         </span>
       </h1>
+      <p className="workflow-hint">Tasks by due date, including completed tasks. Choose a day number to see its full list below the calendar.</p>
       <div className="cal-grid" role="grid" aria-label={monthLabel(month)}>
         {WEEKDAYS.map((d) => (
           <div key={d} className="cal-weekday">{d}</div>
@@ -113,7 +120,7 @@ export default function CalendarView(props: { tasks: Task[]; onOpen: (id: string
         })}
       </div>
       {day !== null && (
-        <div className="load-drill cal-drill">
+        <div ref={dayDetails} className="load-drill cal-drill" role="region" aria-label="Selected day tasks">
           <p className="widget-meta num">{weekdayLabel(day)} · {friendlyDate(day, today)} · {(byDate.get(day) ?? []).length} due</p>
           {(byDate.get(day) ?? []).length === 0 ? (
             <p className="widget-empty">Nothing due.</p>

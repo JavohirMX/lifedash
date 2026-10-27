@@ -1,3 +1,4 @@
+import './workflow.css';
 import { requestComplete } from '../completionPrompt';
 import { useMemo, useState } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
@@ -61,6 +62,7 @@ export default function NotesView(props: { initialOpenId?: string }) {
           <Plus size={14} strokeWidth={2} aria-hidden="true" /> Note
         </button>
       </h1>
+      <p className="workflow-hint">Notes save as you type. Choose a note to edit; pin it to keep it at the top.</p>
       {sorted.length > 4 && (
         <div className="search-wrap notes-filter">
           <Search size={14} strokeWidth={1.75} aria-hidden="true" className="search-icon" />
@@ -83,11 +85,11 @@ export default function NotesView(props: { initialOpenId?: string }) {
         </div>
       ) : (
         <div className="notes-layout">
-          <div className="notes-list" role="list">
+          <div className="notes-list" role="list" aria-label="Notes">
             {shown.map((n) => (
               <button
                 key={n.id}
-                role="listitem"
+                aria-current={n.id === openId ? 'true' : undefined}
                 className={`note-item ${n.id === openId ? 'active' : ''}`}
                 onClick={() => setOpenId(n.id)}
               >

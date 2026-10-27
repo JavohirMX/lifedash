@@ -280,7 +280,7 @@ export default function Sidebar(props: {
         <div className="export-menu" role="menu" aria-label="Export format">
           <button type="button" role="menuitem" className="export-item" onClick={doExportJson}>
             <strong>JSON backup</strong>
-            <span>Everything, restores into the app</span>
+            <span>App data and attachment metadata; files stay on this device</span>
           </button>
           <button type="button" role="menuitem" className="export-item" onClick={doExportMd}>
             <strong>Markdown</strong>

@@ -1,3 +1,4 @@
+import './workflow.css';
 import { useState } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { Check, ChevronDown, ChevronRight, Pencil, Plus, Target, X } from 'lucide-react';
@@ -54,12 +55,14 @@ export default function GoalsView(props: { tasks: Task[]; onOpen: (id: string) =
           <Plus size={14} strokeWidth={2} aria-hidden="true" /> Goal
         </button>
       </h1>
+      <p className="workflow-hint">Link a task to a goal from Task details → Goal. Progress follows those linked tasks; marking a goal done is separate.</p>
       {adding && (
         <div className="goal-add">
           <input
             autoFocus
             value={title}
             placeholder="Goal (e.g. Run a 10k)"
+            aria-label="New goal title"
             onChange={(e) => setTitle(e.target.value)}
             onKeyDown={(e) => {
               if (e.key === 'Enter') submit();
@@ -67,7 +70,8 @@ export default function GoalsView(props: { tasks: Task[]; onOpen: (id: string) =
             }}
           />
           <input type="date" value={target} aria-label="Target date (optional)" onChange={(e) => setTarget(e.target.value)} />
-          <button className="btn-primary" onClick={submit}>Add</button>
+          <button className="btn-primary" onClick={submit} disabled={!title.trim()}>Add goal</button>
+          <button className="mini" onClick={() => setAdding(false)}>Cancel</button>
         </div>
       )}
       {active.length === 0 && !adding && (
