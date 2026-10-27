@@ -26,12 +26,14 @@ const META_COLORS: Record<StyleId, [string, string]> = {
 };
 
 export function getTheme(): Theme {
-  const v = localStorage.getItem(KEY);
+  let v: string | null = null;
+  try { v = localStorage.getItem(KEY); } catch { /* Use system when storage is blocked. */ }
   return v === 'light' || v === 'dark' ? v : 'system';
 }
 
 export function getStyle(): StyleId {
-  const v = localStorage.getItem(STYLE_KEY);
+  let v: string | null = null;
+  try { v = localStorage.getItem(STYLE_KEY); } catch { /* Use Paper when storage is blocked. */ }
   return STYLES.some((s) => s.id === v) ? (v as StyleId) : 'paper';
 }
 
@@ -45,18 +47,21 @@ function syncMeta() {
   document.head.appendChild(meta);
 }
 
-export function applyTheme(t: Theme) {
+function renderTheme(t: Theme) {
   const dark =
     t === 'dark' ||
     (t === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches);
   document.documentElement.dataset.theme = dark ? 'dark' : 'light';
-  localStorage.setItem(KEY, t);
   syncMeta();
 }
 
+export function applyTheme(t: Theme) {
+  localStorage.setItem(KEY, t);
+  renderTheme(t);
+}
 export function applyStyle(s: StyleId) {
-  document.documentElement.dataset.style = s;
   localStorage.setItem(STYLE_KEY, s);
+  document.documentElement.dataset.style = s;
   syncMeta();
 }
 
@@ -68,9 +73,9 @@ export function cycleTheme(): Theme {
 }
 
 export function initTheme() {
-  applyStyle(getStyle());
-  applyTheme(getTheme());
+  document.documentElement.dataset.style = getStyle();
+  renderTheme(getTheme());
   window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => {
-    if (getTheme() === 'system') applyTheme('system');
+    if (getTheme() === 'system') renderTheme('system');
   });
 }
