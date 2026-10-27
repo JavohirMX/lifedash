@@ -1,6 +1,6 @@
 import { requestComplete } from '../completionPrompt';
 import { X, Check, StickyNote } from 'lucide-react';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import NoteEditor from './NoteEditor';
 import Attachments from './Attachments';
 import { useLiveQuery } from 'dexie-react-hooks';
@@ -26,6 +26,12 @@ function currentChoice(t: Task): RecChoice {
 }
 
 export default function TaskDetail(props: { taskId: string; onClose: () => void; onOpenNote: (noteId: string) => void }) {
+  const panel = useRef<HTMLElement>(null);
+  const opener = useRef<HTMLElement | null>(null);
+  useEffect(() => {
+    opener.current = document.activeElement as HTMLElement;
+    return () => { if (opener.current?.isConnected) opener.current.focus(); };
+  }, []);
   const task = useLiveQuery(() => db.tasks.get(props.taskId), [props.taskId]);
   const projects = useLiveQuery(() => db.projects.orderBy('order').toArray(), []);
   const goals = useLiveQuery(() => db.goals.orderBy('order').toArray(), []);
@@ -53,6 +59,10 @@ export default function TaskDetail(props: { taskId: string; onClose: () => void;
   const [blockerError, setBlockerError] = useState('');
   const [newTag, setNewTag] = useState('');
 
+  useEffect(() => {
+    if (task) panel.current?.querySelector<HTMLInputElement>('.detail-title')?.focus();
+  }, [task?.id]);
+
   // Esc closes the panel - but not when it was pressed inside a dialog or
   // the palette on top (those handle Escape themselves; by the time the
   // event reaches window, their React handler may have already unmounted
@@ -60,7 +70,7 @@ export default function TaskDetail(props: { taskId: string; onClose: () => void;
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key !== 'Escape') return;
-      if (e.target instanceof HTMLElement && e.target.closest('.palette-overlay')) return;
+      if (e.target instanceof HTMLElement && e.target.closest('.palette-overlay, [role=dialog], dialog[open]')) return;
       props.onClose();
     };
     window.addEventListener('keydown', onKey);
@@ -85,7 +95,7 @@ export default function TaskDetail(props: { taskId: string; onClose: () => void;
   }
 
   return (
-    <aside className="detail">
+    <aside ref={panel} className="detail" aria-label="Task details">
       <div className="detail-head">
         <button className="close" aria-label="Close task details" onClick={props.onClose}><X size={16} strokeWidth={2} /></button>
       </div>

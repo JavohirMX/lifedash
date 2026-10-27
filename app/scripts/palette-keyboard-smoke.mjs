@@ -73,6 +73,18 @@ try {
     await page.getByRole('menu', { name: 'Export format' }).waitFor({ state: 'detached' });
     assert(await exportButton.evaluate(el => el === document.activeElement));
     if (width < 500) await page.keyboard.press('Escape');
+    await page.locator(width < 500 ? '.bottombar' : '.sidebar').getByRole('button', { name: /^Today/ }).click();
+    const taskButton = page.locator('.task-row .task-main').first();
+    await taskButton.click();
+    await page.getByLabel('Task title', { exact: true }).waitFor();
+    await page.waitForFunction(() => document.activeElement?.getAttribute('aria-label') === 'Task title');
+    await page.keyboard.press('Control+k');
+    await page.getByRole('dialog', { name: 'Command palette' }).waitFor();
+    await page.keyboard.press('Escape');
+    await page.getByLabel('Task title', { exact: true }).waitFor();
+    await page.keyboard.press('Escape');
+    await page.getByLabel('Task title', { exact: true }).waitFor({ state: 'detached' });
+    assert(await taskButton.evaluate(el => el === document.activeElement));
     console.log(`${width}px palette containment, Escape, focus return and modal shortcut guard passed`);
     await page.close();
   }
