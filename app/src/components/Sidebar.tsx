@@ -9,6 +9,7 @@ import type { Project } from '../types';
 import { addProject, countAttachments, exportJson } from '../repo';
 import { db } from '../db';
 import { tasksToMarkdown } from '../exportMd';
+import { tasksToIcs } from '../ics';
 import { todayStr } from '../dates';
 
 export type Selection =
@@ -256,6 +257,13 @@ export default function Sidebar(props: {
     });
   };
 
+  const doExportIcs = () => {
+    closeExport();
+    void Promise.all([db.tasks.toArray(), db.projects.toArray()]).then(([tasks, projects]) => {
+      downloadFile(tasksToIcs(tasks, projects), 'text/calendar', `lifedash-tasks-${todayStr()}.ics`);
+    });
+  };
+
   const exportBtn = (
     <div ref={exportWrap} className="export-wrap" onBlur={e => { if (!e.currentTarget.contains(e.relatedTarget as Node)) setExportMenu(false); }} onKeyDown={e => {
       if (e.key === 'Escape' && exportMenu) { e.preventDefault(); e.stopPropagation(); closeExport(); }
@@ -285,6 +293,10 @@ export default function Sidebar(props: {
           <button type="button" role="menuitem" className="export-item" onClick={doExportMd}>
             <strong>Markdown</strong>
             <span>Tasks only, readable anywhere</span>
+          </button>
+          <button type="button" role="menuitem" className="export-item" onClick={doExportIcs}>
+            <strong>Calendar (.ics)</strong>
+            <span>Open dated tasks; calendar import file, not live sync</span>
           </button>
         </div>
       )}
