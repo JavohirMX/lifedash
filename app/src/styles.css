@@ -1502,3 +1502,77 @@ input[type='checkbox'], input[type='radio'], input[type='range'] { accent-color:
 .tv-more { color: #8b93b8; font-size: 15px; }
 .tv-time { color: #9aa0c3; }
 .tv-empty { color: #8b93b8; font-size: 17px; margin: 0; }
+
+/* ---- Nexus (preview): dark-first glass, glow accents ---- */
+:root[data-style='nexus'] {
+  --font: 'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --ground: #0b0d1a; --surface: #141830; --surface-2: #1b2040; --active: #232a52;
+  --border: #2c3464; --rule: #20264a; --control: #4a549a;
+  --text: #e6e9f7; --muted: #9aa3cf; --faint: #7c86b8;
+  --accent: #7c6cf6; --accent-strong: #9a8dff; --accent-soft: #241f4d; --accent-ink: #ffffff;
+  --primary-btn: #7c6cf6; --primary-btn-ink: #ffffff;
+  --positive: #34d399; --negative: #f87171; --warning: #fbbf24;
+  --radius-card: 14px; --radius-control: 10px; --radius-panel: 16px;
+  --fs-title: 26px; --fs-section: 16px; --fs-body: 14px; --fs-small: 12px;
+  --row-h: 44px; --ls-title: -0.01em; --h-weight: 650;
+  --shadow-float: 0 18px 40px rgb(3 5 20 / 0.55), 0 0 0 1px var(--rule);
+}
+:root[data-style='nexus'][data-theme='light'] {
+  --ground: #e8eaf6; --surface: #f6f7fd; --surface-2: #e2e5f8; --active: #d4d9f4;
+  --border: #b9c0e8; --rule: #ccd2ef; --control: #7c86c8;
+  --text: #1b2040; --muted: #4a549a; --faint: #5f69ad;
+  --accent: #5f4de0; --accent-strong: #4a3bc4; --accent-soft: #ddd9fb; --accent-ink: #ffffff;
+  --primary-btn: #5f4de0; --primary-btn-ink: #ffffff;
+}
+:root[data-style='nexus'] .task-row { box-shadow: 0 1px 0 var(--rule), 0 8px 20px rgb(3 5 20 / 0.18); }
+:root[data-style='nexus'] .checkbox { border-radius: 50%; }
+:root[data-style='nexus'] .nav.active { box-shadow: inset 2px 0 0 var(--accent); }
+
+/* ---- Compact (preview): dense pro rows ---- */
+:root[data-style='compact'] {
+  --font: 'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --ground: #f4f6f8; --surface: #ffffff; --surface-2: #e9edf1; --active: #dde4ea;
+  --border: #c3cdd6; --rule: #d5dde4; --control: #7d8c99;
+  --text: #141b22; --muted: #46545f; --faint: #5c6b77;
+  --accent: #0e7490; --accent-strong: #155e75; --accent-soft: #d6ecf2; --accent-ink: #ffffff;
+  --primary-btn: #141b22; --primary-btn-ink: #f4f6f8;
+  --positive: #16703a; --negative: #b3261e; --warning: #8a5a00;
+  --radius-card: 6px; --radius-control: 5px; --radius-panel: 8px;
+  --fs-title: 20px; --fs-section: 13px; --fs-body: 12.5px; --fs-small: 11px;
+  --row-h: 30px; --ls-title: 0; --h-weight: 700;
+  --shadow-float: 0 6px 18px rgb(15 23 32 / 0.14);
+}
+:root[data-style='compact'][data-theme='dark'] {
+  --ground: #101418; --surface: #161c22; --surface-2: #1d242c; --active: #242d37;
+  --border: #2e3944; --rule: #232c35; --control: #4c5c6b;
+  --text: #d4dde5; --muted: #8d9dab; --faint: #708190;
+  --accent: #22b8cf; --accent-strong: #4fd4e8; --accent-soft: #10333c; --accent-ink: #06222a;
+  --primary-btn: #22b8cf; --primary-btn-ink: #06222a;
+}
+:root[data-style='compact'] .task-row { padding: 2px 8px; margin-bottom: 2px; }
+:root[data-style='compact'] .nav { padding-top: 2px; padding-bottom: 2px; }
+:root[data-style='compact'] h1 { margin-bottom: 8px; }
+
+/* ---- Polar (preview): cool, crisp, airy light ---- */
+:root[data-style='polar'] {
+  --font: 'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --ground: #f6f9fc; --surface: #ffffff; --surface-2: #e9f0f8; --active: #dce8f4;
+  --border: #b8cadd; --rule: #d3e0ee; --control: #6e8aa8;
+  --text: #0d1420; --muted: #3d5470; --faint: #57708f;
+  --accent: #2563eb; --accent-strong: #1d4ed8; --accent-soft: #dbeafe; --accent-ink: #ffffff;
+  --primary-btn: #0d1420; --primary-btn-ink: #f6f9fc;
+  --positive: #0f7b3d; --negative: #c0262d; --warning: #92610a;
+  --radius-card: 10px; --radius-control: 8px; --radius-panel: 12px;
+  --fs-title: 28px; --fs-section: 17px; --fs-body: 15px; --fs-small: 12.5px;
+  --row-h: 52px; --ls-title: -0.02em; --h-weight: 700;
+  --shadow-float: 0 12px 32px rgb(13 20 32 / 0.10);
+}
+:root[data-style='polar'][data-theme='dark'] {
+  --ground: #0d1420; --surface: #131c2c; --surface-2: #1a2537; --active: #22304a;
+  --border: #2c3d5c; --rule: #20304a; --control: #4d6489;
+  --text: #d7e3f4; --muted: #8ea6c8; --faint: #6d86ac;
+  --accent: #60a5fa; --accent-strong: #93c5fd; --accent-soft: #12294d; --accent-ink: #081226;
+  --primary-btn: #60a5fa; --primary-btn-ink: #081226;
+}
+:root[data-style='polar'] .task-row { border-width: 1.5px; }
+:root[data-style='polar'] h1 { letter-spacing: var(--ls-title); }

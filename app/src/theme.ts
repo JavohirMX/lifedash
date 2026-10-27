@@ -1,5 +1,5 @@
 export type Theme = 'light' | 'dark' | 'system';
-export type StyleId = 'paper' | 'terminal' | 'editorial' | 'soft' | 'contrast';
+export type StyleId = 'paper' | 'terminal' | 'editorial' | 'soft' | 'contrast' | 'nexus' | 'compact' | 'polar';
 
 export const STYLES: { id: StyleId; name: string; blurb: string }[] = [
   { id: 'paper', name: 'Paper', blurb: 'Calm and neutral. The default.' },
@@ -7,6 +7,9 @@ export const STYLES: { id: StyleId; name: string; blurb: string }[] = [
   { id: 'editorial', name: 'Editorial', blurb: 'Serif headings, cream paper, hairline rules.' },
   { id: 'soft', name: 'Soft', blurb: 'Rounded, airy, gentle shadows.' },
   { id: 'contrast', name: 'High contrast', blurb: 'Heavy borders and larger text for legibility.' },
+  { id: 'nexus', name: 'Nexus', blurb: 'Dark-first glass panels, glow accents, TV-kiosk kin.' },
+  { id: 'compact', name: 'Compact', blurb: 'Dense rows, small type, maximum tasks per screen.' },
+  { id: 'polar', name: 'Polar', blurb: 'Cool, crisp and airy. Steel blue on snow.' },
 ];
 
 const KEY = 'lifedash-theme';
@@ -17,6 +20,9 @@ const META_COLORS: Record<StyleId, [string, string]> = {
   editorial: ['#f6f0e4', '#1a1612'],
   soft: ['#f5f3fb', '#16151f'],
   contrast: ['#ffffff', '#000000'],
+  nexus: ['#e8eaf6', '#0b0d1a'],
+  compact: ['#f4f6f8', '#101418'],
+  polar: ['#f6f9fc', '#0d1420'],
 };
 
 export function getTheme(): Theme {
