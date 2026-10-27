@@ -6,6 +6,8 @@ import type { Task } from './types';
 
 const PREF_KEY = 'lifedash-reminders-enabled';
 const FIRED_KEY = 'lifedash-reminders-fired';
+const JOURNAL_PREF_KEY = 'lifedash-journal-prompt-enabled';
+export const JOURNAL_PROMPT_HHMM = '21:00';
 
 export function remindersEnabled(): boolean {
   try {
@@ -21,6 +23,30 @@ export function setRemindersEnabled(on: boolean): void {
   } catch {
     /* private mode - pref just won't stick */
   }
+}
+
+// The evening journal nudge is a separate opt-in, default OFF, independent
+// of the task-reminders pref. One notification at 21:00, only while Lifedash
+// is open, when today's journal has neither note text nor a highlight.
+export function journalPromptEnabled(): boolean {
+  try {
+    return localStorage.getItem(JOURNAL_PREF_KEY) === '1';
+  } catch {
+    return false;
+  }
+}
+
+export function setJournalPromptEnabled(on: boolean): void {
+  try {
+    localStorage.setItem(JOURNAL_PREF_KEY, on ? '1' : '0');
+  } catch {
+    /* private mode - pref just won't stick */
+  }
+}
+
+/** True at the prompt minute when today's journal is empty and not yet fired. */
+export function journalPromptDue(date: string, hhmm: string, journalEmpty: boolean, fired: Set<string>): boolean {
+  return hhmm === JOURNAL_PROMPT_HHMM && journalEmpty && !fired.has(`journal:${date}`);
 }
 
 /** Active tasks due exactly at date+hhmm - the ones a tick should notify for. */
@@ -60,6 +86,7 @@ export function startReminders(
   notify: (task: Task) => void,
   now: () => Date = () => new Date(),
   intervalMs = 30_000,
+  journal?: { isEmptyToday: (date: string) => boolean; notify: () => void },
 ): () => void {
   const tick = () => {
     const d = now();
@@ -73,6 +100,11 @@ export function startReminders(
       fired.add(key);
       changed = true;
       notify(t);
+    }
+    if (journal && journalPromptDue(date, hhmm, journal.isEmptyToday(date), fired)) {
+      fired.add(`journal:${date}`);
+      changed = true;
+      journal.notify();
     }
     if (changed) saveFired(fired);
   };

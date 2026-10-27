@@ -59,6 +59,8 @@ export default function Sidebar(props: {
   onImport: () => void;
   onRestore: () => void;
   onAutomation: () => void;
+  journalNudge: boolean;
+  onToggleJournalNudge: () => void;
   onSync: () => void;
   onAI?: () => void;
   reminders: 'on' | 'off' | 'blocked' | 'unsupported';
@@ -262,6 +264,31 @@ export default function Sidebar(props: {
     </>
   );
 
+  const nudgeBtn = (
+    <div className="nudge-block">
+      <button
+        className="nav foot-action"
+        title={
+          props.reminders !== 'on'
+            ? 'Turn Reminders on first. One notification at 21:00 if today\'s journal is still empty, only while Lifedash is open.'
+            : `Journal nudge: ${props.journalNudge ? 'on' : 'off'}. One notification at 21:00 if today's journal is still empty, only while Lifedash is open.`
+        }
+        aria-label={
+          props.reminders !== 'on'
+            ? 'Journal nudge: off. Turn Reminders on first.'
+            : `Journal nudge: ${props.journalNudge ? 'on' : 'off'}. One notification at 21:00 if today's journal is still empty, only while Lifedash is open.`
+        }
+        aria-pressed={props.journalNudge}
+        disabled={props.reminders !== 'on'}
+        onClick={props.onToggleJournalNudge}
+      >
+        <BookOpen size={16} strokeWidth={1.75} aria-hidden="true" />
+        <span>Journal nudge: {props.journalNudge ? 'on' : 'off'}</span>
+      </button>
+      <p className="nudge-conditions">One nudge at 21:00 if today's journal is empty; only while the app is open.</p>
+    </div>
+  );
+
   const remindersBtn = (
     <button
       className="nav foot-action"
@@ -303,7 +330,7 @@ export default function Sidebar(props: {
         {searchBox}
         {MAIN_ITEMS.map(({ kind, label, Icon }) => item(kind, label, Icon))}
         {projectsBlock}
-        <div className="sidebar-foot">{props.onAI && <button className="nav foot-action" onClick={() => { setSheet(false); props.onAI?.(); }}>Plan with AI</button>}{importBtn}{remindersBtn}{themeBtn}{exportBtn}{restoreBtn}</div>
+        <div className="sidebar-foot">{props.onAI && <button className="nav foot-action" onClick={() => { setSheet(false); props.onAI?.(); }}>Plan with AI</button>}{importBtn}{remindersBtn}{nudgeBtn}{themeBtn}{exportBtn}{restoreBtn}</div>
       </nav>
 
       <div className="mobile-topbar">
@@ -349,7 +376,7 @@ export default function Sidebar(props: {
           {searchBox}
           {MAIN_ITEMS.map(({ kind, label, Icon }) => item(kind, label, Icon, () => setSheet(false)))}
           {projectsBlock}
-          <div className="sidebar-foot">{props.onAI && <button className="nav foot-action" onClick={() => { setSheet(false); props.onAI?.(); }}>Plan with AI</button>}{importBtn}{remindersBtn}{themeBtn}{exportBtn}{restoreBtn}</div>
+          <div className="sidebar-foot">{props.onAI && <button className="nav foot-action" onClick={() => { setSheet(false); props.onAI?.(); }}>Plan with AI</button>}{importBtn}{remindersBtn}{nudgeBtn}{themeBtn}{exportBtn}{restoreBtn}</div>
         </div>
       )}
     </>

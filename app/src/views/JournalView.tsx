@@ -92,6 +92,27 @@ export default function JournalView(props: { initialDate?: string }) {
           </button>
         ))}
       </div>
+      <label className="highlight-field">
+        <span className="highlight-label">Today's highlight (optional one-liner, shows on the TV)</span>
+        <input
+          key={`hl-${date}`}
+          type="text"
+          defaultValue={entry?.highlight ?? ''}
+          placeholder="One line about today"
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') {
+              const v = (e.target as HTMLInputElement).value;
+              void getOrCreateJournalEntry(date).then((en) => updateJournalEntry(en.id, { highlight: v.trim() || null }));
+            }
+          }}
+          onBlur={(e) => {
+            const v = e.target.value;
+            if (v !== (entry?.highlight ?? '')) {
+              void getOrCreateJournalEntry(date).then((en) => updateJournalEntry(en.id, { highlight: v.trim() || null }));
+            }
+          }}
+        />
+      </label>
       <div className="journal-editor">
         {entries !== undefined && (
         <NoteEditor

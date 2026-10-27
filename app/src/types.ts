@@ -47,6 +47,7 @@ export interface JournalEntry {
   note: string;
   noteDoc: unknown | null;
   mood: number | null; // 1-5
+  highlight?: string | null; // one-liner shown on the TV surface
   createdAt: number;
   updatedAt: number;
 }

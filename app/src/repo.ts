@@ -385,7 +385,7 @@ export async function getOrCreateJournalEntry(date: string): Promise<JournalEntr
   const existing = await db.journal.where('date').equals(date).first();
   if (existing) return existing;
   const now = Date.now();
-  const entry: JournalEntry = { id: newId(), date, note: '', noteDoc: null, mood: null, createdAt: now, updatedAt: now };
+  const entry: JournalEntry = { id: newId(), date, note: '', noteDoc: null, mood: null, highlight: null, createdAt: now, updatedAt: now };
   await db.journal.add(entry);
   return entry;
 }

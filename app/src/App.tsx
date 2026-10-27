@@ -25,7 +25,7 @@ import SyncDialog from './components/SyncDialog';
 import AppearanceDialog from './components/AppearanceDialog';
 import { cycleTheme } from './theme';
 import { loadRules, saveRules, loadUserRules, saveUserRules, type AutomationRules, type UserRule } from './automation';
-import { remindersEnabled, setRemindersEnabled, startReminders } from './reminders';
+import { remindersEnabled, setRemindersEnabled, journalPromptEnabled, setJournalPromptEnabled, startReminders } from './reminders';
 import { applyRollover, applyWeeklyUserRules } from './repo';
 import { startAutoSync } from './sync';
 import { SyncConflictBanner } from './components/SyncConflictBanner';
@@ -39,7 +39,7 @@ import {
 } from './logic';
 import { todayStr, friendlyDate, weekdayLabel } from './dates';
 import { updateTask, moveTask, updateProject, deleteProject } from './repo';
-import type { Task } from './types';
+import type { Task, JournalEntry } from './types';
 
 export default function App() {
   const tasks = useLiveQuery(() => db.tasks.toArray(), []);
@@ -63,7 +63,9 @@ export default function App() {
   const [rules, setRules] = useState<AutomationRules>(loadRules);
   const [userRules, setUserRules] = useState<UserRule[]>(loadUserRules);
   const [remindOn, setRemindOn] = useState(remindersEnabled);
+  const [nudgeOn, setNudgeOn] = useState(journalPromptEnabled);
   const tasksRef = useRef<Task[]>([]);
+  const journalRef = useRef<JournalEntry[]>([]);
   const quickAddFocus = () => document.querySelector<HTMLInputElement>('.quick-add input')?.focus();
   useGlobalKeys({
     onPalette: () => setPaletteOpen((o) => !o),
@@ -80,6 +82,7 @@ export default function App() {
   }, []);
 
   tasksRef.current = tasks ?? [];
+  journalRef.current = journal ?? [];
   useEffect(() => {
     if (!remindOn || typeof Notification === 'undefined' || Notification.permission !== 'granted') return;
     return startReminders(
@@ -91,8 +94,25 @@ export default function App() {
           /* notification construction can fail on some platforms */
         }
       },
+      () => new Date(),
+      30_000,
+      nudgeOn
+        ? {
+            isEmptyToday: (date) => {
+              const e = (journalRef.current ?? []).find((x) => x.date === date);
+              return !e || (e.note.trim() === '' && !(e.highlight ?? '').trim());
+            },
+            notify: () => {
+              try {
+                new Notification('Evening journal', { body: 'How was today? Log a line or a highlight.' });
+              } catch {
+                /* notification construction can fail on some platforms */
+              }
+            },
+          }
+        : undefined,
     );
-  }, [remindOn]);
+  }, [remindOn, nudgeOn]);
 
   const today = todayStr();
 
@@ -303,6 +323,12 @@ export default function App() {
       <Sidebar projects={projects} selection={selection} onSelect={setSelection} counts={counts} activeByProject={activeByProject}
         onPalette={() => setPaletteOpen(true)}
         reminders={typeof Notification === 'undefined' ? 'unsupported' : Notification.permission === 'denied' ? 'blocked' : remindOn ? 'on' : 'off'}
+        journalNudge={nudgeOn}
+        onToggleJournalNudge={() => {
+          const next = !nudgeOn;
+          setJournalPromptEnabled(next);
+          setNudgeOn(next);
+        }}
         onToggleReminders={() => {
           if (remindOn) { setRemindersEnabled(false); setRemindOn(false); return; }
           if (typeof Notification === 'undefined') return;

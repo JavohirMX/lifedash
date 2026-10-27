@@ -11,7 +11,7 @@ globalThis.localStorage = {
   key: () => null,
   get length() { return store.size; },
 } as Storage;
-import { dueReminders, remindersEnabled, setRemindersEnabled, startReminders } from './reminders';
+import { dueReminders, remindersEnabled, setRemindersEnabled, journalPromptEnabled, setJournalPromptEnabled, journalPromptDue, startReminders } from './reminders';
 import type { Task } from './types';
 
 const mk = (over: Partial<Task>): Task => ({
@@ -62,5 +62,58 @@ describe('startReminders', () => {
     const stop2 = startReminders(() => [task], (t) => seen2.push(t.id), () => at);
     expect(seen2).toEqual([]);
     stop2();
+  });
+});
+
+describe('journal prompt pref', () => {
+  beforeEach(() => localStorage.clear());
+  it('defaults off and round-trips independently of the reminders pref', () => {
+    expect(journalPromptEnabled()).toBe(false);
+    setRemindersEnabled(true);
+    expect(journalPromptEnabled()).toBe(false);
+    setJournalPromptEnabled(true);
+    expect(journalPromptEnabled()).toBe(true);
+    setJournalPromptEnabled(false);
+    expect(journalPromptEnabled()).toBe(false);
+    expect(remindersEnabled()).toBe(true);
+  });
+});
+
+describe('journalPromptDue', () => {
+  it('gates on the 21:00 minute, an empty journal, and not-yet-fired', () => {
+    const fired = new Set<string>();
+    expect(journalPromptDue('2026-10-20', '21:00', true, fired)).toBe(true);
+    expect(journalPromptDue('2026-10-20', '20:59', true, fired)).toBe(false);
+    expect(journalPromptDue('2026-10-20', '21:01', true, fired)).toBe(false);
+    expect(journalPromptDue('2026-10-20', '21:00', false, fired)).toBe(false);
+    expect(journalPromptDue('2026-10-20', '21:00', true, new Set(['journal:2026-10-20']))).toBe(false);
+  });
+});
+
+describe('startReminders journal hook', () => {
+  beforeEach(() => localStorage.clear());
+  it('fires the nudge once per day across restarts, alongside task reminders', () => {
+    const at = new Date(2026, 9, 20, 21, 0, 5);
+    const task = mk({ id: 'hit', dueDate: '2026-10-20', dueTime: '21:00' });
+    const tasks: string[] = [];
+    const nudges: string[] = [];
+    const hook = { isEmptyToday: () => true, notify: () => nudges.push('nudge') };
+    const stop1 = startReminders(() => [task], (t) => tasks.push(t.id), () => at, 30_000, hook);
+    expect(tasks).toEqual(['hit']);
+    expect(nudges).toEqual(['nudge']);
+    stop1();
+    const stop2 = startReminders(() => [task], (t) => tasks.push(t.id), () => at, 30_000, hook);
+    expect(nudges).toEqual(['nudge']);
+    stop2();
+  });
+
+  it('stays silent when the journal has content and without a hook', () => {
+    const at = new Date(2026, 9, 20, 21, 0, 5);
+    const nudges: string[] = [];
+    const stop1 = startReminders(() => [], () => {}, () => at, 30_000, { isEmptyToday: () => false, notify: () => nudges.push('x') });
+    stop1();
+    const stop2 = startReminders(() => [], () => {}, () => at);
+    stop2();
+    expect(nudges).toEqual([]);
   });
 });
