@@ -3,6 +3,7 @@ import { Bell, BellRing,
   Sun, CalendarDays, Archive, Clock, CalendarRange, Repeat, CheckCircle2,
   Search, Plus, Menu, X, Download, Upload, Palette, Zap, Cloud, House, Target, StickyNote, BookOpen, Monitor,
 } from 'lucide-react';
+import { projectTree } from '../projects';
 import type { Project } from '../types';
 import { addProject, countAttachments, exportJson } from '../repo';
 import { db } from '../db';
@@ -69,6 +70,7 @@ export default function Sidebar(props: {
   onPalette?: () => void;
 }) {
   const [adding, setAdding] = useState(false);
+  const [addParent, setAddParent] = useState<string | null>(null);
   const [name, setName] = useState('');
   const [query, setQuery] = useState('');
   // Keep the box in step with external query changes (filter chips, Esc).
@@ -147,10 +149,11 @@ export default function Sidebar(props: {
           <Plus size={14} strokeWidth={1.75} />
         </button>
       </div>
-      {props.projects.map((p) => (
+      {projectTree(props.projects).map(({ project: p, depth }) => (
         <button
           key={p.id}
           className={`nav project ${props.selection.kind === 'project' && props.selection.id === p.id ? 'active' : ''}`}
+          style={depth > 0 ? { paddingLeft: 12 + depth * 18 } : undefined}
           onClick={() => {
             props.onSelect({ kind: 'project', id: p.id });
             setSheet(false);
@@ -172,13 +175,25 @@ export default function Sidebar(props: {
             onChange={(e) => setName(e.target.value)}
             onKeyDown={(e) => {
               if (e.key === 'Enter' && name.trim()) {
-                void addProject(name, COLORS[props.projects.length % COLORS.length]);
+                void addProject(name, COLORS[props.projects.length % COLORS.length], addParent);
                 setName('');
+                setAddParent(null);
                 setAdding(false);
               }
               if (e.key === 'Escape') setAdding(false);
             }}
           />
+          <select
+            className="project-add-parent"
+            value={addParent ?? ''}
+            onChange={(e) => setAddParent(e.target.value || null)}
+            aria-label="Parent project"
+          >
+            <option value="">Top level</option>
+            {projectTree(props.projects).map(({ project: p, depth }) => (
+              <option key={p.id} value={p.id}>{' '.repeat(depth)}{p.name}</option>
+            ))}
+          </select>
         </div>
       )}
     </>

@@ -1,5 +1,6 @@
 import { loadRules, rolloverTargets, shouldCompleteParent, loadUserRules, saveUserRules, tagRulesFor, weeklyRulesDue, hasOpenTitle } from './automation';
 import { reconcileRunningSessions } from './focus';
+import { wouldCycle } from './projects';
 import type { FocusSession } from './types';
 import { parseLocalDate } from './dates';
 import { db, newId } from './db';
@@ -177,17 +178,32 @@ export async function deleteTask(task: Task): Promise<void> {
   });
 }
 
-export async function addProject(name: string, color: string): Promise<Project> {
-  const count = await db.projects.count();
-  const project: Project = { id: newId(), name: name.trim(), color, order: count, archived: false };
+export async function addProject(name: string, color: string, parentId: string | null = null): Promise<Project> {
+  const all = await db.projects.toArray();
+  if (parentId !== null && !all.some((p) => p.id === parentId)) {
+    throw new Error('That parent project no longer exists.');
+  }
+  const project: Project = { id: newId(), name: name.trim(), color, order: all.length, archived: false, parentId };
   await db.projects.add(project);
   return project;
 }
 
-export async function updateProject(id: string, patch: { name?: string; color?: string }): Promise<void> {
-  const clean: { name?: string; color?: string } = {};
+export async function updateProject(
+  id: string,
+  patch: { name?: string; color?: string; parentId?: string | null },
+): Promise<void> {
+  const clean: { name?: string; color?: string; parentId?: string | null } = {};
   if (patch.name !== undefined) clean.name = patch.name.trim();
   if (patch.color !== undefined) clean.color = patch.color;
+  if (patch.parentId !== undefined) {
+    if (patch.parentId !== null) {
+      const all = await db.projects.toArray();
+      if (wouldCycle(all, id, patch.parentId)) {
+        throw new Error("A project can't live inside itself or one of its own subprojects.");
+      }
+    }
+    clean.parentId = patch.parentId;
+  }
   await db.projects.update(id, clean);
 }
 

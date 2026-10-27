@@ -185,7 +185,16 @@ button, input, select, textarea, .task-row, .week-col, .cell, .wd {
 }
 .icon-btn:hover { background: var(--surface-2); color: var(--text); }
 .dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; flex-shrink: 0; margin: 0 4px; }
-.project-add { padding: 2px 8px; }
+.project-add { padding: 2px 8px; display: flex; flex-direction: column; gap: 6px; }
+.project-add-parent {
+  height: 30px;
+  background: var(--surface);
+  border: 1px solid var(--accent);
+  border-radius: var(--radius-control);
+  color: var(--ink);
+  font: inherit;
+  font-size: 13px;
+}
 .project-add input {
   width: 100%;
   height: 32px;

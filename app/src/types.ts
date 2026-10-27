@@ -89,6 +89,7 @@ export interface Project {
   color: string;
   order: number;
   archived: boolean;
+  parentId?: string | null; // nesting; absent/null = top level
 }
 
 export interface FocusSession {

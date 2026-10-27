@@ -9,6 +9,7 @@ import { db, INBOX_ID } from '../db';
 import { addTask, deleteTask, toggleComplete, updateTask, addBlocker, removeBlocker, addTag, removeTag } from '../repo';
 import { makeRecurrence, describeRecurrence, isRecurrenceValid, blockersOf, normalizeTask } from '../logic';
 import { todayStr } from '../dates';
+import { projectTree } from '../projects';
 import type { Task } from '../types';
 
 type RecChoice = 'none' | 'daily' | 'weekly' | 'monthly' | 'ndays' | 'invalid';
@@ -141,8 +142,8 @@ export default function TaskDetail(props: { taskId: string; onClose: () => void;
           value={task.projectId}
           onChange={(e) => void updateTask(task.id, { projectId: e.target.value })}
         >
-          {projects.map((p) => (
-            <option key={p.id} value={p.id}>{p.name}</option>
+          {projectTree(projects).map(({ project: p, depth }) => (
+            <option key={p.id} value={p.id}>{' '.repeat(depth)}{depth > 0 ? '– ' : ''}{p.name}</option>
           ))}
         </select>
       </label>
