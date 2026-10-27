@@ -61,6 +61,18 @@ try {
       assert.equal(await page.getByRole('dialog', { name: 'More navigation' }).count(), 0);
       await page.keyboard.press('Escape');
     }
+    if (width < 500) await page.getByRole('button', { name: 'More', exact: true }).click();
+    const exportButton = page.getByRole('button', { name: 'Export', exact: true });
+    await exportButton.focus();
+    await page.keyboard.press('ArrowDown');
+    await page.getByRole('menu', { name: 'Export format' }).waitFor();
+    assert(await page.getByRole('menuitem', { name: /^JSON backup/ }).evaluate(el => el === document.activeElement));
+    await page.keyboard.press('ArrowDown');
+    assert(await page.getByRole('menuitem', { name: /^Markdown/ }).evaluate(el => el === document.activeElement));
+    await page.keyboard.press('Escape');
+    await page.getByRole('menu', { name: 'Export format' }).waitFor({ state: 'detached' });
+    assert(await exportButton.evaluate(el => el === document.activeElement));
+    if (width < 500) await page.keyboard.press('Escape');
     console.log(`${width}px palette containment, Escape, focus return and modal shortcut guard passed`);
     await page.close();
   }

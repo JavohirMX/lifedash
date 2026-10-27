@@ -215,6 +215,18 @@ export default function Sidebar(props: {
   );
 
   const [exportMenu, setExportMenu] = useState(false);
+  const exportWrap = useRef<HTMLDivElement>(null);
+  const exportTrigger = useRef<HTMLButtonElement>(null);
+  useEffect(() => {
+    if (exportMenu) exportWrap.current?.querySelector<HTMLButtonElement>('[role=menuitem]')?.focus();
+  }, [exportMenu]);
+  const closeExport = () => { setExportMenu(false); exportTrigger.current?.focus(); };
+  useEffect(() => {
+    if (!exportMenu) return;
+    const outside = (e: PointerEvent) => { if (!exportWrap.current?.contains(e.target as Node)) setExportMenu(false); };
+    document.addEventListener('pointerdown', outside);
+    return () => document.removeEventListener('pointerdown', outside);
+  }, [exportMenu]);
 
   const downloadFile = (content: string, type: string, name: string) => {
     const blob = new Blob([content], { type });
@@ -226,7 +238,7 @@ export default function Sidebar(props: {
   };
 
   const doExportJson = () => {
-    setExportMenu(false);
+    closeExport();
     void Promise.all([exportJson(), countAttachments()]).then(([json, files]) => {
       downloadFile(json, 'application/json', `lifedash-export-${new Date().toISOString().slice(0, 10)}.json`);
       if (files > 0) {
@@ -238,17 +250,26 @@ export default function Sidebar(props: {
   };
 
   const doExportMd = () => {
-    setExportMenu(false);
+    closeExport();
     void Promise.all([db.tasks.toArray(), db.projects.toArray()]).then(([tasks, projects]) => {
       downloadFile(tasksToMarkdown(tasks, projects), 'text/markdown', `lifedash-tasks-${todayStr()}.md`);
     });
   };
 
   const exportBtn = (
-    <div className="export-wrap" onKeyDown={(e) => { if (e.key === 'Escape') setExportMenu(false); }}>
+    <div ref={exportWrap} className="export-wrap" onBlur={e => { if (!e.currentTarget.contains(e.relatedTarget as Node)) setExportMenu(false); }} onKeyDown={e => {
+      if (e.key === 'Escape' && exportMenu) { e.preventDefault(); e.stopPropagation(); closeExport(); }
+      const items = Array.from(e.currentTarget.querySelectorAll<HTMLButtonElement>('[role=menuitem]'));
+      if (!items.length) return;
+      const index = items.indexOf(document.activeElement as HTMLButtonElement);
+      const next = e.key === 'ArrowDown' ? (index + 1) % items.length : e.key === 'ArrowUp' ? (index + items.length - 1) % items.length : e.key === 'Home' ? 0 : e.key === 'End' ? items.length - 1 : null;
+      if (next !== null) { e.preventDefault(); e.stopPropagation(); items[next].focus(); }
+    }}>
       <button
+        ref={exportTrigger}
         className="nav foot-action"
         aria-haspopup="menu"
+        onKeyDown={e => { if (e.key === 'ArrowDown' || e.key === 'ArrowUp') { e.preventDefault(); setExportMenu(true); } }}
         aria-expanded={exportMenu}
         onClick={() => setExportMenu(!exportMenu)}
       >
