@@ -127,13 +127,13 @@ export default function JournalView(props: { initialDate?: string }) {
       </label>
       <div className="journal-editor">
         {entries !== undefined && (
-        <NoteEditor
+        <NoteEditor collection="journal"
           key={date}
           docKey={date}
           note={entry?.note ?? ''}
           noteDoc={entry?.noteDoc ?? null}
           onSave={(doc, text) =>
-            void getOrCreateJournalEntry(date).then((e) => updateJournalEntry(e.id, { noteDoc: doc, note: text }))
+            getOrCreateJournalEntry(date).then((e) => updateJournalEntry(e.id, { noteDoc: doc, note: text }))
           }
         />
         )}

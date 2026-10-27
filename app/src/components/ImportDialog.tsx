@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { X } from 'lucide-react';
 import type { Project } from '../types';
-import { INBOX_ID } from '../db';
+import { db, INBOX_ID } from '../db';
 import { addProject, importTasks, importBackup } from '../repo';
 import { detectSource, parse, type ImportSource, type ParseResult } from '../import';
 import { useDialogFocus } from '../hooks/useDialogFocus';
@@ -22,6 +22,7 @@ export default function ImportDialog(props: { projects: Project[]; initialSource
   const [imported, setImported] = useState<number | null>(null);
   const [restored, setRestored] = useState<Record<string, number> | null>(null);
   const [restoreError, setRestoreError] = useState('');
+  const [importError, setImportError] = useState('');
   const [busy, setBusy] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
   const areaRef = useRef<HTMLTextAreaElement>(null);
@@ -29,7 +30,10 @@ export default function ImportDialog(props: { projects: Project[]; initialSource
   const panel = useDialogFocus<HTMLDivElement>(props.onClose, 'textarea');
 
   async function loadFile(f: File) {
-    const t = await f.text();
+    let t: string;
+    try { t = await f.text(); }
+    catch { setImportError("Couldn't read this file. Choose it again or paste the text below."); return; }
+    setImportError('');
     setFilename(f.name);
     setText(t);
     const s = detectSource(f.name, t);
@@ -78,24 +82,29 @@ export default function ImportDialog(props: { projects: Project[]; initialSource
   async function run() {
     if (!result || result.tasks.length === 0) return;
     setBusy(true);
+    setImportError('');
     try {
-      const byName = new Map(props.projects.map((p) => [p.name.toLowerCase(), p.id]));
-      if (target === 'per-source') {
-        for (const t of result.tasks) {
-          const name = t.project?.trim();
-          if (name && !byName.has(name.toLowerCase())) {
-            const p = await addProject(name, '#0f766e');
-            byName.set(name.toLowerCase(), p.id);
+      const n = await db.transaction('rw', db.projects, db.tasks, async () => {
+        const byName = new Map(props.projects.map((p) => [p.name.toLowerCase(), p.id]));
+        if (target === 'per-source') {
+          for (const t of result.tasks) {
+            const name = t.project?.trim();
+            if (name && !byName.has(name.toLowerCase())) {
+              const p = await addProject(name, '#0f766e');
+              byName.set(name.toLowerCase(), p.id);
+            }
           }
         }
-      }
-      const n = await importTasks(result.tasks, (sourceName) => {
-        if (target === 'per-source' && sourceName) {
-          return byName.get(sourceName.trim().toLowerCase()) ?? INBOX_ID;
-        }
-        return target;
+        return importTasks(result.tasks, (sourceName) => {
+          if (target === 'per-source' && sourceName) {
+            return byName.get(sourceName.trim().toLowerCase()) ?? INBOX_ID;
+          }
+          return target;
+        });
       });
       setImported(n);
+    } catch {
+      setImportError("Couldn't import tasks. No tasks or projects were added. Your source text is still here; try again.");
     } finally {
       setBusy(false);
     }
@@ -132,7 +141,7 @@ export default function ImportDialog(props: { projects: Project[]; initialSource
             </div>
             <div className="field">
               <span>or paste text {filename && `(loaded: ${filename})`}</span>
-              <textarea ref={areaRef}
+              <textarea aria-label="Import source text" ref={areaRef}
                 rows={5}
                 value={text}
                 placeholder={source === 'lifedash-json' ? '{"version": 2, "tasks": [ ... ], ...}' : '- [ ] A task\n- [x] A finished one'}
@@ -153,6 +162,7 @@ export default function ImportDialog(props: { projects: Project[]; initialSource
               </select>
             </div>
 
+            {importError && <p role="alert" className="import-warnings">{importError}</p>}
             {fullBackup && (
               <div className="import-summary">
                 <p className="import-count">Backup data: {backupCounts.filter((c) => c.n > 0).map((c) => c.text).join(', ')}.</p>
@@ -190,7 +200,7 @@ export default function ImportDialog(props: { projects: Project[]; initialSource
                 {result.tasks.length > 0 && (
                   <div className="field">
                     <span>Add to</span>
-                    <select value={target} onChange={(e) => setTarget(e.target.value)}>
+                    <select aria-label="Add imported tasks to" value={target} onChange={(e) => setTarget(e.target.value)}>
                       <option value={INBOX_ID}>Inbox</option>
                       {props.projects.filter((p) => p.id !== INBOX_ID).map((p) => (
                         <option key={p.id} value={p.id}>{p.name}</option>

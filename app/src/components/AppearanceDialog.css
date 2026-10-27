@@ -17,3 +17,4 @@
 .appearance-sections button[aria-selected='true'] { background: var(--surface); color: var(--text); box-shadow: var(--shadow-card); font-weight: 600; }
 .appearance-panel [role='tabpanel'][hidden] { display: none; }
 .appearance-panel [role='tabpanel']:not([hidden]) { display: flex; flex-direction: column; gap: 14px; }
+.appearance-panel .appearance-save-error { margin: 0; padding: 10px 12px; color: var(--negative); background: var(--surface-2); border-left: 3px solid var(--negative); line-height: 1.5; }

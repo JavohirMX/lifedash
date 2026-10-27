@@ -122,7 +122,7 @@ export default function TaskDetail(props: { taskId: string; onClose: () => void;
           </span>
         ) : null}
       </div>
-      <NoteEditor key={task.id} docKey={task.id} note={task.note} noteDoc={task.noteDoc} onSave={(doc, text) => void updateTask(task.id, { noteDoc: doc, note: text })} />
+      <NoteEditor collection="tasks" key={task.id} docKey={task.id} note={task.note} noteDoc={task.noteDoc} onSave={(doc, text) => updateTask(task.id, { noteDoc: doc, note: text })} />
       {task.noteId && sourceNote && (
         <button className="note-source" onClick={() => props.onOpenNote(task.noteId!)}>
           <StickyNote size={13} strokeWidth={2} aria-hidden="true" />

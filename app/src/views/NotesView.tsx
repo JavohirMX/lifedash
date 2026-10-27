@@ -168,12 +168,12 @@ export default function NotesView(props: { initialOpenId?: string }) {
                   <Trash2 size={15} strokeWidth={2} />
                 </button>
               </div>
-              <NoteEditor
+              <NoteEditor collection="notes"
                 key={open.id}
                 docKey={open.id}
                 note={open.note}
                 noteDoc={open.noteDoc}
-                onSave={(doc, text) => void updateNote(open.id, { noteDoc: doc, note: text })}
+                onSave={(doc, text) => updateNote(open.id, { noteDoc: doc, note: text })}
               />
               {linkedActive.length > 0 && (
                 <div className="note-linked">

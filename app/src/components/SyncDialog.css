@@ -1,0 +1,2 @@
+.sync-panel .sync-feedback-error { color: var(--negative); border-left: 3px solid var(--negative); padding: 8px 10px; background: var(--surface-2); font-size: var(--fs-body); line-height: 1.5; margin: 0; overflow-wrap: anywhere; }
+.sync-panel input[aria-invalid='true'] { border-color: var(--negative); }

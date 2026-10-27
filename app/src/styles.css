@@ -250,35 +250,22 @@ h2 { font-family: var(--font-display); font-size: var(--fs-section); font-weight
 
 /* ---------- Quick add ---------- */
 .quick-add { position: relative; margin-bottom: 20px; }
-.quick-add-icon {
-  position: absolute;
-  left: 11px;
-  top: 50%;
-  transform: translateY(-50%);
-  color: var(--faint);
-  pointer-events: none;
-}
-.quick-add-field { position: relative; }
+.quick-add-row { display: flex; align-items: flex-end; gap: 8px; }
+.quick-add-field { position: relative; flex: 1; min-width: 0; }
+.quick-add-icon { position: absolute; left: 11px; bottom: 21px; transform: translateY(50%); color: var(--faint); pointer-events: none; }
+.quick-add-label { display: block; font-size: var(--fs-small); color: var(--muted); margin-bottom: 6px; }
 .quick-add-field input {
-  width: 100%;
-  height: 42px;
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-card);
-  padding: 0 12px 0 34px;
-  font-size: 15px;
+  width: 100%; height: 42px; background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--radius-card); padding: 0 12px 0 34px; font-size: 15px;
 }
-.quick-add-hint {
-  position: absolute;
-  right: 10px;
-  top: 50%;
-  transform: translateY(-50%);
-  font-size: var(--fs-small);
-  color: var(--accent);
-  font-weight: 600;
-  pointer-events: none;
-  font-variant-numeric: tabular-nums;
-}
+.quick-add-submit { min-height: 42px; min-width: 48px; flex-shrink: 0; }
+.quick-add-hint { margin-top: 6px; font-size: var(--fs-small); color: var(--muted); line-height: 1.5; overflow-wrap: anywhere; }
+.quick-add-status { font-size: var(--fs-small); color: var(--muted); overflow-wrap: anywhere; }
+.quick-add-status:empty { display: none; }
+.quick-add-error, .quick-add-failed { font-size: var(--fs-small); color: var(--text); margin: 8px 0 0; }
+.quick-add-failed { padding: 10px; border: 1px solid var(--border); border-left: 3px solid var(--accent); border-radius: var(--radius-card); }
+.quick-add-failed p { margin: 0 0 8px; }
+.quick-add-draft { white-space: pre-wrap; overflow-wrap: anywhere; }
 .quick-add input:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
 
 /* ---------- Task rows ---------- */
@@ -1804,3 +1791,9 @@ main.tv-grid { max-width: none; width: 100%; }
 .gcal-limits { margin: 0; padding-left: 18px; font-size: var(--fs-small); color: var(--muted); }
 
 .gcal-events { list-style:none;padding:0; }.gcal-events li { display:flex;gap:14px;padding:10px 0;border-bottom:1px solid var(--border);overflow-wrap:anywhere; }.gcal-events li>span:first-child { flex:0 0 72px;color:var(--muted); }
+
+/* Local rich-text save feedback, shared by notes, task details and journal. */
+.ed-save-status, .ed-save-error { color: var(--muted); font-size: var(--fs-small); line-height: 1.5; padding: 6px 10px; }
+.ed-save-status:empty { display: none; }
+.ed-save-error { color: var(--text); border-top: 1px solid var(--border); }
+.ed-save-error p { margin: 0 0 8px; }

@@ -1,6 +1,8 @@
 import { SAMPLE_MODE } from '../dev/sampleMode';
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { useDialogFocus } from '../hooks/useDialogFocus';
+import { checkSyncUrl, syncFailureMessage } from '../syncFormFeedback';
+import './SyncDialog.css';
 import { ArrowLeft, X } from 'lucide-react';
 import {
   loadSyncSettings,
@@ -21,45 +23,49 @@ export default function SyncDialog(props: { onClose: () => void; onBack?: () => 
   const [password, setPassword] = useState('');
   const [settings, setSettings] = useState<SyncSettings | null>(existing);
   const [status, setStatus] = useState('');
+  const [feedback, setFeedback] = useState<'status'|'error'>('status');
+  const [urlError,setUrlError]=useState('');
+  const [authAction,setAuthAction]=useState<'login'|'register'|null>(null);
+  const urlInput=useRef<HTMLInputElement>(null);
   const last = loadSyncStatus();
   const [busy, setBusy] = useState(false);
 
   const panel = useDialogFocus<HTMLDivElement>(props.onClose, existing ? undefined : 'input[type="url"]');
 
-  const fail = (e: unknown) => {
-    const msg = e instanceof Error ? e.message : String(e);
-    setStatus(msg === 'Failed to fetch' ? "Couldn't reach the server - check the URL and that it's running." : msg);
-  };
+  const fail = (e: unknown, action:'login'|'register'|'sync') => { setFeedback('error'); setStatus(syncFailureMessage(e,action)); };
 
   async function doAuth(kind: 'login' | 'register') {
+    const issue=checkSyncUrl(url);
+    if(issue){setUrlError(issue);setFeedback('error');setStatus('');urlInput.current?.focus();return;}
+    setUrlError('');setAuthAction(kind);setFeedback('status');
     setBusy(true);
-    setStatus('');
+    setStatus(kind==='login'?'Signing in…':'Creating account…');
     try {
       const fn = kind === 'login' ? login : register;
-      const token = await fn(url, username, password);
-      const s = { url, username, token };
+      const token = await fn(url.trim(), username.trim(), password);
+      const s = { url:url.trim(), username:username.trim(), token };
       saveSyncSettings(s);
       setSettings(s);
       setPassword('');
       setStatus(kind === 'login' ? 'Signed in.' : 'Account created and signed in.');
     } catch (e) {
-      fail(e);
+      fail(e,kind);
     } finally {
-      setBusy(false);
+      setBusy(false);setAuthAction(null);
     }
   }
 
   async function doSync() {
     if (!settings) return;
     setBusy(true);
-    setStatus('Syncing...');
+    setFeedback('status');setStatus('Syncing...');
     try {
       const r: SyncResult = await syncNow(settings);
       const parts = [`pushed ${r.pushed}`, `pulled ${r.pulled}`];
       if (r.conflicts) parts.push(`${r.conflicts} conflict${r.conflicts === 1 ? '' : 's'} (server won)`);
       setStatus(`Done: ${parts.join(', ')}.`);
     } catch (e) {
-      fail(e);
+      fail(e,'sync');
     } finally {
       setBusy(false);
     }
@@ -67,7 +73,7 @@ export default function SyncDialog(props: { onClose: () => void; onBack?: () => 
 
   async function disconnect() {
     if (!settings) return;
-    setBusy(true);
+    setBusy(true);setFeedback('status');
     try {
       const result = await logout(settings);
       setStatus(
@@ -109,9 +115,10 @@ export default function SyncDialog(props: { onClose: () => void; onBack?: () => 
             <p className="rule-note"><a href="./selfhost.html" target="_blank" rel="noreferrer">Self-host setup guide (opens in a new tab)</a></p>
             <label className="field">
               <span>Server URL</span>
-              <input type="url" inputMode="url" autoCapitalize="off" autoCorrect="off" value={url} onChange={(e) => setUrl(e.target.value)} placeholder="https://sync.example.com" />
+              <input ref={urlInput} aria-invalid={!!urlError} aria-describedby={urlError?'sync-url-error':undefined} type="url" inputMode="url" autoCapitalize="off" autoCorrect="off" value={url} onChange={(e) => {setUrl(e.target.value);if(urlError)setUrlError('');}} placeholder="https://sync.example.com" />
             </label>
-            <form
+            {urlError && <p id="sync-url-error" className="sync-feedback-error" role="alert">{urlError}</p>}
+            <form noValidate
               onSubmit={(e) => {
                 e.preventDefault();
                 if (!busy && url && username && password.length >= 8) void doAuth('login');
@@ -126,8 +133,8 @@ export default function SyncDialog(props: { onClose: () => void; onBack?: () => 
                 <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} autoComplete="current-password" />
               </label>
               <div className="sync-actions">
-                <button type="submit" className="btn-primary" disabled={busy || !url || !username || password.length < 8}>Sign in</button>
-                <button type="button" className="btn-secondary" disabled={busy || !url || !username || password.length < 8} onClick={() => void doAuth('register')}>Create account</button>
+                <button type="submit" className="btn-primary" disabled={busy || !url || !username || password.length < 8}>{authAction==='login'?'Signing in…':'Sign in'}</button>
+                <button type="button" className="btn-secondary" disabled={busy || !url || !username || password.length < 8} onClick={() => void doAuth('register')}>{authAction==='register'?'Creating account…':'Create account'}</button>
               </div>
             </form>
           </>
@@ -142,7 +149,7 @@ export default function SyncDialog(props: { onClose: () => void; onBack?: () => 
             </div>
           </>
         )}
-        {status && <p className="sync-status" role="status">{status}</p>}
+        {status && <p className={`sync-status${feedback==='error'?' sync-feedback-error':''}`} role={feedback==='error'?'alert':'status'}>{status}</p>}
         {!status && last && (
           <p className="sync-status">
             Last synced {new Date(last.at).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
