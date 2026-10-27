@@ -6,10 +6,11 @@ import shutil
 import subprocess
 import sys
 import time
-import urllib.error
-import urllib.request
 
 ROOT = Path(__file__).resolve().parents[1]
+# Pin this file: do not honor COMPOSE_FILE or implicit override-file discovery.
+COMPOSE = ['docker', 'compose', '-f', str(ROOT / 'docker-compose.yml')]
+HEALTH = "import json,urllib.request; r=urllib.request.urlopen('http://127.0.0.1:8787/api/health',timeout=2); assert r.status==200 and json.load(r)=={'ok':True}"
 
 
 def check():
@@ -18,7 +19,7 @@ def check():
         return False
     for command, label in [(['docker', 'compose', 'version'], 'Compose plugin'),
                            (['docker', 'info'], 'Docker daemon access'),
-                           (['docker', 'compose', 'config', '--quiet'], 'Compose configuration')]:
+                           ([*COMPOSE, 'config', '--quiet'], 'Compose configuration')]:
         try:
             result = subprocess.run(command, cwd=ROOT, capture_output=True, timeout=30)
         except (OSError, subprocess.TimeoutExpired):
@@ -47,7 +48,9 @@ def main(argv=None):
     if not sys.stdin.isatty():
         print('Interactive setup needs a terminal. Use --check for a read-only preflight.')
         return 1
-    print('Next action: docker compose up -d --build. It downloads/builds images, starts app/sync services and creates a persistent data volume.')
+    print('This helper uses only the repository root docker-compose.yml; COMPOSE_FILE and implicit override files are not used. Edit that file or use manual Compose for custom stacks.')
+    print('Existing services in this Compose project may be rebuilt/recreated. The selected Docker context and COMPOSE_PROJECT_NAME still apply; verify they name your intended host/project first.')
+    print('Next action: docker compose -f docker-compose.yml up -d --build. It downloads/builds images, starts app/sync services and creates or reuses a persistent data volume.')
     try:
         answer = input('Build and start this stack now? [y/N] ').strip().lower()
     except (EOFError, KeyboardInterrupt):
@@ -57,28 +60,29 @@ def main(argv=None):
         print('Skipped. No services started.')
         return 0
     try:
-        result = subprocess.run(['docker', 'compose', 'up', '-d', '--build'], cwd=ROOT)
+        result = subprocess.run([*COMPOSE, 'up', '-d', '--build'], cwd=ROOT)
     except (OSError, KeyboardInterrupt):
         print('\nSetup interrupted. Some services may have started; inspect docker compose ps before retrying.')
         return 1
     if result.returncode:
         print('Build/start failed. Some services may exist. Inspect docker compose ps and docker compose logs; your data volume was not removed.')
         return 1
-    print('Build/start command completed. Checking the default loopback API for up to 30 seconds...')
+    print('Build/start command completed. Checking health INSIDE this Compose sync service for up to 30 seconds...')
     deadline = time.monotonic() + 30
     while True:
         try:
-            with urllib.request.urlopen('http://127.0.0.1:8787/api/health', timeout=2) as response:
-                import json
-                if response.status == 200 and json.load(response) == {'ok': True}:
-                    break
-        except (OSError, ValueError):
+            result = subprocess.run([*COMPOSE, 'exec', '-T', 'sync', 'python', '-c', HEALTH],
+                                    cwd=ROOT, capture_output=True, timeout=5)
+            if result.returncode == 0:
+                break
+        except (OSError, subprocess.TimeoutExpired):
             pass
         if time.monotonic() >= deadline:
-            print('Default API health not confirmed. Services were not stopped. Check logs and your configured host port; do not rerun blindly.')
+            print('Compose sync service health not confirmed. Services were not stopped. Check the selected project and its logs; do not rerun blindly.')
             return 1
         time.sleep(0.5)
-    print('Default loopback API responds. This alone does not prove TLS, browser sync or a changed port mapping.')
+    print('This Compose sync service responds internally. Host port reachability, TLS and browser sync are NOT verified.')
+    print('Use docker compose -f docker-compose.yml port app 80 and port sync 8787 to inspect your published ports.')
     print('1. With default ports, open http://localhost:8080 on this host, then Settings -> Sync. If you changed ports, use your configured URLs.')
     print('2. Enter http://localhost:8787 on this host and create the FIRST account. There is no default login or email password reset.')
     print('3. Root Compose closes registration after the first account; server/ Compose differs. Do not leave extra registration open by accident.')

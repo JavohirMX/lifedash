@@ -23,6 +23,12 @@ architecture and available memory before choosing a deployment.
 From the repository root, `make setup` guides a Compose installation. It checks
 Docker, daemon access and Compose config before asking whether to build/start.
 It does not collect credentials, change registration policy, or configure TLS.
+The helper pins the root Compose file, ignoring `COMPOSE_FILE` and implicit
+override discovery. Docker context and `COMPOSE_PROJECT_NAME` still apply:
+confirm the intended host/project before consent, as existing services may be
+recreated. Use manual Compose for custom override stacks. The health probe runs
+inside the selected sync container, so a different host port is not mistaken for
+this service. It does not prove the published host port is reachable.
 Use `make setup-check` for a read-only preflight; neither check is proof that the
 container images work. The actual build/start path still needs validation on a
 Docker-capable host.

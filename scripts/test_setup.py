@@ -2,7 +2,6 @@
 import importlib.util
 from pathlib import Path
 import unittest
-from unittest.mock import MagicMock
 from unittest.mock import patch
 
 spec = importlib.util.spec_from_file_location('lifedash_setup', Path(__file__).with_name('setup.py'))
@@ -21,7 +20,7 @@ class SetupTests(unittest.TestCase):
             run.return_value.returncode = 0
             self.assertEqual(setup.main(['--check']), 0)
             self.assertEqual([c.args[0] for c in run.call_args_list], [
-                ['docker', 'compose', 'version'], ['docker', 'info'], ['docker', 'compose', 'config', '--quiet']])
+                ['docker', 'compose', 'version'], ['docker', 'info'], [*setup.COMPOSE, 'config', '--quiet']])
 
     def test_failed_preflight_stops(self):
         with patch.object(setup.shutil, 'which', return_value='/fake/docker'), patch.object(setup.subprocess, 'run') as run:
@@ -43,22 +42,32 @@ class SetupTests(unittest.TestCase):
         with patch.object(setup, 'check', return_value=True), patch.object(setup.sys.stdin, 'isatty', return_value=True), patch('builtins.input', return_value='y'), patch.object(setup.subprocess, 'run') as run:
             run.return_value.returncode = 1
             self.assertEqual(setup.main([]), 1)
-            self.assertEqual(run.call_args.args[0], ['docker', 'compose', 'up', '-d', '--build'])
+            self.assertEqual(run.call_args.args[0], [*setup.COMPOSE, 'up', '-d', '--build'])
 
-    def test_success_checks_health_and_no_extra_commands(self):
-        response = MagicMock()
-        response.__enter__.return_value.status = 200
-        response.__enter__.return_value.read.return_value = b'{"ok":true}'
-        with patch.object(setup, 'check', return_value=True), patch.object(setup.sys.stdin, 'isatty', return_value=True), patch('builtins.input', return_value='yes'), patch.object(setup.subprocess, 'run') as run, patch.object(setup.urllib.request, 'urlopen', return_value=response):
+    def test_success_probes_selected_compose_container_not_host(self):
+        with patch.object(setup, 'check', return_value=True), patch.object(setup.sys.stdin, 'isatty', return_value=True), patch('builtins.input', return_value='yes'), patch.object(setup.subprocess, 'run') as run:
             run.return_value.returncode = 0
             self.assertEqual(setup.main([]), 0)
-            self.assertEqual(run.call_count, 1)
+            self.assertEqual(run.call_count, 2)
+            self.assertEqual(run.call_args.args[0], [*setup.COMPOSE, 'exec', '-T', 'sync', 'python', '-c', setup.HEALTH])
 
-    def test_health_timeout_fails_without_stopping_services(self):
-        with patch.object(setup, 'check', return_value=True), patch.object(setup.sys.stdin, 'isatty', return_value=True), patch('builtins.input', return_value='yes'), patch.object(setup.subprocess, 'run') as run, patch.object(setup.urllib.request, 'urlopen', side_effect=OSError), patch.object(setup.time, 'monotonic', side_effect=[0, 31]):
-            run.return_value.returncode = 0
+    def test_container_health_failure_is_not_masked_by_host_service(self):
+        # No host URL request exists: even an unrelated host :8787 returning OK
+        # cannot make this failing container probe succeed.
+        with patch.object(setup, 'check', return_value=True), patch.object(setup.sys.stdin, 'isatty', return_value=True), patch('builtins.input', return_value='yes'), patch.object(setup.subprocess, 'run') as run, patch.object(setup.time, 'monotonic', side_effect=[0, 31]):
+            from types import SimpleNamespace
+            run.side_effect = [SimpleNamespace(returncode=0), SimpleNamespace(returncode=1)]
             self.assertEqual(setup.main([]), 1)
-            self.assertEqual(run.call_count, 1)
+            self.assertEqual(run.call_count, 2)
+            self.assertIn('exec', run.call_args.args[0])
+
+    def test_explicit_file_excludes_compose_file_and_implicit_overrides(self):
+        self.assertEqual(setup.COMPOSE, ['docker', 'compose', '-f', str(setup.ROOT / 'docker-compose.yml')])
+
+    def test_nondefault_host_ports_do_not_change_internal_probe(self):
+        # No host mapping or hardcoded host service is used for health.
+        self.assertIn('127.0.0.1:8787/api/health', setup.HEALTH)
+        self.assertIn('python', [*setup.COMPOSE, 'exec', '-T', 'sync', 'python', '-c', setup.HEALTH])
 
 
 if __name__ == '__main__':

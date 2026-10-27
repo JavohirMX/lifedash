@@ -11,6 +11,11 @@ From the repository root, run `make setup` for a guided Docker Compose setup
 (Python 3 and make required). It checks Docker/Compose/config, explains the
 network exposure and asks before building or starting services.
 `make setup-check` only runs the read-only preflight. It never starts services.
+The helper pins the root Compose file (ignores `COMPOSE_FILE` and implicit
+overrides), but your Docker context and `COMPOSE_PROJECT_NAME` still apply.
+Confirm the intended host/project before consenting: existing services may be
+recreated. Custom override stacks should use manual Compose. Its health check
+runs inside the selected sync container, not an unrelated service on a host port.
 
 Or start directly with Docker Compose:
 
