@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { parseQuickAdd, groupCompletedByDay, renamedTags, completeTask, skipOccurrence, extractChecklistItems, filterNewChecklistItems, describeRecurrence, isRecurrenceValid, nextOccurrenceDate, makeRecurrence, upNextGroups } from './logic';
+import { parseQuickAdd, groupCompletedByDay, renamedTags, completeTask, skipOccurrence, searchJournal, extractChecklistItems, filterNewChecklistItems, describeRecurrence, isRecurrenceValid, nextOccurrenceDate, makeRecurrence, upNextGroups } from './logic';
 import type { Task } from './types';
 
 describe('parseQuickAdd', () => {
@@ -320,5 +320,17 @@ describe('filterNewChecklistItems', () => {
 
   it('returns empty when everything already exists', () => {
     expect(filterNewChecklistItems(['A', 'B'], ['a', 'b'])).toEqual([]);
+  });
+});
+
+
+describe('journal search highlights', () => {
+  it('finds highlights independently of body text and tolerates older entries', () => {
+    const entries = [
+      { id: 'a', date: '2026-10-27', note: 'Ordinary day', highlight: 'First trail run' },
+      { id: 'b', date: '2026-10-26', note: 'Trail maps' },
+    ] as Parameters<typeof searchJournal>[0];
+    expect(searchJournal(entries, 'trail').map(e => e.id)).toEqual(['a', 'b']);
+    expect(searchJournal(entries, 'first').map(e => e.id)).toEqual(['a']);
   });
 });

@@ -389,7 +389,7 @@ export function searchNotes(notes: Note[], query: string): Note[] {
 
 export function searchJournal(entries: JournalEntry[], query: string): JournalEntry[] {
   return entries
-    .filter((e) => textMatch(e.note, query))
+    .filter((e) => textMatch(e.note, query) || textMatch(e.highlight ?? '', query))
     .sort((a, b) => (a.date < b.date ? 1 : -1));
 }
 
