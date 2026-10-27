@@ -72,7 +72,7 @@ export default function SyncDialog(props: { onClose: () => void }) {
       setStatus(
         result === 'revoked'
           ? 'Disconnected - the server ended the session.'
-          : 'Disconnected on this device. The server did not confirm logout (older server or unreachable), so the token may stay valid there until it expires.',
+          : 'Disconnected on this device. The server did not confirm logout (older server or unreachable), so the token stays valid there - tokens do not expire in v1.',
       );
     } finally {
       saveSyncSettings(null);
