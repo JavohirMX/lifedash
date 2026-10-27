@@ -1802,3 +1802,5 @@ main.tv-grid { max-width: none; width: 100%; }
 .gcal-panel { display: flex; flex-direction: column; gap: 8px; margin-top: 16px; padding-top: 12px; border-top: 1px solid var(--border, rgba(127,127,127,.25)); }
 .gcal-panel h3 { margin: 0; font-size: var(--fs-small); }
 .gcal-limits { margin: 0; padding-left: 18px; font-size: var(--fs-small); color: var(--muted); }
+
+.gcal-events { list-style:none;padding:0; }.gcal-events li { display:flex;gap:14px;padding:10px 0;border-bottom:1px solid var(--border);overflow-wrap:anywhere; }.gcal-events li>span:first-child { flex:0 0 72px;color:var(--muted); }

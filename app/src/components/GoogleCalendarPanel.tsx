@@ -52,6 +52,7 @@ export function GoogleCalendarView(props: {
   onConnect?: () => void;
   onDisconnect?: () => void;
   onRetry?: () => void;
+  eventDisplay?: boolean;
 }) {
   const { state, busy = false, notice = null } = props;
   return (
@@ -65,10 +66,10 @@ export function GoogleCalendarView(props: {
       )}
       {(state.kind === 'disconnected' || state.kind === 'connected' || state.kind === 'reconnect') && (
         <>
-          <p className="rule-note">Connection preparation for your primary Google calendar, read-only. Event display is not wired into Lifedash yet.</p>
-          <ul className="gcal-limits">
+          <p className="rule-note">{props.eventDisplay ? 'View your primary Google calendar titles and times here. Read-only: Lifedash never changes your calendar.' : 'Connection preparation for your primary Google calendar, read-only. Event display is not wired into Lifedash yet.'}</p>
+          <details open={state.kind !== 'connected'}><summary>Scope and connection limits</summary><ul className="gcal-limits">
             {GOOGLE_SCOPE_COPY.limits.filter(l => !l.startsWith('Not a sync.')).map((l) => <li key={l}>{l}</li>)}
-          </ul>
+          </ul></details>
         </>
       )}
       {state.kind === 'connected' && <p className="rule-note" role="status">Connected{since(state.connectedAt)}.</p>}
@@ -86,12 +87,14 @@ export function GoogleCalendarView(props: {
   );
 }
 
-export default function GoogleCalendarPanel(props: { settings: SyncSettings | null }) {
+export default function GoogleCalendarPanel(props: { settings: SyncSettings | null; eventDisplay?: boolean; onConnectionChange?: (connected:boolean)=>void }) {
   const { settings } = props;
   const [state, setState] = useState<PanelState>(SAMPLE_MODE ? { kind: 'sample' } : settings ? { kind: 'loading' } : { kind: 'signed_out' });
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
   const live = useRef(true);
+  const connectionCallback=useRef(props.onConnectionChange);connectionCallback.current=props.onConnectionChange;
+  useEffect(()=>{connectionCallback.current?.(state.kind==='connected');},[state.kind]);
   useEffect(() => { live.current = true; return () => { live.current = false; }; }, []);
 
   const refresh = useCallback(async () => {
@@ -139,5 +142,5 @@ export default function GoogleCalendarPanel(props: { settings: SyncSettings | nu
     }
   }
 
-  return <GoogleCalendarView state={state} busy={busy} notice={notice} onConnect={() => void connect()} onDisconnect={() => void disconnect()} onRetry={() => void refresh()} />;
+  return <GoogleCalendarView eventDisplay={props.eventDisplay} state={state} busy={busy} notice={notice} onConnect={() => void connect()} onDisconnect={() => void disconnect()} onRetry={() => void refresh()} />;
 }
