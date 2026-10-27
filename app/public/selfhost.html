@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>Set up your own Lifedash</title>
+<style>
+:root{font-family:system-ui,sans-serif;color:#23312c;background:#f7f7f4;line-height:1.6}*{box-sizing:border-box}body{margin:0}main{max-width:760px;margin:auto;padding:32px 24px 72px}a{color:#116c5b;text-underline-offset:3px}a:focus-visible,summary:focus-visible{outline:3px solid #378fbe;outline-offset:5px}h1{font-size:clamp(1.9rem,6vw,2.7rem);line-height:1.15;letter-spacing:-.04em;margin:24px 0 16px}h2{font-size:1.25rem;margin:0 0 10px}h3{font-size:1rem}p{margin:8px 0 16px}.eyebrow{font-size:.8rem;letter-spacing:.1em;text-transform:uppercase;color:#53655d}.intro{font-size:1.1rem;color:#53655d}.card{border:1px solid #d8dfd9;border-radius:14px;background:#fff;padding:22px;margin:20px 0}.note{border-left:3px solid #247a66;padding:10px 16px;background:#eaf3ed}.warning{border-left-color:#a46b13;background:#fcf3df}pre{background:#edf1ee;padding:16px;border-radius:8px;white-space:pre-wrap;overflow-wrap:anywhere;font-size:.85rem;line-height:1.65}code{font-family:ui-monospace,monospace;overflow-wrap:anywhere}li{margin:8px 0}ol,ul{padding-left:24px}nav{display:flex;gap:8px 18px;flex-wrap:wrap;margin:24px 0}summary{cursor:pointer;font-weight:600;padding:12px 0}footer{margin-top:32px;color:#53655d;font-size:.9rem} @media(max-width:400px){main{padding:20px 16px 48px}.card{padding:16px}}@media(prefers-color-scheme:dark){:root{color:#e2e9e4;background:#191f1c}.intro,.eyebrow,footer{color:#b4c2b9}.card{background:#222b25;border-color:#46554a}a{color:#83d4bb}pre{background:#151d18}.note{background:#203a2c}.warning{background:#3b301d}}
+</style>
+</head>
+<body><main>
+<a href="./">← Back to Lifedash</a>
+<p class="eyebrow">Self-host setup guide</p>
+<h1>Your life dashboard.<br>Your own server.</h1>
+<p class="intro">Start local, then connect your devices when you're ready. This checklist explains the setup; it does not install anything or check your server automatically.</p>
+<nav aria-label="Guide sections"><a href="#choose">Choose a setup</a><a href="#start">Start the stack</a><a href="#connect">Connect devices</a><a href="#backup">Protect your data</a><a href="#help">Troubleshoot</a></nav>
+<section id="choose" class="card"><h2>1. Choose what you need</h2>
+<p><strong>Just this device?</strong> Lifedash works without a sync account. Your data stays in this browser. Use JSON export in Export &amp; backup regularly, especially before clearing browser storage.</p>
+<p><strong>More than one device?</strong> Run the app and sync server on your own host. You need a copy of the Lifedash repository, Docker Engine with the Compose plugin, writable persistent storage, and HTTPS for access beyond localhost.</p>
+<p class="note">This is an early-development app. Keep backups and test your setup before relying on it for important data. Container and real-device validation may still be needed for your host.</p></section>
+<section id="start" class="card"><h2>2. Start and check the stack</h2>
+<p>In a terminal at the repository root (the folder containing <code>docker-compose.yml</code>), run <code>make setup</code> for guided checks and an explicit prompt before building or starting services. It requires Python 3 and make. Use <code>make setup-check</code> for a read-only preflight. To run the steps directly:</p>
+<pre><code>docker compose version
+docker compose config
+docker compose up -d --build
+docker compose ps
+curl http://localhost:8787/api/health</code></pre>
+<p>The health response should be <code>{"ok":true}</code>. Open <code>http://localhost:8080</code> on that same computer. The app uses port 8080; the sync API uses port 8787. Those are two different URLs.</p>
+<p class="note warning">The Compose port mappings listen on your host's network interfaces. Keep access restricted during setup. Anyone who reaches a fresh, empty sync server can create its first account.</p>
+<p>If a port is already used, change only the host side of its Compose mapping, for example <code>8081:80</code>. Keep the container ports unchanged.</p></section>
+<section id="connect" class="card"><h2>3. Connect your first device</h2>
+<ol><li>Open Lifedash, then <strong>Settings → Sync</strong>.</li><li>Enter the sync server URL: <code>http://localhost:8787</code> only when the browser and server are on the same computer.</li><li>Choose a username and a password of at least 8 characters, then <strong>Create account</strong>. There is no default login or email password-reset flow.</li><li>Use <strong>Sync now</strong> and check the result. The root Compose setup closes registration after the first account. The sync-only Compose file in <code>server/</code> explicitly leaves it open until you change its setting.</li></ol>
+<h3>Before connecting a phone or another computer</h3>
+<p>Put the app and API behind HTTPS, using a reverse proxy such as Caddy. On the other device, <code>localhost</code> means that device, not your server. Use the host's reachable HTTPS app URL, then enter its reachable HTTPS sync URL in Settings.</p>
+<p>Sign in with the <strong>same account</strong>; do not create a separate one on each device. A browser may block an HTTPS app from calling an HTTP sync API. HTTPS also enables the service worker away from localhost.</p>
+<p class="note warning">Keep the server private until setup is complete. Passwords and bearer tokens must not travel over plain HTTP outside localhost. Tokens do not expire in v1; Disconnect tries to revoke this device's token.</p>
+<details><summary>What sync does, and what stays local</summary><p>Tasks, projects, tags, habits and habit logs, goals, notes and journal sync. Attachment metadata syncs, but the actual attachment files stay on each device. Focus-session history is local. Appearance and other device preferences are not a server backup.</p><p>Changes sync on focus, reconnect, periodically and after edits. Simultaneous edits can conflict; the server's version wins. Sync is not a versioned backup.</p></details></section>
+<section id="backup" class="card"><h2>4. Protect your data before upgrading</h2>
+<p>Keep both a device JSON export and a server backup. Save copies off the server. JSON exports include focus history but only attachment metadata, not the file contents. Keep original attachment files separately; neither backup contains those files.</p>
+<p>From the repository root, take an online SQLite backup using Python in the sync container:</p>
+<pre><code>docker compose exec sync python -c "import sqlite3; src=sqlite3.connect('/data/lifedash.db'); dst=sqlite3.connect('/data/backup.db'); src.backup(dst); dst.close(); src.close()"
+docker compose cp sync:/data/backup.db ./lifedash-backup.db</code></pre>
+<p>Rename or archive the copied file before the next backup, which overwrites it. Treat it as private: it contains account data and bearer tokens. Do not copy a live database file alone while SQLite is writing to it.</p>
+<p><code>docker compose down</code> keeps the volume. <strong>Do not add <code>-v</code></strong>: that deletes the data volume. Before upgrading, keep the current code version and backup. Restore into a separate test instance first; replacing a live database is destructive. Full recovery steps are in <code>server/SELFHOST.md</code> in your checkout.</p></section>
+<section id="help" class="card"><h2>When something doesn't work</h2>
+<details><summary>The app opens, but Sync can't reach the server</summary><p>Check the API URL, not the app URL. Visit <code>/api/health</code> on that API host from the same device. Check your firewall, HTTPS certificate and reverse proxy. A working app page does not prove the API is reachable.</p><pre><code>docker compose ps
+docker compose logs --tail=100 sync</code></pre><p>Do not share logs containing personal data or credentials.</p></details>
+<details><summary>Registration is closed, or sign-in fails</summary><p>A 403 during account creation is expected after the first account in the root setup. Use Sign in for an existing account. A 401 means the credentials did not match. To deliberately add an account, temporarily set <code>SYNC_OPEN_REGISTRATION: "1"</code> on the sync service, recreate it, then close registration and recreate it again.</p></details>
+<details><summary>A task synced, but its attachment didn't</summary><p>That is a current limit: file contents stay local. Keep original attachment files separately: both JSON exports and the sync database contain only attachment metadata. Keep device exports for local focus history too.</p></details>
+<details><summary>I only want to test the backend locally</summary><p>After <code>make install</code>, run <code>make test-selfhost</code> on a POSIX host. It starts temporary loopback servers and synthetic databases, checks restart persistence and online backup/restore, then removes them. It does not validate Docker, TLS or a real device.</p></details>
+</section>
+<footer>This guide is bundled with Lifedash. It does not contact an external service, collect credentials or change your server. For reverse-proxy and bare-metal examples, see <code>server/SELFHOST.md</code>.</footer>
+</main></body></html>

@@ -18,6 +18,32 @@ The sync server is a single FastAPI process with one SQLite file. No
 other services, no external database. The sync process needs Python 3 and writable local storage. Check your host's
 architecture and available memory before choosing a deployment.
 
+## First-run checklist
+
+From the repository root, `make setup` guides a Compose installation. It checks
+Docker, daemon access and Compose config before asking whether to build/start.
+It does not collect credentials, change registration policy, or configure TLS.
+Use `make setup-check` for a read-only preflight; neither check is proof that the
+container images work. The actual build/start path still needs validation on a
+Docker-capable host.
+
+
+1. Keep the host private during setup. The Compose port mappings bind to host
+   network interfaces, not only loopback.
+2. From the repository root, run `docker compose config`, then
+   `docker compose up -d --build` and `docker compose ps`.
+3. Check `http://localhost:8787/api/health` on the server. Open the app at
+   `http://localhost:8080`, then follow Settings -> Sync. The bundled
+   `/selfhost.html` guide keeps these steps available alongside the app.
+4. Create the first account before allowing anyone else access. There is no
+   default password or email password-reset flow.
+5. Configure HTTPS for both app and API before connecting another device.
+   Sign into the same account there and verify a fictional task syncs both ways.
+6. Take device JSON exports and a server backup before using important data.
+   Restore a copy in isolation before trusting the backup.
+
+The guide is a static checklist, not an automatic installer or server probe.
+
 ## Pick a deployment
 
 ### Docker (recommended)
@@ -138,6 +164,39 @@ Keep the copied backup somewhere separate from the running data volume.
 The destination file is overwritten on the next backup, so rename or archive
 it if you need multiple versions.
 
+## Test a backup before recovery
+
+A server backup contains account credentials/tokens and synced records. Treat it
+as private. It does not include device-only attachment files or focus history.
+Device JSON exports include focus history but only attachment metadata, not file
+contents. Keep original attachment files separately as well as device exports. Never copy just the live SQLite file while writes
+are active: use the online backup command above.
+
+To check the copied snapshot without modifying it, run on a host with Python:
+
+```bash
+python3 -c "import sqlite3; c=sqlite3.connect('file:lifedash-backup.db?mode=ro', uri=True); print(c.execute('PRAGMA integrity_check').fetchone()[0]); c.close()"
+```
+
+Expect `ok`. Integrity is not proof of complete recovery. For a recovery drill,
+copy the backup into a separate directory and start a separate sync process
+using the bare-metal command with `SYNC_DB` pointing at that copy and a different
+loopback port. Use a separate browser profile with fictional data to verify
+login and expected records. Do not point a real client at a recovery test.
+
+Replacing the live database is destructive. Stop all sync writers first, retain
+an online backup of the current state and the current code version, and restore
+into a fresh data location. Do not leave old WAL/SHM sidecars beside the restored
+database. Check login and records before reconnecting clients. This guide does
+not automatically perform recovery. `docker compose down` preserves data;
+`docker compose down -v` deletes the volume and must not be used for upgrades.
+
+For a synthetic, non-Docker drill after `make install`, run
+`make test-selfhost` from the repo root on a POSIX host. It verifies a real
+loopback uvicorn process, account/auth behavior, restart persistence, an online
+SQLite backup and restored login/data, then deletes the temporary databases.
+It does not establish Docker image, TLS or real-device readiness.
+
 ## Upgrading
 
 ```bash
@@ -160,6 +219,7 @@ first, as with anything that holds your data.
   then the browser console (auto-sync failures log there). The app
   needs to reach the server URL exactly as entered, including scheme.
 - **Attachments missing on the second device** - attachment blobs stay
-  local to each device in v1 (metadata syncs). Tasks, projects, habits
+  local to each device in v1 (metadata syncs). JSON exports also contain only
+  attachment metadata; keep original files separately. Tasks, projects, habits
   habit logs, goals, notes and journal all sync. Focus-session history is local
   only and included in JSON backups, not server sync.

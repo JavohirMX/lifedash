@@ -4,10 +4,19 @@
 PYTHON ?= python3
 VENV = server/.venv
 
-.PHONY: help install test test-app test-server test-keyboard build dev dev-app dev-server docker-up docker-down docker-build docker-logs
+.PHONY: help setup setup-check test-setup install test test-app test-server test-keyboard test-selfhost build dev dev-app dev-server docker-up docker-down docker-build docker-logs
 
 help: ## List targets
 	@grep -E '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  %-15s %s\n", $$1, $$2}'
+
+setup: ## Guided self-host setup (asks before starting Docker services)
+	$(PYTHON) scripts/setup.py
+
+setup-check: ## Read-only Docker/Compose/config preflight (never starts services)
+	$(PYTHON) scripts/setup.py --check
+
+test-setup: ## Test setup safety paths with mocked subprocesses (no Docker)
+	$(PYTHON) -m unittest discover -s scripts -p test_setup.py
 
 install: ## Install app and server dependencies
 	cd app && npm ci
@@ -24,6 +33,9 @@ test-keyboard: ## Run sample-only desktop/phone keyboard browser checks (Chrome 
 
 test-server: ## Run sync server tests
 	cd server && .venv/bin/python -m pytest -q
+
+test-selfhost: ## Disposable loopback restart and SQLite backup/restore smoke check (POSIX)
+	$(VENV)/bin/python scripts/check-selfhost.py
 
 build: ## Production build of the app (app/dist)
 	cd app && npm run build

@@ -7,11 +7,20 @@ day planner in one place, on web, desktop and mobile.
 
 ## Self-host
 
-Run the app and sync server together with Docker Compose:
+From the repository root, run `make setup` for a guided Docker Compose setup
+(Python 3 and make required). It checks Docker/Compose/config, explains the
+network exposure and asks before building or starting services.
+`make setup-check` only runs the read-only preflight. It never starts services.
+
+Or start directly with Docker Compose:
 
     docker compose up --build
 
 App on http://localhost:8080, sync server on http://localhost:8787.
+Open the bundled setup checklist at `http://localhost:8080/selfhost.html`
+(or use the setup-guide link in Settings). It walks through first-account setup,
+HTTPS/device URLs, sync limits and backups without contacting another service.
+
 Details and other deployment options: [server/SELFHOST.md](server/SELFHOST.md).
 
 ## Local development
@@ -31,6 +40,11 @@ set `CHROME_PATH` if it is not `/usr/bin/google-chrome`. No real user database,
 sync account or AI provider is used. The server stops when checks finish or are
 interrupted. The default port is 4174; use `KEYBOARD_TEST_PORT` to choose another
 free port. An occupied port fails rather than using an existing server.
+
+`make test-selfhost` runs a disposable loopback API check for restart persistence
+and SQLite online backup/restore. It uses synthetic temporary databases only.
+It requires the installed server venv and a POSIX host; it does not test Docker,
+TLS, a reverse proxy or real-device sync.
 
 ## Docs
 

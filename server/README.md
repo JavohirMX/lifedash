@@ -10,8 +10,9 @@ backups, upgrades, troubleshooting).
 
 ```bash
 docker compose up -d --build
-# create your account (registration closes after the first user unless
-# SYNC_OPEN_REGISTRATION=1), then point the app at http://<host>:8787
+# This sync-only Compose file sets SYNC_OPEN_REGISTRATION=1.
+# Create your account(s), set that entry to "0", then recreate the service.
+# Connect through HTTPS beyond localhost; see SELFHOST.md.
 ```
 
 Put it behind a TLS reverse proxy (Caddy, Nginx Proxy Manager, Tailscale
@@ -22,7 +23,7 @@ Funnel) before exposing it beyond localhost - tokens are bearer tokens.
 ```bash
 pip install -r requirements-dev.txt
 SYNC_DB=./dev.db SYNC_OPEN_REGISTRATION=1 uvicorn app.main:app --port 8787
-pytest            # 12 tests
+pytest
 ```
 
 ## API
