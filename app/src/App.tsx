@@ -1,3 +1,5 @@
+import CompletionDialog from './components/CompletionDialog';
+import { setCompletionHandler, type CompletionPrompt } from './completionPrompt';
 import { SAMPLE_MODE } from './dev/sampleMode';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { ArrowRight, Pencil, X } from 'lucide-react';
@@ -47,6 +49,8 @@ import { updateTask, moveTask, updateProject, deleteProject } from './repo';
 import type { Task, JournalEntry } from './types';
 
 export default function App() {
+  const [completionPrompt, setCompletionPrompt] = useState<CompletionPrompt | null>(null);
+  useEffect(() => { setCompletionHandler(setCompletionPrompt); return () => setCompletionHandler(null); }, []);
   const tasks = useLiveQuery(() => db.tasks.toArray(), []);
   const projects = useLiveQuery(() => db.projects.orderBy('order').toArray(), []);
   const notes = useLiveQuery(() => db.notes.toArray(), []);
@@ -392,6 +396,7 @@ export default function App() {
         )}
         {body}
       </main>
+      {completionPrompt && <CompletionDialog prompt={completionPrompt} />}
       {openId && (
         <TaskDetail
           taskId={openId}

@@ -1,8 +1,9 @@
+import { requestComplete } from '../completionPrompt';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { useEffect, useState } from 'react';
 import { Check, Flame, ArrowRight, Target, SlidersHorizontal, Zap } from 'lucide-react';
 import { db } from '../db';
-import { toggleComplete, toggleHabitForDate, stopFocus } from '../repo';
+import { toggleHabitForDate, stopFocus } from '../repo';
 import { runningSession, sessionSeconds, focusTotals, formatClock, formatDuration } from '../focus';
 import { todayTasks, upcomingTasks, suggestedTask, upNextGroups } from '../logic';
 import { currentStreak, isScheduledOn, logsByDate } from '../habits';
@@ -138,7 +139,7 @@ export default function HomeView(props: { tasks: Task[]; onSelect: (kind: string
             <button
               className="checkbox"
               aria-label={`Mark ${suggestion.task.title} done`}
-              onClick={() => void toggleComplete(suggestion.task)}
+              onClick={() => void requestComplete(suggestion.task)}
             />
             <button className="focus-title" onClick={() => props.onOpen(suggestion.task.id)}>
               {suggestion.task.title}
@@ -191,7 +192,7 @@ export default function HomeView(props: { tasks: Task[]; onSelect: (kind: string
               <ul className="widget-list">
                 {next.map((t) => (
                   <li key={t.id}>
-                    <button className="checkbox" aria-label={`Complete ${t.title}`} onClick={() => void toggleComplete(t)} />
+                    <button className="checkbox" aria-label={`Complete ${t.title}`} onClick={() => void requestComplete(t)} />
                     <button className="widget-task" onClick={() => props.onOpen(t.id)}>{t.title}</button>
                   </li>
                 ))}
@@ -274,7 +275,7 @@ export default function HomeView(props: { tasks: Task[]; onSelect: (kind: string
                 <ul className="widget-list">
                   {dayTasks(drillDate).map((t) => (
                     <li key={t.id}>
-                      <button className={`checkbox ${t.status === 'done' ? 'checked' : ''}`} aria-label={t.status === 'done' ? 'Mark not done' : 'Mark done'} onClick={() => void toggleComplete(t)}>
+                      <button className={`checkbox ${t.status === 'done' ? 'checked' : ''}`} aria-label={t.status === 'done' ? 'Mark not done' : 'Mark done'} onClick={() => void requestComplete(t)}>
                         {t.status === 'done' ? <Check size={13} strokeWidth={2.5} aria-hidden="true" /> : null}
                       </button>
                       <button className={`widget-task ${t.status === 'done' ? 'done' : ''}`} onClick={() => props.onOpen(t.id)}>{t.title}</button>

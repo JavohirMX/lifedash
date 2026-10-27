@@ -1,7 +1,7 @@
+import { requestComplete } from '../completionPrompt';
 import { useMemo, useState } from 'react';
 import { Check, ChevronLeft, ChevronRight } from 'lucide-react';
 import { todayStr, addDays, friendlyDate, weekdayLabel } from '../dates';
-import { toggleComplete } from '../repo';
 import type { Task } from '../types';
 
 function monthKey(dateStr: string): string {
@@ -124,7 +124,7 @@ export default function CalendarView(props: { tasks: Task[]; onOpen: (id: string
                   <button
                     className={`checkbox ${t.status === 'done' ? 'checked' : ''}`}
                     aria-label={t.status === 'done' ? 'Mark not done' : 'Mark done'}
-                    onClick={() => void toggleComplete(t)}
+                    onClick={() => void requestComplete(t)}
                   >
                     {t.status === 'done' ? <Check size={13} strokeWidth={2.5} aria-hidden="true" /> : null}
                   </button>

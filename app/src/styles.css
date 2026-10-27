@@ -1591,3 +1591,8 @@ input[type='checkbox'], input[type='radio'], input[type='range'] { accent-color:
 .settings-row small { display: block; margin-top: 4px; font-size: 12px; color: var(--muted); }
 .settings-row > span:last-child { font-size: 12px; color: var(--muted); }
 .settings-row:disabled { opacity: .55; cursor: not-allowed; }
+
+.completion-panel { max-width: 520px; }
+.completion-panel p, .completion-panel li { font-size: 14px; line-height: 1.6; }
+.completion-actions { display: flex; justify-content: flex-end; gap: 8px; flex-wrap: wrap; margin-top: 20px; }
+.completion-actions button { min-height: 42px; }

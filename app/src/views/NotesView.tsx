@@ -1,8 +1,9 @@
+import { requestComplete } from '../completionPrompt';
 import { useMemo, useState } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { Check, ListPlus, Pin, PinOff, Plus, Search, StickyNote, Trash2 } from 'lucide-react';
 
-import { addNote, updateNote, deleteNote, addTask, toggleComplete } from '../repo';
+import { addNote, updateNote, deleteNote, addTask } from '../repo';
 import { extractChecklistItems, filterNewChecklistItems, searchNotes } from '../logic';
 import { db, INBOX_ID } from '../db';
 import NoteEditor from '../components/NoteEditor';
@@ -173,7 +174,7 @@ export default function NotesView(props: { initialOpenId?: string }) {
                         <button
                           className={`checkbox ${t.status === 'done' ? 'checked' : ''}`}
                           aria-label={t.status === 'done' ? 'Mark not done' : 'Mark done'}
-                          onClick={() => void toggleComplete(t)}
+                          onClick={() => void requestComplete(t)}
                         >
                           {t.status === 'done' ? <Check size={13} strokeWidth={2.5} aria-hidden="true" /> : null}
                         </button>

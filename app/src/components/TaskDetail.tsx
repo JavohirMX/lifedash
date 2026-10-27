@@ -1,3 +1,4 @@
+import { requestComplete } from '../completionPrompt';
 import { X, Check, StickyNote } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import NoteEditor from './NoteEditor';
@@ -6,7 +7,7 @@ import { useLiveQuery } from 'dexie-react-hooks';
 import { runningSession, sessionSeconds, focusTotals, formatClock, formatDuration } from '../focus';
 import { startFocus, stopFocus } from '../repo';
 import { db, INBOX_ID } from '../db';
-import { addTask, deleteTask, skipTask, toggleComplete, updateTask, addBlocker, removeBlocker, addTag, removeTag } from '../repo';
+import { addTask, deleteTask, skipTask, updateTask, addBlocker, removeBlocker, addTag, removeTag } from '../repo';
 import { makeRecurrence, describeRecurrence, isRecurrenceValid, blockersOf, blockerCandidates, normalizeTask } from '../logic';
 import { todayStr } from '../dates';
 import { projectTree } from '../projects';
@@ -298,7 +299,7 @@ export default function TaskDetail(props: { taskId: string; onClose: () => void;
           <div key={s.id} className={`sub-row ${s.status === 'done' ? 'done' : ''}`}>
             <button
               className={`checkbox ${s.status === 'done' ? 'checked' : ''}`}
-              onClick={() => void toggleComplete(s)}
+              onClick={() => void requestComplete(s)}
             >
               {s.status === 'done' ? <Check size={12} strokeWidth={2.5} aria-hidden="true" /> : null}
             </button>

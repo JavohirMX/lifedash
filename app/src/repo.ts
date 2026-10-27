@@ -101,7 +101,10 @@ export async function completeWithSubtasks(task: Task, includeSubtasks: boolean)
       if (sub.status === 'active') await toggleComplete(sub);
     }
   }
-  await toggleComplete(task);
+  // Completing the last child may already complete the parent via automation.
+  // Never toggle that freshly-completed parent back to active.
+  const current = await db.tasks.get(task.id);
+  if (current && current.status !== 'done') await toggleComplete(current);
 }
 
 /** Fire user tag rules for a just-completed task. Created tasks carry no
