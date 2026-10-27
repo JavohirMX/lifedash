@@ -4,8 +4,9 @@ The whole stack (app + sync server) runs from the repo root with:
 
     docker compose up --build
 
-Then open http://localhost:8080 and, in the app, point Settings -> Sync
-at http://localhost:8787. The app is otherwise fully local - it works
+On the same computer, open http://localhost:8080 and, in the app, point
+Settings -> Sync at http://localhost:8787. On another device, localhost means
+that device, not your server; use the server's reachable HTTPS URL instead. The app is otherwise fully local - it works
 without the sync server, which is only needed to share data between
 devices.
 
@@ -14,8 +15,8 @@ differently), which is useful if you serve the app some other way.
 
 
 The sync server is a single FastAPI process with one SQLite file. No
-other services, no external database. Anything below works on a
-Raspberry Pi, a $5 VPS, or a NAS.
+other services, no external database. The sync process needs Python 3 and writable local storage. Check your host's
+architecture and available memory before choosing a deployment.
 
 ## Pick a deployment
 
@@ -26,6 +27,11 @@ cd server
 docker compose up -d --build
 curl http://localhost:8787/api/health   # {"ok":true}
 ```
+
+**The sync-only Compose file enables open registration by default.** After
+creating your account(s), set its `SYNC_OPEN_REGISTRATION` entry to `"0"` and
+run `docker compose up -d` again. The root full-stack Compose file differs: it
+does not set this variable, so registration closes after the first account.
 
 Data lives in the `lifedash-data` volume. The container listens on
 `8787` and stores everything in one SQLite file at
@@ -48,6 +54,9 @@ Description=Lifedash sync server
 After=network.target
 
 [Service]
+# Create the lifedash service user and install the checkout/venv first.
+# systemd creates /var/lib/lifedash, owned by User below.
+StateDirectory=lifedash
 WorkingDirectory=/opt/lifedash/server
 Environment=SYNC_DB=/var/lib/lifedash/lifedash.db
 ExecStart=/opt/lifedash/server/.venv/bin/uvicorn app.main:app --host 127.0.0.1 --port 8787
@@ -60,21 +69,22 @@ WantedBy=multi-user.target
 
 ## Create your account, then close registration
 
-Registration is open while `SYNC_OPEN_REGISTRATION=1`. Create your
-account first, then set it to `"0"` (or remove it) and restart - after
-that, nobody else can register. With Docker:
+The current server allows the first account on an empty database without an
+extra setting. After that, registration is closed unless
+`SYNC_OPEN_REGISTRATION=1` is set. This is the existing server behavior, not a
+new registration policy.
 
-```bash
-# 1. with SYNC_OPEN_REGISTRATION: "1" in docker-compose.yml
-curl -X POST http://localhost:8787/api/register \
-  -H 'Content-Type: application/json' \
-  -d '{"username":"you","password":"a-long-password"}'
-# 2. set SYNC_OPEN_REGISTRATION: "0", then
-docker compose up -d
-```
+On a fresh installation, create your account from Settings -> Sync -> Create
+account before exposing the server to other people. Treat that first-account
+step as setup: anyone who can reach an empty server can create its first
+account.
 
-You can also skip this dance and create the account from the app:
-Sync -> Create account, while registration is still open.
+To add another account later, temporarily set the environment variable to
+`"1"` on the **sync service**, recreate/restart it, create the account, then
+remove the variable or set it to `"0"` and recreate/restart again. The root
+Compose file does not set this variable by default. For the sync-only Compose
+file in `server/`, edit its existing environment entry there. Do not leave
+registration enabled unless you intend to allow additional accounts.
 
 ## Put TLS in front before you leave localhost
 
@@ -109,7 +119,8 @@ Every device uses the same account; each keeps its own cursor.
 
 ## Backups
 
-Everything is one SQLite file. Stop-free backup with the SQLite CLI:
+Everything is one SQLite file. If your host has the SQLite CLI installed,
+an online backup can be made with:
 
 ```bash
 sqlite3 /data/lifedash.db ".backup '/backups/lifedash-$(date +%F).db'"
@@ -139,8 +150,10 @@ first, as with anything that holds your data.
 
 ## Troubleshooting
 
-- **"Sign in failed: 401"** - wrong password, or you are registering
-  on a server that already has a user (use Sign in, not Create account).
+- **"Sign in failed: 401"** - the username or password did not match. Use Sign
+  in for an existing account; Create account is a separate operation.
+- **"username taken" (409)** - that username already exists. Sign in or use a
+  different username if another account is intended.
 - **"registration is closed" (403)** - expected once you closed it; set
   `SYNC_OPEN_REGISTRATION=1` temporarily to add another account.
 - **Nothing syncs** - check `/api/health` from the device's network,
@@ -148,4 +161,5 @@ first, as with anything that holds your data.
   needs to reach the server URL exactly as entered, including scheme.
 - **Attachments missing on the second device** - attachment blobs stay
   local to each device in v1 (metadata syncs). Tasks, projects, habits
-  and habit logs all sync.
+  habit logs, goals, notes and journal all sync. Focus-session history is local
+  only and included in JSON backups, not server sync.
