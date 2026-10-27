@@ -23,7 +23,7 @@ export default function SettingsDialog(props: {
         <section className="settings-group" aria-labelledby="settings-device-heading">
         <h3 id="settings-device-heading">Connection &amp; display</h3>
         <button className="settings-row" onClick={props.onSync}><Cloud size={19} /><span><strong>Sync</strong><small>Connect to your self-hosted server</small></span><span aria-hidden="true">→</span></button>
-        <button className="settings-row" onClick={props.onAppearance}><Palette size={19} /><span><strong>Appearance</strong><small>Style, light mode and dark mode</small><small className="settings-current-appearance" aria-hidden="true">{STYLES.find(s => s.id === getStyle())?.name} · {getTheme() === 'system' ? 'System mode' : `${getTheme()} mode`}</small></span><span aria-hidden="true">→</span></button>
+        <button className="settings-row" onClick={props.onAppearance}><Palette size={19} /><span><strong>Appearance</strong><small>Style, mode, fonts and wallpaper</small><small className="settings-current-appearance" aria-hidden="true">{STYLES.find(s => s.id === getStyle())?.name} · {getTheme() === 'system' ? 'System mode' : `${getTheme()} mode`}</small></span><span aria-hidden="true">→</span></button>
         </section>
         <section className="settings-group" aria-labelledby="settings-notifications-heading">
         <h3 id="settings-notifications-heading">Notifications</h3>

@@ -22,7 +22,7 @@ try {
     assert.match(await settings.textContent(),/saved, but paused/);
     assert(await settings.evaluate(e=>e.scrollWidth<=e.clientWidth),'Settings overflow');
     if(shots)await page.screenshot({path:`${shots}/settings-${width}.png`});
-    await settings.getByRole('button',{name:'Appearance Style, light mode and dark mode'}).click();
+    await settings.getByRole('button',{name:'Appearance Style, mode, fonts and wallpaper'}).click();
     const appearance=page.getByRole('dialog',{name:'Appearance',exact:true});
     for(const mode of ['Light','Dark']) {
       await appearance.getByRole('radio',{name:mode,exact:true}).click();
@@ -41,7 +41,7 @@ try {
     if(shots)await page.screenshot({path:`${shots}/appearance-dark-${width}.png`});
     await page.keyboard.press('Escape');await page.reload();await openSettings();
     assert.match(await settings.locator('.settings-current-appearance').textContent(),/Nexus.*dark mode/);
-    await settings.getByRole('button',{name:'Appearance Style, light mode and dark mode'}).click();
+    await settings.getByRole('button',{name:'Appearance Style, mode, fonts and wallpaper'}).click();
     await appearance.getByRole('button',{name:'Reset style & mode'}).click();
     assert.equal(await page.evaluate(()=>localStorage.getItem('lifedash-style')),'paper');
     assert.equal(await page.evaluate(()=>localStorage.getItem('lifedash-theme')),'system');

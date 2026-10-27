@@ -23,7 +23,7 @@ try {
       await page.keyboard.press('Tab');
       assert(await page.evaluate(() => !!document.activeElement?.closest('[role=dialog]')), 'Tab left Settings');
     }
-    await page.getByRole('button', { name: 'Appearance Style, light mode and dark mode' }).click();
+    await page.getByRole('button', { name: 'Appearance Style, mode, fonts and wallpaper' }).click();
     await page.getByRole('dialog', { name: 'Appearance', exact: true }).waitFor();
     const styleGroup = page.getByRole('radiogroup', { name: 'Style', exact: true });
     await styleGroup.getByRole('radio', { name: /^Paper / }).focus();
@@ -33,7 +33,7 @@ try {
     await page.keyboard.press('Home');
     await page.waitForFunction(() => document.documentElement.dataset.style === 'paper');
     await page.keyboard.press('Tab');
-    assert.equal(await page.evaluate(() => document.activeElement?.getAttribute('aria-label')), 'Close');
+    assert.equal(await page.evaluate(() => document.activeElement?.getAttribute('aria-label')), 'Back to Settings');
     await page.keyboard.press('Shift+Tab');
     assert.equal(await page.evaluate(() => document.activeElement?.getAttribute('data-preview')), 'paper');
     const modeGroup = page.getByRole('radiogroup', { name: 'Mode', exact: true });

@@ -76,6 +76,7 @@ export default function App() {
   const [aiOpen, setAiOpen] = useState(false);
   const [appearanceOpen, setAppearanceOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [settingsChild, setSettingsChild] = useState<'appearance' | 'sync' | null>(null);
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
   const [rules, setRules] = useState<AutomationRules>(loadRules);
   const [userRules, setUserRules] = useState<UserRule[]>(loadUserRules);
@@ -389,7 +390,7 @@ export default function App() {
           });
         }}
         onScheduleToday={(id) => void updateTask(id, { dueDate: today })}
-        onAI={() => setAiOpen(true)} onImport={() => setImportPreset(null)} onRestore={() => setImportPreset('lifedash-json')} onAutomation={() => setAutomationOpen(true)} onSync={() => setSyncOpen(true)} onAppearance={() => setAppearanceOpen(true)} onSettings={() => setSettingsOpen(true)} />
+        onAI={() => setAiOpen(true)} onImport={() => setImportPreset(null)} onRestore={() => setImportPreset('lifedash-json')} onAutomation={() => setAutomationOpen(true)} onSync={() => { setSettingsChild(null); setSyncOpen(true); }} onAppearance={() => { setSettingsChild(null); setAppearanceOpen(true); }} onSettings={() => setSettingsOpen(true)} />
       <main className={selection.kind === 'home' ? 'home-main' : ['week', 'calendar'].includes(selection.kind) ? 'schedule-main' : undefined}>
         {SAMPLE_MODE && <div className="sample-banner" role="status">Sample-data sandbox · Fictional data · <a href="/">Exit to your real data</a></div>}
         <SyncConflictBanner />
@@ -412,11 +413,11 @@ export default function App() {
       {importPreset !== false && <ImportDialog projects={projects} initialSource={importPreset} onClose={() => setImportPreset(false)} />}
       {automationOpen && <AutomationDialog rules={rules} onChange={changeRules} userRules={userRules} onUserRulesChange={changeUserRules} onClose={() => setAutomationOpen(false)} />}
       {aiOpen && <AssistantDialog tasks={tasks} onClose={() => setAiOpen(false)} />}
-      {syncOpen && <SyncDialog onClose={() => setSyncOpen(false)} />}
+      {syncOpen && <SyncDialog onClose={() => setSyncOpen(false)} onBack={settingsChild === 'sync' ? () => { setSyncOpen(false); setSettingsOpen(true); } : undefined} />}
       {settingsOpen && <SettingsDialog
         onClose={() => setSettingsOpen(false)}
-        onSync={() => { setSettingsOpen(false); setSyncOpen(true); }}
-        onAppearance={() => { setSettingsOpen(false); setAppearanceOpen(true); }}
+        onSync={() => { setSettingsChild('sync'); setSettingsOpen(false); setSyncOpen(true); }}
+        onAppearance={() => { setSettingsChild('appearance'); setSettingsOpen(false); setAppearanceOpen(true); }}
         reminders={typeof Notification === 'undefined' ? 'unsupported' : Notification.permission === 'denied' ? 'blocked' : remindOn ? 'on' : 'off'}
         onToggleReminders={() => {
           if (remindOn) { setRemindersEnabled(false); setRemindOn(false); return; }
@@ -428,7 +429,7 @@ export default function App() {
         journalNudge={nudgeOn}
         onToggleJournalNudge={() => { const next = !nudgeOn; setJournalPromptEnabled(next); setNudgeOn(next); }}
       />}
-      {appearanceOpen && <AppearanceDialog onClose={() => setAppearanceOpen(false)} />}
+      {appearanceOpen && <AppearanceDialog onClose={() => setAppearanceOpen(false)} onBack={settingsChild === 'appearance' ? () => { setAppearanceOpen(false); setSettingsOpen(true); } : undefined} />}
       {shortcutsOpen && <ShortcutsDialog onClose={() => setShortcutsOpen(false)} />}
       <CommandPalette
         open={paletteOpen}
@@ -440,7 +441,7 @@ export default function App() {
         onOpenTask={setOpenId}
         onNewTask={quickAddFocus}
         onToggleTheme={() => cycleTheme()}
-        onAppearance={() => setAppearanceOpen(true)}
+        onAppearance={() => { setSettingsChild(null); setAppearanceOpen(true); }}
         onShortcuts={() => setShortcutsOpen(true)}
       />
     </div>

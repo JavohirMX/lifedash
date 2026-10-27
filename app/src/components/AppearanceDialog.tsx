@@ -1,6 +1,6 @@
 import { useEffect, useState, type KeyboardEvent, type CSSProperties } from 'react';
 import { radioKeyIndex } from '../radioKeys';
-import { Monitor, Moon, Sun, X } from 'lucide-react';
+import { ArrowLeft, Monitor, Moon, Sun, X } from 'lucide-react';
 import { STYLES, applyStyle, applyTheme, getStyle, getTheme, type StyleId, type Theme } from '../theme';
 import { useDialogFocus } from '../hooks/useDialogFocus';
 import './AppearanceDialog.css';
@@ -13,7 +13,7 @@ const MODES: { id: Theme; label: string; Icon: typeof Sun }[] = [
   { id: 'dark', label: 'Dark', Icon: Moon },
 ];
 
-export default function AppearanceDialog(props: { onClose: () => void }) {
+export default function AppearanceDialog(props: { onClose: () => void; onBack?: () => void }) {
   const [section, setSection] = useState<'style' | 'font' | 'wallpaper'>('style');
   const [style, setStyle] = useState<StyleId>(getStyle());
   const [mode, setMode] = useState<Theme>(getTheme());
@@ -42,7 +42,7 @@ export default function AppearanceDialog(props: { onClose: () => void }) {
     <div className="palette-overlay" onClick={props.onClose}>
       <div ref={panel} className="import-panel appearance-panel" role="dialog" aria-modal="true" aria-label="Appearance" onClick={(e) => e.stopPropagation()}>
         <div className="import-head">
-          <h2>Appearance</h2>
+          <div className="settings-child-title" style={{display:'flex',alignItems:'center',gap:8,minWidth:0}}>{props.onBack && <button className="icon-btn" aria-label="Back to Settings" onClick={props.onBack}><ArrowLeft size={18} /></button>}<h2>Appearance</h2></div>
           <button className="icon-btn" aria-label="Close" onClick={props.onClose}><X size={18} strokeWidth={1.75} /></button>
         </div>
         <p className="rule-note">Make Lifedash your own. Changes apply immediately and are saved on this device.</p>

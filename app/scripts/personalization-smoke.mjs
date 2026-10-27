@@ -5,7 +5,7 @@ const base=process.env.BASE_URL??'http://127.0.0.1:4182';
 try{for(const width of [1440,390,320]){
  const p=await b.newPage({viewport:{width,height:width===320?568:900},reducedMotion:'reduce'});const errors=[];p.on('pageerror',e=>errors.push(e.message));
  await p.goto(`${base}/?sample`);await p.getByText('Set up the backup volume',{exact:true}).first().waitFor();await p.addStyleTag({content:'*{transition:none!important}'});
- const open=async()=>{if(width<500)await p.getByRole('button',{name:'More',exact:true}).click();await p.getByRole('button',{name:'Settings',exact:true}).click();await p.getByRole('button',{name:'Appearance Style, light mode and dark mode'}).click();};
+ const open=async()=>{if(width<500)await p.getByRole('button',{name:'More',exact:true}).click();await p.getByRole('button',{name:'Settings',exact:true}).click();await p.getByRole('button',{name:'Appearance Style, mode, fonts and wallpaper'}).click();};
  await open();const d=p.getByRole('dialog',{name:'Appearance',exact:true});
  await p.getByRole('tab',{name:'Font',exact:true}).click();
  for(const [i,font]of ['inter','manrope','plex'].entries()){
