@@ -417,6 +417,21 @@ export function suggestedTask(tasks: Task[], today: string): { task: Task; reaso
   return { task: top, reason };
 }
 
+// Drop checklist items that would duplicate existing tasks: titles already
+// linked from this note (trimmed, case-insensitive) and repeats within the
+// list itself. Order preserved.
+export function filterNewChecklistItems(items: string[], existingTitles: string[]): string[] {
+  const seen = new Set(existingTitles.map((t) => t.trim().toLowerCase()));
+  const out: string[] = [];
+  for (const raw of items) {
+    const key = raw.trim().toLowerCase();
+    if (!key || seen.has(key)) continue;
+    seen.add(key);
+    out.push(raw.trim());
+  }
+  return out;
+}
+
 // Unchecked checklist items in a ProseMirror doc, as plain-text titles.
 export function extractChecklistItems(doc: unknown): string[] {
   const out: string[] = [];
@@ -434,7 +449,7 @@ export function extractChecklistItems(doc: unknown): string[] {
       if (text) out.push(text);
       return; // don't double-walk children of a task item
     }
-    (n.content ?? []).forEach(walk);
+    if (Array.isArray(n.content)) n.content.forEach(walk);
   };
   walk(doc);
   return out;

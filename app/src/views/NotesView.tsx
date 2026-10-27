@@ -3,7 +3,7 @@ import { useLiveQuery } from 'dexie-react-hooks';
 import { Check, ListPlus, Pin, PinOff, Plus, Search, StickyNote, Trash2 } from 'lucide-react';
 
 import { addNote, updateNote, deleteNote, addTask, toggleComplete } from '../repo';
-import { extractChecklistItems, searchNotes } from '../logic';
+import { extractChecklistItems, filterNewChecklistItems, searchNotes } from '../logic';
 import { db, INBOX_ID } from '../db';
 import NoteEditor from '../components/NoteEditor';
 
@@ -116,21 +116,26 @@ export default function NotesView(props: { initialOpenId?: string }) {
                     className="icon-btn"
                     aria-label="Turn checklist into tasks"
                     title="Turn checklist into tasks"
-                    onClick={() => {
-                      const items = extractChecklistItems(open.noteDoc);
-                      void items.reduce(
+                    onClick={() => void (async () => {
+                      const existing = (await db.tasks.where('noteId').equals(open.id).toArray()).map((t) => t.title);
+                      const items = filterNewChecklistItems(extractChecklistItems(open.noteDoc), existing);
+                      if (items.length === 0) {
+                        setExtracted(0);
+                        setTimeout(() => setExtracted(null), 3000);
+                        return;
+                      }
+                      await items.reduce(
                         (chain, title) => chain.then(() => addTask({ title, projectId: INBOX_ID, noteId: open.id })),
                         Promise.resolve<unknown>(null),
-                      ).then(() => {
-                        setExtracted(items.length);
-                        setTimeout(() => setExtracted(null), 3000);
-                      });
-                    }}
+                      );
+                      setExtracted(items.length);
+                      setTimeout(() => setExtracted(null), 3000);
+                    })()}
                   >
                     <ListPlus size={15} strokeWidth={2} />
                   </button>
                 )}
-                {extracted !== null && <span className="extracted-note num">{extracted} task{extracted === 1 ? '' : 's'} added</span>}
+                {extracted !== null && <span className="extracted-note num">{extracted === 0 ? 'Already added' : `${extracted} task${extracted === 1 ? '' : 's'} added`}</span>}
                 <button
                   className="icon-btn"
                   aria-label={open.pinned ? 'Unpin note' : 'Pin note'}
@@ -144,6 +149,7 @@ export default function NotesView(props: { initialOpenId?: string }) {
                   aria-label="Delete note"
                   title="Delete"
                   onClick={() => {
+                    if (!window.confirm(`Delete note ${open.title || 'Untitled'}? This cannot be undone.`)) return;
                     void deleteNote(open.id);
                     setOpenId(null);
                   }}

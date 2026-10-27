@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { parseQuickAdd, groupCompletedByDay, renamedTags, completeTask, skipOccurrence, describeRecurrence, isRecurrenceValid, nextOccurrenceDate, makeRecurrence, upNextGroups } from './logic';
+import { parseQuickAdd, groupCompletedByDay, renamedTags, completeTask, skipOccurrence, extractChecklistItems, filterNewChecklistItems, describeRecurrence, isRecurrenceValid, nextOccurrenceDate, makeRecurrence, upNextGroups } from './logic';
 import type { Task } from './types';
 
 describe('parseQuickAdd', () => {
@@ -281,5 +281,44 @@ describe('skipOccurrence', () => {
     const { spawned } = completeTask(t, '2026-10-27', 1000);
     expect(spawned).not.toBeNull();
     expect((spawned as { skippedDates?: string[] }).skippedDates).toEqual(['2026-10-25', '2026-10-26']);
+  });
+});
+
+describe('extractChecklistItems', () => {
+  const doc = (items: { text: string; checked: boolean }[]) => ({
+    type: 'doc',
+    content: [{
+      type: 'taskList',
+      content: items.map((i) => ({
+        type: 'taskItem',
+        attrs: { checked: i.checked },
+        content: [{ type: 'paragraph', content: [{ type: 'text', text: i.text }] }],
+      })),
+    }],
+  });
+
+  it('returns unchecked items only, trimmed', () => {
+    const d = doc([{ text: '  Buy milk ', checked: false }, { text: 'Done thing', checked: true }]);
+    expect(extractChecklistItems(d)).toEqual(['Buy milk']);
+  });
+
+  it('tolerates garbage docs', () => {
+    expect(extractChecklistItems(null)).toEqual([]);
+    expect(extractChecklistItems({ type: 'doc', content: 'junk' })).toEqual([]);
+    expect(extractChecklistItems(42)).toEqual([]);
+  });
+});
+
+describe('filterNewChecklistItems', () => {
+  it('skips items already present as existing titles, case-insensitive and trimmed', () => {
+    expect(filterNewChecklistItems(['Buy milk', '  buy MILK  ', 'Call mom'], ['buy milk'])).toEqual(['Call mom']);
+  });
+
+  it('dedups within the list, preserving order', () => {
+    expect(filterNewChecklistItems(['A', 'b', 'A', 'B', 'c'], [])).toEqual(['A', 'b', 'c']);
+  });
+
+  it('returns empty when everything already exists', () => {
+    expect(filterNewChecklistItems(['A', 'B'], ['a', 'b'])).toEqual([]);
   });
 });
