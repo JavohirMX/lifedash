@@ -2,6 +2,7 @@ import { requestComplete } from '../completionPrompt';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { useEffect, useState } from 'react';
 import { Check, Flame, ArrowRight, Target, SlidersHorizontal, Zap } from 'lucide-react';
+import QuickAdd from '../components/QuickAdd';
 import { db } from '../db';
 import { toggleHabitForDate, stopFocus } from '../repo';
 import { runningSession, sessionSeconds, focusTotals, formatClock, formatDuration } from '../focus';
@@ -48,6 +49,7 @@ export default function HomeView(props: { tasks: Task[]; onSelect: (kind: string
   const doneToday = dueTodayAll.filter((t) => t.status === 'done').length;
   const todays = dueTodayAll;
   const next = todayTasks(props.tasks, today).slice(0, 3);
+  const scheduled = todayTasks(props.tasks, today).filter(t => t.dueDate === today && t.dueTime).sort((a,b) => a.dueTime!.localeCompare(b.dueTime!));
 
   const todaysHabits = (habits ?? []).filter((h) => !h.archived && isScheduledOn(h, today));
   const habitsDone = todaysHabits.filter((h) => logsByDate(logs ?? [], h.id).has(today)).length;
@@ -113,9 +115,10 @@ export default function HomeView(props: { tasks: Task[]; onSelect: (kind: string
         </div>
       )}
 
-      <div className="widget-grid">
-        {!hidden.includes('focus') && running && (
-        <div className="widget focus-widget">
+      <QuickAdd projectId="inbox" dueDate={null} placeholder="Capture a task..." />
+      <div className="widget-grid home-cockpit">
+<div className="home-primary">        {!hidden.includes('focus') && running && (
+        <div className="widget focus-widget home-focus">
           <div className="widget-head">
             <h2><Zap size={14} strokeWidth={2} aria-hidden="true" className="focus-icon" /> Focusing</h2>
             <span className="focus-reason num">{formatClock(sessionSeconds(running, focusNow))}</span>
@@ -130,7 +133,7 @@ export default function HomeView(props: { tasks: Task[]; onSelect: (kind: string
         </div>
         )}
         {!hidden.includes('focus') && !running && suggestion && (
-        <div className="widget focus-widget">
+        <div className="widget focus-widget home-focus">
           <div className="widget-head">
             <h2><Zap size={14} strokeWidth={2} aria-hidden="true" className="focus-icon" /> Focus next</h2>
             <span className="focus-reason">{suggestion.reason}</span>
@@ -147,29 +150,10 @@ export default function HomeView(props: { tasks: Task[]; onSelect: (kind: string
           </div>
         </div>
         )}
-        {!hidden.includes('upnext') && sugRows.length > 0 && (
-        <div className="widget">
-          <div className="widget-head">
-            <h2>Up next</h2>
-          </div>
-          <ul className="widget-list">
-            {sugRows.map((r) => (
-              <li key={r.id}>
-                <button className="widget-task upnext-row" onClick={r.go}>
-                  <span className="num upnext-count">{r.count}</span>
-                  <span>{r.text}</span>
-                  <ArrowRight size={13} strokeWidth={2} aria-hidden="true" className="upnext-arrow" />
-                </button>
-              </li>
-            ))}
-          </ul>
-        </div>
-        )}
-
         {!hidden.includes('today') && (
-        <div className="widget">
+        <div className="widget home-today">
           <div className="widget-head">
-            <h2>Today</h2>
+            <h2>Today <span className="home-widget-count num">{todayTasks(props.tasks, today).length} open</span></h2>
             <button className="widget-link" onClick={() => props.onSelect('today')}>
               Open <ArrowRight size={13} strokeWidth={2} aria-hidden="true" />
             </button>
@@ -193,7 +177,7 @@ export default function HomeView(props: { tasks: Task[]; onSelect: (kind: string
                 {next.map((t) => (
                   <li key={t.id}>
                     <button className="checkbox" aria-label={`Complete ${t.title}`} onClick={() => void requestComplete(t)} />
-                    <button className="widget-task" onClick={() => props.onOpen(t.id)}>{t.title}</button>
+                    <div className="home-task-copy"><button className="widget-task" onClick={() => props.onOpen(t.id)}>{t.title}</button><span className="home-task-meta">{t.dueDate && t.dueDate < today ? 'Overdue' : t.dueTime ?? 'Anytime'}{(t.blockedBy ?? []).some(id => props.tasks.some(b => b.id === id && b.status === 'active')) ? ' · Blocked' : ''}{t.recurrence ? ' · Repeats' : ''}</span></div>
                   </li>
                 ))}
               </ul>
@@ -202,8 +186,28 @@ export default function HomeView(props: { tasks: Task[]; onSelect: (kind: string
         </div>
         )}
 
+        {!hidden.includes('today') && scheduled.length > 0 && <div className="widget home-schedule"><div className="widget-head"><h2>Scheduled today</h2><button className="widget-link" onClick={() => props.onSelect('planner')}>Planner <ArrowRight size={13} aria-hidden="true" /></button></div><ul className="widget-list">{scheduled.map(t => <li key={t.id}><time className="home-time num">{t.dueTime}</time><button className="widget-task" onClick={() => props.onOpen(t.id)}>{t.title}</button></li>)}</ul></div>}
+</div><div className="home-support">        {!hidden.includes('upnext') && sugRows.length > 0 && (
+        <div className="widget home-signals">
+          <div className="widget-head">
+            <h2>Up next</h2>
+          </div>
+          <ul className="widget-list">
+            {sugRows.map((r) => (
+              <li key={r.id}>
+                <button className="widget-task upnext-row" onClick={r.go}>
+                  <span className="num upnext-count">{r.count}</span>
+                  <span>{r.text}</span>
+                  <ArrowRight size={13} strokeWidth={2} aria-hidden="true" className="upnext-arrow" />
+                </button>
+              </li>
+            ))}
+          </ul>
+        </div>
+        )}
+
         {!hidden.includes('habits') && (
-        <div className="widget">
+        <div className="widget home-habits">
           <div className="widget-head">
             <h2>Habits</h2>
             <button className="widget-link" onClick={() => props.onSelect('habits')}>
@@ -247,7 +251,7 @@ export default function HomeView(props: { tasks: Task[]; onSelect: (kind: string
         )}
 
         {!hidden.includes('week') && (
-        <div className="widget">
+        <div className="widget home-week">
           <div className="widget-head">
             <h2>This week</h2>
             <button className="widget-link" onClick={() => props.onSelect('week')}>
@@ -289,7 +293,7 @@ export default function HomeView(props: { tasks: Task[]; onSelect: (kind: string
         )}
 
         {!hidden.includes('goals') && (
-        <div className="widget">
+        <div className="widget home-goals">
           <div className="widget-head">
             <h2>Goals</h2>
             <button className="widget-link" onClick={() => props.onSelect('goals')}>
@@ -318,7 +322,7 @@ export default function HomeView(props: { tasks: Task[]; onSelect: (kind: string
         )}
 
         {!hidden.includes('upcoming') && (
-        <div className="widget">
+        <div className="widget home-upcoming">
           <div className="widget-head">
             <h2>Upcoming</h2>
             <button className="widget-link" onClick={() => props.onSelect('upcoming')}>
@@ -338,7 +342,7 @@ export default function HomeView(props: { tasks: Task[]; onSelect: (kind: string
             </ul>
           )}
         </div>
-        )}
+        )}</div>
       </div>
     </section>
   );

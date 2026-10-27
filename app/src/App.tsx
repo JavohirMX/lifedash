@@ -385,7 +385,7 @@ export default function App() {
         }}
         onScheduleToday={(id) => void updateTask(id, { dueDate: today })}
         onAI={() => setAiOpen(true)} onImport={() => setImportPreset(null)} onRestore={() => setImportPreset('lifedash-json')} onAutomation={() => setAutomationOpen(true)} onSync={() => setSyncOpen(true)} onAppearance={() => setAppearanceOpen(true)} onSettings={() => setSettingsOpen(true)} />
-      <main>
+      <main className={selection.kind === 'home' ? 'home-main' : undefined}>
         {SAMPLE_MODE && <div className="sample-banner" role="status">Sample-data sandbox · Fictional data · <a href="/">Exit to your real data</a></div>}
         <SyncConflictBanner />
         {showQuickAdd && (

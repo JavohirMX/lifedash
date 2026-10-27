@@ -1596,3 +1596,39 @@ input[type='checkbox'], input[type='radio'], input[type='range'] { accent-color:
 .completion-panel p, .completion-panel li { font-size: 14px; line-height: 1.6; }
 .completion-actions { display: flex; justify-content: flex-end; gap: 8px; flex-wrap: wrap; margin-top: 20px; }
 .completion-actions button { min-height: 42px; }
+
+/* Task-first Home: layout stays separate from appearance tokens. */
+main.home-main { max-width: 1200px; width: 100%; }
+.home { max-width: 1040px; }
+.home .home-head { align-items: center; margin-bottom: 20px; }
+.home .home-head h1 { font-size: clamp(26px, 2.4vw, 34px); letter-spacing: -.8px; line-height: 1.2; }
+.home .home-date { font-size: 13px; margin-top: 6px; }
+.home > .quick-add { margin-bottom: 24px; }
+.home .home-cockpit { grid-template-columns: minmax(0, 1.6fr) minmax(280px, 1fr); gap: 18px; align-items: start; }
+.home-cockpit .widget { padding: 18px 20px; gap: 14px; min-width: 0; }
+.home-focus { background: var(--accent-soft, var(--surface-2)); }
+.home .focus-title { font-size: 21px; line-height: 1.35; letter-spacing: -.3px; padding: 8px 0; }
+.home .focus-widget .widget-head h2 { font-size: 12px; }
+.home .focus-reason { font-size: 12px; }
+.home-widget-count { font-size: 12px; color: var(--muted); font-weight: 400; margin-left: 8px; }
+.home .widget-list { gap: 0; }
+.home .widget-list li { padding: 12px 0; border-top: 1px solid var(--border); min-height: 44px; }
+.home .widget-list li:first-child { border-top: 0; padding-top: 2px; }
+.home .widget-list li:last-child { padding-bottom: 2px; }
+.home .widget-task { white-space: normal; line-height: 1.45; }
+.home-task-copy { min-width: 0; flex: 1; }
+.home-task-copy .widget-task { display: block; width: 100%; font-weight: 500; }
+.home-task-meta { display: block; font-size: 11px; color: var(--muted); margin-top: 4px; }
+.home-time { color: var(--muted); font-size: 12px; width: 48px; flex: none; }
+.home .widget-link { min-height: 32px; }
+@media(max-width: 800px) {
+ .home .home-cockpit { grid-template-columns: 1fr; gap: 16px; }
+ .home-cockpit .widget { grid-column: auto; grid-row: auto; padding: 17px 18px; }
+ .home .widget-link { min-height: 44px; }
+ .home .home-head h1 { font-size: 27px; }
+ .home > .quick-add { margin-bottom: 18px; }
+}
+
+.home-primary, .home-support { display: flex; flex-direction: column; gap: 18px; min-width: 0; }
+.home-cockpit .widget { flex-shrink: 0; }
+@media(max-width:800px) { .home-primary, .home-support { gap: 16px; } }
