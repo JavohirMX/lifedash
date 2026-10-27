@@ -14,6 +14,11 @@ describe('sampleData', () => {
     }
     expect(data.habitLogs.every(l => l.date < '2026-10-27')).toBe(true);
   });
+  it('uses anchor-day timestamps instead of displaying 1970 in the demo', () => {
+    const data = sampleData('2026-10-27');
+    expect(data.tasks.filter(t => t.status === 'done').every(t => new Date(t.completedAt!).getFullYear() === 2026)).toBe(true);
+    expect(data.notes.every(n => new Date(n.updatedAt).getFullYear() === 2026)).toBe(true);
+  });
   it('moves dates relative to the anchor rather than freezing the demo', () => {
     expect(sampleData('2026-11-01').tasks[0].dueDate).toBe('2026-10-31');
     expect(sampleData('2026-11-01').tasks[1].dueDate).toBe('2026-11-01');
