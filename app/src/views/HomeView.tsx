@@ -1,3 +1,4 @@
+import './home.css';
 import { requestComplete } from '../completionPrompt';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { useEffect, useState } from 'react';
@@ -93,7 +94,7 @@ export default function HomeView(props: { tasks: Task[]; onSelect: (kind: string
           title="Customize widgets"
           onClick={() => setCustomizing(!customizing)}
         >
-          <SlidersHorizontal size={18} strokeWidth={1.75} />
+          <SlidersHorizontal aria-hidden="true" size={18} strokeWidth={1.75} />
         </button>
       </header>
       {customizing && (
@@ -140,7 +141,7 @@ export default function HomeView(props: { tasks: Task[]; onSelect: (kind: string
           </div>
           <div className="focus-task">
             <button
-              className="checkbox"
+              className="checkbox home-check"
               aria-label={`Mark ${suggestion.task.title} done`}
               onClick={() => void requestComplete(suggestion.task)}
             />
@@ -168,19 +169,20 @@ export default function HomeView(props: { tasks: Task[]; onSelect: (kind: string
                 aria-valuenow={doneToday}
                 aria-valuemin={0}
                 aria-valuemax={todays.length}
-                aria-label="Tasks done today"
+                aria-label="Due and overdue tasks completed"
               >
                 <div className="progress-fill" style={{ width: `${todays.length ? (doneToday / todays.length) * 100 : 0}%` }} />
               </div>
-              <p className="widget-meta num">{doneToday} of {todays.length} done</p>
+              <p className="widget-meta num">{doneToday} of {todays.length} done <span className="home-progress-context">· Due today or earlier</span></p>
               <ul className="widget-list">
                 {next.map((t) => (
                   <li key={t.id}>
-                    <button className="checkbox" aria-label={`Complete ${t.title}`} onClick={() => void requestComplete(t)} />
+                    <button className="checkbox home-check" aria-label={`Complete ${t.title}`} onClick={() => void requestComplete(t)} />
                     <div className="home-task-copy"><button className="widget-task" onClick={() => props.onOpen(t.id)}>{t.title}</button><span className="home-task-meta">{t.dueDate && t.dueDate < today ? 'Overdue' : t.dueTime ?? 'Anytime'}{(t.blockedBy ?? []).some(id => props.tasks.some(b => b.id === id && b.status === 'active')) ? ' · Blocked' : ''}{t.recurrence ? ' · Repeats' : ''}</span></div>
                   </li>
                 ))}
               </ul>
+              {todayTasks(props.tasks, today).length > next.length && <button className="home-more-tasks" onClick={() => props.onSelect('today')}>View all {todayTasks(props.tasks, today).length} open tasks <ArrowRight size={14} aria-hidden="true" /></button>}
             </>
           )}
         </div>
@@ -229,7 +231,7 @@ export default function HomeView(props: { tasks: Task[]; onSelect: (kind: string
                   return (
                     <li key={h.id}>
                       <button
-                        className={`checkbox ${done ? 'checked' : ''}`}
+                        className={`checkbox home-check ${done ? 'checked' : ''}`}
                         aria-label={`${done ? 'Uncheck' : 'Check'} ${h.name} for today`}
                         onClick={() => void toggleHabitForDate(h.id, today)}
                       >
@@ -258,15 +260,17 @@ export default function HomeView(props: { tasks: Task[]; onSelect: (kind: string
               Open <ArrowRight size={13} strokeWidth={2} aria-hidden="true" />
             </button>
           </div>
-          <div className="load-chart" role="group" aria-label="Tasks due per day this week">
+          <p className="widget-meta">Open tasks · today and the next 6 days</p>
+          <div className="load-chart" role="group" aria-label="Open tasks due today and the next six days">
             {weekLoad.map((d, i) => (
               <button key={d.date} type="button"
                 className={`load-col ${i === 0 ? 'today' : ''} ${drillDate === d.date ? 'selected' : ''}`}
                 aria-pressed={drillDate === d.date}
-                aria-label={`${d.count} due ${weekdayLabel(d.date)}`}
+                aria-label={`${d.count} open ${i === 0 ? 'due today or overdue' : `due ${weekdayLabel(d.date)}`}`}
                 onClick={() => setDrillDate(drillDate === d.date ? null : d.date)}>
+                <span className="home-load-count num">{d.count}</span>
                 <div className="load-bar" style={{ height: `${Math.max(6, (d.count / maxLoad) * 56)}px` }} />
-                <span className="load-label">{d.label}</span>
+                <span className="load-label">{i === 0 ? 'Today' : d.label}</span>
               </button>
             ))}
           </div>
@@ -279,7 +283,7 @@ export default function HomeView(props: { tasks: Task[]; onSelect: (kind: string
                 <ul className="widget-list">
                   {dayTasks(drillDate).map((t) => (
                     <li key={t.id}>
-                      <button className={`checkbox ${t.status === 'done' ? 'checked' : ''}`} aria-label={t.status === 'done' ? 'Mark not done' : 'Mark done'} onClick={() => void requestComplete(t)}>
+                      <button className={`checkbox home-check ${t.status === 'done' ? 'checked' : ''}`} aria-label={t.status === 'done' ? 'Mark not done' : 'Mark done'} onClick={() => void requestComplete(t)}>
                         {t.status === 'done' ? <Check size={13} strokeWidth={2.5} aria-hidden="true" /> : null}
                       </button>
                       <button className={`widget-task ${t.status === 'done' ? 'done' : ''}`} onClick={() => props.onOpen(t.id)}>{t.title}</button>
