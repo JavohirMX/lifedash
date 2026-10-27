@@ -1789,3 +1789,11 @@ main.tv-grid { max-width: none; width: 100%; }
  .proj-colors .swatch { width: 28px; height: 28px; }
  .proj-settings input { min-width: 0; width: 100%; flex-basis: 100%; }
 }
+/* Keep the sticky title intact when the appearance choices need scrolling. */
+.import-head { flex-shrink: 0; }
+[data-preview='nexus'] .style-preview { --p-ground: #0b0d1a; --p-surf: #141830; --p-rule: #2c3464; --p-acc: #a198ff; --p-r: 10px; }
+[data-preview='compact'] .style-preview { --p-ground: #f4f6f8; --p-surf: #fff; --p-rule: #c3cdd6; --p-acc: #0e7490; --p-r: 3px; }
+[data-preview='compact'] .style-preview .sp-main { gap: 3px; }
+[data-preview='compact'] .style-preview .sp-row { padding-top: 1px; padding-bottom: 1px; }
+[data-preview='polar'] .style-preview { --p-ground: #f6f9fc; --p-surf: #fff; --p-rule: #b8cadd; --p-acc: #2563eb; --p-r: 8px; }
+.import-panel { scroll-padding-top: 84px; }
