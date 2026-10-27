@@ -281,7 +281,7 @@ export default function App() {
           {projAll.length > 0 && (
             <span className="proj-progress">
               <span className="progress proj-bar"><span className="progress-fill" style={{ width: `${projPct}%` }} /></span>
-              <span className="date-sub num">{projDone} of {projAll.length}</span>
+              <span className="date-sub num" title="Including subprojects">{projDone} of {projAll.length}</span>
             </span>
           )}
         </h1>

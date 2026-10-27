@@ -162,7 +162,7 @@ export default function Sidebar(props: {
           <span className="dot" style={{ background: p.color }} />
           <span>{p.name}</span>
           {(props.activeByProject?.[p.id] ?? 0) > 0 && (
-            <span className="proj-count num">{props.activeByProject![p.id]}</span>
+            <span className="proj-count num" title="Direct active tasks">{props.activeByProject![p.id]}</span>
           )}
         </button>
       ))}
