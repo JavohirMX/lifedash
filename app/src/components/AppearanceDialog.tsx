@@ -1,8 +1,10 @@
-import { useState, type KeyboardEvent } from 'react';
+import { useEffect, useState, type KeyboardEvent, type CSSProperties } from 'react';
 import { radioKeyIndex } from '../radioKeys';
 import { Monitor, Moon, Sun, X } from 'lucide-react';
 import { STYLES, applyStyle, applyTheme, getStyle, getTheme, type StyleId, type Theme } from '../theme';
 import { useDialogFocus } from '../hooks/useDialogFocus';
+import './AppearanceDialog.css';
+import { THEME_PREVIEWS } from '../themePreviews';
 
 const MODES: { id: Theme; label: string; Icon: typeof Sun }[] = [
   { id: 'system', label: 'System', Icon: Monitor },
@@ -13,6 +15,15 @@ const MODES: { id: Theme; label: string; Icon: typeof Sun }[] = [
 export default function AppearanceDialog(props: { onClose: () => void }) {
   const [style, setStyle] = useState<StyleId>(getStyle());
   const [mode, setMode] = useState<Theme>(getTheme());
+  const [systemDark, setSystemDark] = useState(() => window.matchMedia('(prefers-color-scheme: dark)').matches);
+  useEffect(() => {
+    const media = window.matchMedia('(prefers-color-scheme: dark)');
+    const update = () => setSystemDark(media.matches);
+    media.addEventListener('change', update);
+    return () => media.removeEventListener('change', update);
+  }, []);
+  const previewMode = mode === 'system' ? systemDark ? 'dark' : 'light' : mode;
+
 
   const panel = useDialogFocus<HTMLDivElement>(props.onClose, '[aria-checked="true"]');
 
@@ -33,6 +44,11 @@ export default function AppearanceDialog(props: { onClose: () => void }) {
           <button className="icon-btn" aria-label="Close" onClick={props.onClose}><X size={18} strokeWidth={1.75} /></button>
         </div>
         <p className="rule-note">Style changes type, shape, density and color. Mode switches light or dark. Both are saved on this device.</p>
+        <div className="appearance-summary">
+          <p className="appearance-current" role="status">Current: <strong>{STYLES.find(s => s.id === style)?.name}</strong> · {mode === 'system' ? `System (${previewMode})` : `${MODES.find(m => m.id === mode)?.label} mode`}</p>
+          <button className="btn-secondary appearance-reset" title="Reset only appearance to Paper and System mode" onClick={() => { applyStyle('paper'); applyTheme('system'); setStyle('paper'); setMode('system'); }}>Use defaults</button>
+        </div>
+        <h3 className="appearance-section-title">Mode</h3>
         <div className="mode-seg" role="radiogroup" aria-label="Mode">
           {MODES.map(({ id, label, Icon }, index) => (
             <button
@@ -48,6 +64,7 @@ export default function AppearanceDialog(props: { onClose: () => void }) {
             </button>
           ))}
         </div>
+        <h3 className="appearance-section-title">Style <span>Changes apply immediately</span></h3>
         <div className="style-grid" role="radiogroup" aria-label="Style">
           {STYLES.map((s, index) => (
             <button
@@ -60,7 +77,7 @@ export default function AppearanceDialog(props: { onClose: () => void }) {
               data-preview={s.id}
               onClick={() => { applyStyle(s.id); setStyle(s.id); }}
             >
-              <span className="style-preview" aria-hidden="true">
+              <span className="style-preview" style={THEME_PREVIEWS[s.id][previewMode] as CSSProperties} aria-hidden="true">
                 <span className="sp-side" />
                 <span className="sp-main">
                   <span className="sp-title" />
@@ -68,7 +85,7 @@ export default function AppearanceDialog(props: { onClose: () => void }) {
                   <span className="sp-row"><i /><b /></span>
                 </span>
               </span>
-              <span className="style-name">{s.name}</span>
+              <span className="style-name">{s.name}<span className="style-selected" aria-hidden="true">{style === s.id ? '✓' : ''}</span></span>
               <span className="style-blurb">{s.blurb}</span>
             </button>
           ))}

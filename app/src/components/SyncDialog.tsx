@@ -105,6 +105,7 @@ export default function SyncDialog(props: { onClose: () => void }) {
             <p className="rule-note">
               Connect to a self-hosted Lifedash sync server. Your tasks, projects and habits stay on your own server; registration closes after the first account.
             </p>
+            <p className="rule-note"><a href="./selfhost.html" target="_blank" rel="noreferrer">Self-host setup guide (opens in a new tab)</a></p>
             <label className="field">
               <span>Server URL</span>
               <input type="url" inputMode="url" autoCapitalize="off" autoCorrect="off" value={url} onChange={(e) => setUrl(e.target.value)} placeholder="https://sync.example.com" />
