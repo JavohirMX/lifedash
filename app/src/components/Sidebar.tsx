@@ -83,6 +83,14 @@ export default function Sidebar(props: {
     setQuery(props.selection.kind === 'search' ? props.selection.query : '');
   }, [props.selection]);
   const [sheet, setSheet] = useState(false);
+  const moreButton = useRef<HTMLButtonElement>(null);
+  const openTool = (open: () => void) => {
+    // A sheet action disappears when the dialog opens. Keep its persistent
+    // opener focused so the dialog can return keyboard focus on close.
+    if (sheet) moreButton.current?.focus();
+    setSheet(false);
+    open();
+  };
   const prevSelection = useRef<Selection | null>(null);
   const ThemeIcon = Palette;
 
@@ -277,12 +285,12 @@ export default function Sidebar(props: {
   const footer = (
     <div className="sidebar-foot" role="group" aria-label="Tools">
       <div className="nav-section"><span>Tools</span></div>
-      {props.onAI && <button className="nav foot-action" onClick={() => { setSheet(false); props.onAI?.(); }}>Plan with AI</button>}
-      <button className="nav foot-action" onClick={() => { setSheet(false); props.onAutomation(); }}><Zap size={16} aria-hidden="true" /> Automation</button>
+      {props.onAI && <button className="nav foot-action" onClick={() => { openTool(() => props.onAI?.()); }}>Plan with AI</button>}
+      <button className="nav foot-action" onClick={() => { openTool(props.onAutomation); }}><Zap size={16} aria-hidden="true" /> Automation</button>
       {tvBtn}
-      <button className="nav foot-action" onClick={() => { setSheet(false); props.onImport(); }}><Upload size={16} aria-hidden="true" /> Import</button>
+      <button className="nav foot-action" onClick={() => { openTool(props.onImport); }}><Upload size={16} aria-hidden="true" /> Import</button>
       {restoreBtn}{exportBtn}
-      <button className="nav foot-action" onClick={() => { setSheet(false); props.onSettings(); }}><Settings size={16} aria-hidden="true" /> Settings</button>
+      <button className="nav foot-action" onClick={() => { openTool(props.onSettings); }}><Settings size={16} aria-hidden="true" /> Settings</button>
     </div>
   );
   const navigation = (after?: () => void) => NAV_GROUPS.map(group => (
@@ -328,7 +336,7 @@ export default function Sidebar(props: {
             {countFor(kind) > 0 && <span className="dock-count num">{countFor(kind)}</span>}
           </button>
         ))}
-        <button className={sheet ? 'active' : ''} onClick={() => setSheet(!sheet)} aria-label="More">
+        <button ref={moreButton} className={sheet ? 'active' : ''} onClick={() => setSheet(!sheet)} aria-label="More" aria-expanded={sheet}>
           <Menu size={20} strokeWidth={1.75} aria-hidden="true" />
           <span>More</span>
         </button>
