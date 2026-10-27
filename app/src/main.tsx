@@ -6,9 +6,14 @@ import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import App from './App';
 import { initTheme } from './theme';
+import { initAppearancePrefs } from './appearancePrefs';
+import '@fontsource-variable/inter';
+import '@fontsource-variable/manrope';
 import './styles.css';
+import './personalization.css';
 
 initTheme();
+initAppearancePrefs();
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>

@@ -42,7 +42,7 @@ try {
     await page.keyboard.press('Escape');await page.reload();await openSettings();
     assert.match(await settings.locator('.settings-current-appearance').textContent(),/Nexus.*dark mode/);
     await settings.getByRole('button',{name:'Appearance Style, light mode and dark mode'}).click();
-    await appearance.getByRole('button',{name:'Use defaults'}).click();
+    await appearance.getByRole('button',{name:'Reset style & mode'}).click();
     assert.equal(await page.evaluate(()=>localStorage.getItem('lifedash-style')),'paper');
     assert.equal(await page.evaluate(()=>localStorage.getItem('lifedash-theme')),'system');
     assert.equal(await page.evaluate(()=>localStorage.getItem('lifedash-journal-prompt-enabled')),'1','Reset changed unrelated preference');

@@ -4,6 +4,7 @@ import { Monitor, Moon, Sun, X } from 'lucide-react';
 import { STYLES, applyStyle, applyTheme, getStyle, getTheme, type StyleId, type Theme } from '../theme';
 import { useDialogFocus } from '../hooks/useDialogFocus';
 import './AppearanceDialog.css';
+import PersonalizationControls from './PersonalizationControls';
 import { THEME_PREVIEWS } from '../themePreviews';
 
 const MODES: { id: Theme; label: string; Icon: typeof Sun }[] = [
@@ -13,6 +14,7 @@ const MODES: { id: Theme; label: string; Icon: typeof Sun }[] = [
 ];
 
 export default function AppearanceDialog(props: { onClose: () => void }) {
+  const [section, setSection] = useState<'style' | 'font' | 'wallpaper'>('style');
   const [style, setStyle] = useState<StyleId>(getStyle());
   const [mode, setMode] = useState<Theme>(getTheme());
   const [systemDark, setSystemDark] = useState(() => window.matchMedia('(prefers-color-scheme: dark)').matches);
@@ -43,11 +45,15 @@ export default function AppearanceDialog(props: { onClose: () => void }) {
           <h2>Appearance</h2>
           <button className="icon-btn" aria-label="Close" onClick={props.onClose}><X size={18} strokeWidth={1.75} /></button>
         </div>
-        <p className="rule-note">Style changes type, shape, density and color. Mode switches light or dark. Both are saved on this device.</p>
+        <p className="rule-note">Make Lifedash your own. Changes apply immediately and are saved on this device.</p>
         <div className="appearance-summary">
           <p className="appearance-current" role="status">Current: <strong>{STYLES.find(s => s.id === style)?.name}</strong> · {mode === 'system' ? `System (${previewMode})` : `${MODES.find(m => m.id === mode)?.label} mode`}</p>
-          <button className="btn-secondary appearance-reset" title="Reset only appearance to Paper and System mode" onClick={() => { applyStyle('paper'); applyTheme('system'); setStyle('paper'); setMode('system'); }}>Use defaults</button>
+          <button className="btn-secondary appearance-reset" title="Reset style and mode to Paper and System; font and wallpaper stay unchanged" onClick={() => { applyStyle('paper'); applyTheme('system'); setStyle('paper'); setMode('system'); }}>Reset style &amp; mode</button>
         </div>
+        <div className="appearance-sections" role="tablist" aria-label="Appearance sections">
+          {(['style','font','wallpaper'] as const).map((id,index)=><button key={id} role="tab" id={`appearance-tab-${id}`} aria-controls={`appearance-section-${id}`} aria-selected={section===id} tabIndex={section===id?0:-1} onClick={()=>setSection(id)} onKeyDown={e=>{const next=radioKeyIndex(e.key,index,3);if(next===null)return;e.preventDefault();const id=(['style','font','wallpaper'] as const)[next];setSection(id);document.getElementById(`appearance-tab-${id}`)?.focus();}}>{id==='style'?'Style & mode':id==='font'?'Font':'Wallpaper'}</button>)}
+        </div>
+        <div role="tabpanel" id="appearance-section-style" aria-labelledby="appearance-tab-style" hidden={section!=='style'}>
         <h3 className="appearance-section-title">Mode</h3>
         <div className="mode-seg" role="radiogroup" aria-label="Mode">
           {MODES.map(({ id, label, Icon }, index) => (
@@ -90,6 +96,8 @@ export default function AppearanceDialog(props: { onClose: () => void }) {
             </button>
           ))}
         </div>
+        </div>
+        <PersonalizationControls section={section} />
       </div>
     </div>
   );

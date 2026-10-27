@@ -1,0 +1,13 @@
+// Isolated sample-data UX regression runner. Never reuses a pre-existing server.
+import {spawn} from 'node:child_process';
+import {setTimeout as delay} from 'node:timers/promises';
+const port=process.env.UX_TEST_PORT??'4183',url=`http://127.0.0.1:${port}`;
+const server=spawn(process.execPath,['node_modules/vite/bin/vite.js','--host','127.0.0.1','--port',port,'--strictPort'],{stdio:['ignore','pipe','pipe']});let output='';let child;
+server.stdout.on('data',c=>output+=c);server.stderr.on('data',c=>output+=c);
+try{
+ for(let i=0;i<100&&!output.includes('Local:');i++){if(server.exitCode!==null)throw Error(output);await delay(100)}
+ if(!output.includes('Local:'))throw Error(output);
+ for(const script of ['settings-appearance-smoke.mjs','personalization-smoke.mjs','home-ux-smoke.mjs','workflow-ux-smoke.mjs']){
+  const code=await new Promise((resolve,reject)=>{child=spawn(process.execPath,[`scripts/${script}`],{stdio:'inherit',env:{...process.env,BASE_URL:url}});child.on('error',reject);child.on('exit',code=>resolve(code))});if(code!==0)throw Error(`${script} failed`);
+ }
+}finally{child?.kill('SIGTERM');server.kill('SIGTERM');if(server.exitCode===null)await new Promise(r=>server.once('exit',r))}

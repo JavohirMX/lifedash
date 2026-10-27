@@ -1,0 +1,8 @@
+/* User font overrides are inline root variables so intentional choices win over style fonts. */
+:root[data-wallpaper]:not([data-wallpaper='none']) .app > main { position: relative; isolation: isolate; background: var(--ground); }
+:root[data-wallpaper]:not([data-wallpaper='none']) .app > main::before { content: ''; position: absolute; inset: 0; z-index: -1; background-image: var(--wallpaper-image, none); background-size: cover; background-position: center; opacity: var(--wallpaper-intensity, .2); pointer-events: none; }
+:root[data-wallpaper]:not([data-wallpaper='none']) .app > main :is(.home-head, .page-head, .section-head, .page-guidance, .task-row, .week-col, .journal-editor, .note-editor-pane, .habits-table, .goal-card) { background-color: var(--surface); }
+
+:root[data-wallpaper]:not([data-wallpaper='none']) .app > main > h1 { padding: 8px 12px; border-radius: var(--radius-card); background: var(--surface); }
+
+:root[data-wallpaper]:not([data-wallpaper='none']) .home-head { padding: 12px; border-radius: var(--radius-card); }
