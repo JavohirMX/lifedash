@@ -214,6 +214,15 @@ export default function App() {
             <button className="mini" onClick={() => void updateTask(t.id, { dueDate: today })}>
               <ArrowRight size={12} strokeWidth={1.75} aria-hidden="true" /> Today
             </button>
+            <input
+              type="date"
+              className="mini backlog-date"
+              aria-label={`Schedule ${t.title} to a date`}
+              value=""
+              onChange={(e) => {
+                if (e.target.value) void updateTask(t.id, { dueDate: e.target.value });
+              }}
+            />
           </div>
         ))}
       </section>
