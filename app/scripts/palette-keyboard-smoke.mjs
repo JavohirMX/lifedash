@@ -101,12 +101,15 @@ try {
     if (width < 500) await page.getByRole('button', { name: 'More', exact: true }).click();
     await page.locator(width < 500 ? '.mobile-sheet' : '.sidebar').getByRole('button', { name: 'Notes', exact: true }).click();
     await page.locator('.note-item').first().click();
+    const editor = page.locator('.tiptap');
+    await editor.click();
+    await page.keyboard.press('Control+End');
+    await page.keyboard.press('Enter');
     await page.getByRole('button', { name: 'Bold', exact: true }).focus();
     await page.keyboard.press('Enter');
     await page.waitForFunction(() => !!document.activeElement?.closest('.tiptap'));
-    assert.equal(await page.getByRole('button', { name: 'Bold', exact: true }).getAttribute('aria-pressed'), 'true');
-    await page.getByRole('button', { name: 'Bold', exact: true }).click();
-    assert.equal(await page.getByRole('button', { name: 'Bold', exact: true }).getAttribute('aria-pressed'), 'false');
+    await page.keyboard.type('Keyboard formatting probe');
+    await editor.locator('strong', { hasText: 'Keyboard formatting probe' }).waitFor();
     console.log(`${width}px palette containment, Escape, focus return and modal shortcut guard passed`);
     await page.close();
   }
