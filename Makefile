@@ -28,7 +28,7 @@ dev-app: ## Run just the app dev server
 	cd app && npm run dev
 
 dev-server: ## Run just the sync server
-	cd server && python3 app.py
+	cd server && uvicorn app.main:app --host 0.0.0.0 --port 8787
 
 docker-up: ## Build and start the full stack (app on :8080, sync on :8787)
 	docker compose up --build -d
