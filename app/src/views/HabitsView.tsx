@@ -1,3 +1,4 @@
+import './workflow.css';
 import { useState } from 'react';
 import { ChevronDown, ChevronRight, Flame, Plus } from 'lucide-react';
 import { useLiveQuery } from 'dexie-react-hooks';
@@ -7,7 +8,8 @@ import { currentStreak, bestStreak, completionRate, weekGrid, logsByDate, isSche
 import { todayStr, parseLocalDate } from '../dates';
 
 const COLORS = ['#6366f1', '#8b5cf6', '#22c55e', '#f59e0b', '#ef4444', '#38bdf8'];
-const DAY_LETTERS = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
+const DAY_LETTERS = ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'];
+const DAY_NAMES = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 
 export default function HabitsView() {
   const habits = useLiveQuery(() => db.habits.orderBy('order').toArray(), []);
@@ -48,6 +50,12 @@ export default function HabitsView() {
     setWeekdays(next.length === 7 ? null : next);
   }
 
+  function submitHabit() {
+    if (!name.trim()) return;
+    void addHabit(name, COLORS[active.length % COLORS.length], weekdays);
+    setName(''); setWeekdays(null); setAdding(false);
+  }
+
   return (
     <section>
       <h1>
@@ -63,26 +71,27 @@ export default function HabitsView() {
             autoFocus
             value={name}
             placeholder="Habit name (e.g. Read 20 min)"
+            aria-label="New habit name"
             onChange={(e) => setName(e.target.value)}
             onKeyDown={(e) => {
-              if (e.key === 'Enter' && name.trim()) {
-                void addHabit(name, COLORS[active.length % COLORS.length], weekdays);
-                setName('');
-                setWeekdays(null);
-                setAdding(false);
-              }
+              if (e.key === 'Enter') submitHabit();
+              if (e.key === 'Escape') setAdding(false);
             }}
           />
           <div className="wd-picker">
             {DAY_LETTERS.map((l, i) => {
               const on = (weekdays ?? [0, 1, 2, 3, 4, 5, 6]).includes(i);
               return (
-                <button key={i} className={`wd ${on ? 'on' : ''}`} onClick={() => toggleWd(i)}>
+                <button key={i} className={`wd ${on ? 'on' : ''}`} aria-label={DAY_NAMES[i]} aria-pressed={on} onClick={() => toggleWd(i)}>
                   {l}
                 </button>
               );
             })}
-            <span className="wd-hint">{weekdays === null ? 'every day' : 'custom days'}</span>
+            <span className="wd-hint">{weekdays === null ? 'Every day' : weekdays.length === 0 ? 'No days selected' : `${weekdays.length} days a week`}</span>
+          </div>
+          <div className="habit-edit-actions">
+            <button className="btn-primary" disabled={!name.trim()} onClick={submitHabit}>Add habit</button>
+            <button className="mini" onClick={() => setAdding(false)}>Cancel</button>
           </div>
         </div>
       )}
@@ -138,7 +147,7 @@ export default function HabitsView() {
                     {DAY_LETTERS.map((l, i) => {
                       const on = (editWeekdays ?? [0, 1, 2, 3, 4, 5, 6]).includes(i);
                       return (
-                        <button key={i} className={`wd ${on ? 'on' : ''}`} onClick={() => toggleEditWd(i)}>
+                        <button key={i} className={`wd ${on ? 'on' : ''}`} aria-label={DAY_NAMES[i]} aria-pressed={on} onClick={() => toggleEditWd(i)}>
                           {l}
                         </button>
                       );

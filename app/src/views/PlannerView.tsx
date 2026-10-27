@@ -1,3 +1,4 @@
+import './workflow.css';
 import { useState } from 'react';
 import { Clock } from 'lucide-react';
 import { updateTask } from '../repo';
@@ -113,6 +114,7 @@ export default function PlannerView(props: { tasks: Task[]; onOpen: (id: string)
       <h1>
         Planner <span className="date-sub">{friendlyDate(today, today)} · {weekdayLabel(today)}</span>
       </h1>
+      <p className="workflow-hint">Today's dated tasks only. Use the clock beside a task to set a time, or drag it to an hour. Set it to Anytime to remove the time.</p>
       <div className={`anytime ${overHour === 'anytime' ? 'drop-hot' : ''}`} {...dropProps('anytime')}>
         <h2>Anytime</h2>
         {anytime.length === 0 && <p className="empty">No unscheduled tasks for today.</p>}

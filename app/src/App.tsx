@@ -1,3 +1,4 @@
+import './views/workflow.css';
 import CompletionDialog from './components/CompletionDialog';
 import { setCompletionHandler, type CompletionPrompt } from './completionPrompt';
 import { SAMPLE_MODE } from './dev/sampleMode';
@@ -187,6 +188,7 @@ export default function App() {
     body = (
       <section>
         <h1>Today <span className="date-sub">{friendlyDate(today, today)} · {weekdayLabel(today)}</span></h1>
+        <p className="workflow-hint">Open tasks due today or earlier. Undated tasks stay in Backlog.</p>
         {counts.backlog > 0 && (
           <button className="nudge" onClick={() => setSelection({ kind: 'backlog' })}>
             {counts.backlog} task{counts.backlog === 1 ? '' : 's'} parked in Backlog
@@ -203,6 +205,7 @@ export default function App() {
     body = (
       <section>
         <h1>Upcoming</h1>
+        <p className="workflow-hint">Tomorrow through the next 14 days. Overdue and today's tasks are in Today.</p>
         {groups.size === 0 && <p className="empty">Nothing scheduled in the next two weeks.</p>}
         {[...groups.entries()].map(([date, list]) => (
           <div key={date} className="day-group">
@@ -217,6 +220,7 @@ export default function App() {
     body = (
       <section>
         <h1>Backlog</h1>
+        <p className="workflow-hint">Open tasks with no due date. Choose Today or a date beside a task to schedule it.</p>
         {list.length === 0 && <p className="empty">Backlog is empty. Quick-add below to park something here.</p>}
         {list.map((t) => (
           <div key={t.id} className="backlog-row">

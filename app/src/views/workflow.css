@@ -1,0 +1,12 @@
+.workflow-hint { max-width: 680px; margin: -4px 0 18px; color: var(--muted); font-size: var(--fs-small); line-height: 1.6; }
+.habit-add .wd-picker { flex-wrap: wrap; }
+.habit-add .wd { min-width: 36px; height: 36px; }
+.habit-add .habit-edit-actions { margin-top: 14px; }
+@media(max-width:640px) {
+ .habit-add .wd-picker { gap: 3px; }
+ .habit-add .wd { min-width: 32px; height: 44px; flex: 1; }
+ .habit-add .wd-hint { flex-basis: 100%; margin-top: 6px; }
+ .habit-add .habit-edit-actions > button { min-height: 44px; }
+}
+.habit-add .wd[aria-pressed='false'] { background: var(--surface); color: var(--muted); border-color: var(--control); }
+.habit-add .wd[aria-pressed='true'] { background: var(--accent-soft); color: var(--accent); border: 2px solid var(--accent); font-weight: 600; }

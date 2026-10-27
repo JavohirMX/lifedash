@@ -1,3 +1,4 @@
+import './workflow.css';
 import { useState } from 'react';
 import { ArrowRight, ChevronLeft, ChevronRight } from 'lucide-react';
 import { updateTask } from '../repo';
@@ -62,6 +63,7 @@ export default function WeekView(props: { tasks: Task[]; onOpen: (id: string) =>
           </button>
         </span>
       </h1>
+      <p className="workflow-hint">Open tasks by due date. Drag a task to another day, or open its title to change the date on any device.</p>
       {overdue.length > 0 && (
         <div
           className={`week-overdue ${overDay === 'overdue' ? 'drop-hot' : ''}`}
