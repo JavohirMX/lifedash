@@ -1450,3 +1450,40 @@ input[type='checkbox'], input[type='radio'], input[type='range'] { accent-color:
 .focus-clock { font-variant-numeric: tabular-nums; font-size: 20px; font-weight: 600; }
 .focus-total { margin-left: auto; opacity: 0.7; font-size: var(--fs-small, 12px); }
 .focus-stop { flex: none; }
+
+/* ---- TV kiosk surface (#/tv). Always dark, Nexus palette. ---- */
+.tv-root {
+  position: fixed; inset: 0; z-index: 100;
+  background: #0c0e1a; color: #e6e8f2;
+  padding: 40px 48px; overflow: auto;
+  display: flex; flex-direction: column; gap: 28px;
+}
+.tv-head { display: flex; align-items: baseline; gap: 24px; }
+.tv-clock { font-size: 64px; font-weight: 700; letter-spacing: -0.02em; }
+.tv-date { font-size: 24px; color: #9aa0c3; }
+.tv-grid {
+  display: grid; gap: 20px; flex: 1;
+  grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
+  align-content: start;
+}
+.tv-card { background: #13172b; border-radius: 16px; padding: 24px 28px; }
+.tv-card h2 {
+  margin: 0 0 14px; font-size: 14px; font-weight: 600;
+  text-transform: uppercase; letter-spacing: 0.12em; color: #8b93b8;
+}
+.tv-wide { grid-column: 1 / -1; }
+.tv-highlight { border-left: 4px solid #8b5cf6; }
+.tv-highlight-text { font-size: 26px; margin: 0; line-height: 1.35; }
+.tv-top-title { font-size: 30px; font-weight: 650; margin: 0 0 8px; line-height: 1.25; }
+.tv-top-meta { font-size: 17px; color: #9aa0c3; margin: 0; }
+.tv-big { font-size: 40px; font-weight: 700; margin: 0 0 12px; }
+.tv-bar { height: 10px; border-radius: 6px; background: #1d2238; overflow: hidden; margin-bottom: 14px; }
+.tv-bar-fill { height: 100%; border-radius: 6px; background: linear-gradient(90deg, #6366f1, #8b5cf6); }
+.tv-sub { color: #9aa0c3; font-size: 15px; margin: 0; }
+.tv-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 10px; font-size: 18px; }
+.tv-list.tv-due li { display: flex; justify-content: space-between; gap: 16px; }
+.tv-done { color: #22c55e; text-decoration: line-through; text-decoration-thickness: 2px; }
+.tv-overdue { color: #ef4444; }
+.tv-more { color: #8b93b8; font-size: 15px; }
+.tv-time { color: #9aa0c3; }
+.tv-empty { color: #8b93b8; font-size: 17px; margin: 0; }

@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { Bell, BellRing,
   Sun, CalendarDays, Archive, Clock, CalendarRange, Repeat, CheckCircle2,
-  Search, Plus, Menu, X, Download, Upload, Palette, Zap, Cloud, House, Target, StickyNote, BookOpen,
+  Search, Plus, Menu, X, Download, Upload, Palette, Zap, Cloud, House, Target, StickyNote, BookOpen, Monitor,
 } from 'lucide-react';
 import type { Project } from '../types';
 import { addProject, countAttachments, exportJson } from '../repo';
@@ -240,6 +240,13 @@ export default function Sidebar(props: {
     </div>
   );
 
+  const tvBtn = (
+    <button className="nav foot-action" onClick={() => { window.location.hash = '/tv'; }}>
+      <Monitor size={16} strokeWidth={1.75} aria-hidden="true" />
+      <span>TV dashboard</span>
+    </button>
+  );
+
   const restoreBtn = (
     <button className="nav foot-action" onClick={props.onRestore}>
       <Upload size={16} strokeWidth={1.75} aria-hidden="true" />
@@ -330,7 +337,7 @@ export default function Sidebar(props: {
         {searchBox}
         {MAIN_ITEMS.map(({ kind, label, Icon }) => item(kind, label, Icon))}
         {projectsBlock}
-        <div className="sidebar-foot">{props.onAI && <button className="nav foot-action" onClick={() => { setSheet(false); props.onAI?.(); }}>Plan with AI</button>}{importBtn}{remindersBtn}{nudgeBtn}{themeBtn}{exportBtn}{restoreBtn}</div>
+        <div className="sidebar-foot">{props.onAI && <button className="nav foot-action" onClick={() => { setSheet(false); props.onAI?.(); }}>Plan with AI</button>}{importBtn}{remindersBtn}{nudgeBtn}{tvBtn}{themeBtn}{exportBtn}{restoreBtn}</div>
       </nav>
 
       <div className="mobile-topbar">
@@ -376,7 +383,7 @@ export default function Sidebar(props: {
           {searchBox}
           {MAIN_ITEMS.map(({ kind, label, Icon }) => item(kind, label, Icon, () => setSheet(false)))}
           {projectsBlock}
-          <div className="sidebar-foot">{props.onAI && <button className="nav foot-action" onClick={() => { setSheet(false); props.onAI?.(); }}>Plan with AI</button>}{importBtn}{remindersBtn}{nudgeBtn}{themeBtn}{exportBtn}{restoreBtn}</div>
+          <div className="sidebar-foot">{props.onAI && <button className="nav foot-action" onClick={() => { setSheet(false); props.onAI?.(); }}>Plan with AI</button>}{importBtn}{remindersBtn}{nudgeBtn}{tvBtn}{themeBtn}{exportBtn}{restoreBtn}</div>
         </div>
       )}
     </>

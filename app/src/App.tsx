@@ -21,6 +21,7 @@ import ShortcutsDialog from './components/ShortcutsDialog';
 import ImportDialog from './components/ImportDialog';
 import type { ImportSource } from './import';
 import AutomationDialog from './components/AutomationDialog';
+import TVDashboard from './views/TVDashboard';
 import SyncDialog from './components/SyncDialog';
 import AppearanceDialog from './components/AppearanceDialog';
 import { cycleTheme } from './theme';
@@ -47,6 +48,12 @@ export default function App() {
   const notes = useLiveQuery(() => db.notes.toArray(), []);
   const journal = useLiveQuery(() => db.journal.toArray(), []);
   const [selection, setSelection] = useState<Selection>({ kind: 'home' });
+  const [isTv, setIsTv] = useState(() => window.location.hash === '#/tv');
+  useEffect(() => {
+    const onHash = () => setIsTv(window.location.hash === '#/tv');
+    window.addEventListener('hashchange', onHash);
+    return () => window.removeEventListener('hashchange', onHash);
+  }, []);
   const [projEditing, setProjEditing] = useState(false);
   const [projName, setProjName] = useState('');
   const [projColor, setProjColor] = useState('');
@@ -150,6 +157,8 @@ export default function App() {
   })();
   const openTag = (tag: string) => setSelection({ kind: 'search', query: `#${tag}` });
   const showQuickAdd = selection.kind !== 'completed' && selection.kind !== 'search' && selection.kind !== 'habits' && selection.kind !== 'planner' && selection.kind !== 'week' && selection.kind !== 'home' && selection.kind !== 'goals' && selection.kind !== 'notes' && selection.kind !== 'journal' && selection.kind !== 'calendar';
+
+  if (isTv) return <TVDashboard />;
 
   let body;
   if (selection.kind === 'home') {
