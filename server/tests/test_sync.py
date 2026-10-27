@@ -54,6 +54,24 @@ def test_auth_required(client):
     assert client.post("/api/changes", json={"changes": []}).status_code == 401
 
 
+def test_logout_revokes_only_the_presented_token(client):
+    username, token = register(client)
+    assert client.get("/api/changes", headers=auth(token)).status_code == 200
+    assert client.post("/api/logout", headers=auth(token)).status_code == 204
+    assert client.get("/api/changes", headers=auth(token)).status_code == 401
+    # A fresh login for the same user gets an independent, still-valid token.
+    r = client.post("/api/login", json={"username": username, "password": "correct horse battery staple"})
+    assert r.status_code == 200
+    token2 = r.json()["token"]
+    assert token2 != token
+    assert client.get("/api/changes", headers=auth(token2)).status_code == 200
+
+
+def test_logout_rejects_missing_or_unknown_token(client):
+    assert client.post("/api/logout").status_code == 401
+    assert client.post("/api/logout", headers=auth("no-such-token")).status_code == 401
+
+
 def test_push_and_pull_roundtrip(client):
     _, token = register(client)
     task_id = uuid.uuid4().hex

@@ -9,7 +9,7 @@ import json
 import os
 from contextlib import asynccontextmanager
 
-from fastapi import Depends, FastAPI, HTTPException
+from fastapi import Depends, FastAPI, Header, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 
@@ -92,6 +92,19 @@ def login(creds: Credentials):
     conn.execute("INSERT INTO tokens (token, user_id) VALUES (?, ?)", (token, row["id"]))
     conn.commit()
     return {"token": token, "user_id": row["id"]}
+
+
+@app.post("/api/logout", status_code=204)
+def logout(authorization: str = Header(default="")):
+    prefix = "Bearer "
+    if not authorization.startswith(prefix):
+        raise HTTPException(status_code=401, detail="missing bearer token")
+    token = authorization[len(prefix):].strip()
+    conn = get_conn()
+    cur = conn.execute("DELETE FROM tokens WHERE token = ?", (token,))
+    conn.commit()
+    if cur.rowcount == 0:
+        raise HTTPException(status_code=401, detail="invalid token")
 
 
 @app.get("/api/changes")
