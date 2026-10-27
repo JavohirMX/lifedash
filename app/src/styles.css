@@ -1656,3 +1656,19 @@ main > .quick-add { margin-bottom: 24px; }
  .task-meta { font-size: 11px; }
  .backlog-row { margin-bottom: 14px; }
 }
+
+/* Habit identity, metrics and actions should never compete for one tiny row. */
+.habit-head { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px 16px; align-items: start; margin-bottom: 18px; }
+.habit-identity { display: flex; align-items: center; gap: 9px; min-width: 0; }
+.habit-identity .habit-name { line-height: 1.4; overflow-wrap: anywhere; }
+.habit-metrics { grid-column: 1; display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; color: var(--muted); }
+.habit-metrics:empty { display: none; }
+.habit-metrics .streak { display: inline-flex; align-items: center; gap: 4px; }
+.habit-actions { grid-column: 2; grid-row: 1 / span 2; display: flex; gap: 7px; }
+@media(max-width:640px) {
+ .habit-head { grid-template-columns: 1fr; gap: 8px; }
+ .habit-metrics { grid-column: 1; }
+ .habit-actions { grid-column: 1; grid-row: auto; padding-top: 3px; }
+ .habit-actions .mini { min-height: 36px; padding: 6px 13px; }
+ .habit-identity .habit-name { font-size: 16px; }
+}

@@ -107,9 +107,9 @@ export default function HabitsView() {
           return (
             <div key={h.id} className="habit-card">
               <div className="habit-head">
-                <span className="dot" style={{ background: h.color }} />
-                <span className="habit-name">{h.name}</span>
-                {streak >= 2 && <span className="streak"><Flame size={12} strokeWidth={2} aria-hidden="true" /> {streak}</span>}
+                <div className="habit-identity"><span className="dot" style={{ background: h.color }} /><span className="habit-name">{h.name}</span></div>
+                <div className="habit-metrics">
+                {streak >= 2 && <span className="streak"><Flame size={12} strokeWidth={2} aria-hidden="true" /> {streak}-day streak</span>}
                 {total > 0 && (
                   <span className="habit-stats num">
                     {best > streak && <>best {best} · </>}
@@ -117,12 +117,13 @@ export default function HabitsView() {
                     {total} total
                   </span>
                 )}
+                </div><div className="habit-actions">
                 <button className="mini" title="Edit habit" onClick={() => (editingId === h.id ? setEditingId(null) : startEdit(h))}>
                   {editingId === h.id ? 'Close' : 'Edit'}
                 </button>
                 <button className="mini" title="Archive habit" onClick={() => void archiveHabit(h.id)}>
                   Archive
-                </button>
+                </button></div>
               </div>
               {editingId === h.id && (
                 <div className="habit-add habit-edit">
