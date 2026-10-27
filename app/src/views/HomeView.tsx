@@ -3,7 +3,7 @@ import { useState } from 'react';
 import { Check, Flame, ArrowRight, Target, SlidersHorizontal, Zap } from 'lucide-react';
 import { db } from '../db';
 import { toggleComplete, toggleHabitForDate } from '../repo';
-import { todayTasks, upcomingTasks, suggestedTask } from '../logic';
+import { todayTasks, upcomingTasks, suggestedTask, upNextGroups } from '../logic';
 import { currentStreak, isScheduledOn, logsByDate } from '../habits';
 import { todayStr, addDays, friendlyDate, weekdayLabel } from '../dates';
 import type { Task } from '../types';
@@ -52,6 +52,14 @@ export default function HomeView(props: { tasks: Task[]; onSelect: (kind: string
       ? [...dueTodayAll].sort((a, b) => (a.status === 'done' ? 1 : 0) - (b.status === 'done' ? 1 : 0))
       : (upcoming.get(d) ?? []);
 
+  const sug = upNextGroups(props.tasks, today, now.getTime());
+  const sugRows = [
+    { id: 'overdue', count: sug.overdue.length, text: 'overdue', go: () => props.onSelect('upcoming') },
+    { id: 'dueSoon', count: sug.dueSoon.length, text: 'due in the next 2 days', go: () => props.onSelect('upcoming') },
+    { id: 'stale', count: sug.staleBacklog.length, text: 'untouched 14+ days in Backlog', go: () => props.onSelect('backlog') },
+    { id: 'broken', count: sug.brokenRules.length, text: sug.brokenRules.length === 1 ? 'broken repeat rule' : 'broken repeat rules', go: () => props.onOpen(sug.brokenRules[0].id) },
+  ].filter((r) => r.count > 0);
+
   const upNext = Array.from(upcoming.entries())
     .filter(([d]) => d > today)
     .flatMap(([d, ts]) => ts.map((t) => ({ d, t })))
@@ -78,6 +86,7 @@ export default function HomeView(props: { tasks: Task[]; onSelect: (kind: string
         <div className="widget-settings" role="group" aria-label="Show or hide widgets">
           {[
             ['focus', 'Focus'],
+            ['upnext', 'Up next'],
             ['today', 'Today'],
             ['habits', 'Habits'],
             ['week', 'This week'],
@@ -111,6 +120,25 @@ export default function HomeView(props: { tasks: Task[]; onSelect: (kind: string
           </div>
         </div>
         )}
+        {!hidden.includes('upnext') && sugRows.length > 0 && (
+        <div className="widget">
+          <div className="widget-head">
+            <h2>Up next</h2>
+          </div>
+          <ul className="widget-list">
+            {sugRows.map((r) => (
+              <li key={r.id}>
+                <button className="widget-task upnext-row" onClick={r.go}>
+                  <span className="num upnext-count">{r.count}</span>
+                  <span>{r.text}</span>
+                  <ArrowRight size={13} strokeWidth={2} aria-hidden="true" className="upnext-arrow" />
+                </button>
+              </li>
+            ))}
+          </ul>
+        </div>
+        )}
+
         {!hidden.includes('today') && (
         <div className="widget">
           <div className="widget-head">

@@ -973,6 +973,9 @@ h2 { font-family: var(--font-display); font-size: var(--fs-section); font-weight
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
 .widget-task.done { text-decoration: line-through; opacity: 0.6; }
+.upnext-row { display: flex; align-items: center; gap: 8px; white-space: normal; }
+.upnext-count { min-width: 1.4em; font-weight: 600; }
+.upnext-arrow { margin-left: auto; flex: none; opacity: 0.55; }
 .widget-when { flex: none; font-size: var(--fs-small); color: var(--muted); }
 .widget-streak { display: inline-flex; align-items: center; gap: 3px; font-size: var(--fs-small); color: var(--warning); font-variant-numeric: tabular-nums; }
 .load-chart { display: flex; align-items: flex-end; gap: 8px; height: 84px; padding-top: 4px; }

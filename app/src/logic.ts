@@ -174,6 +174,31 @@ export function upcomingTasks(tasks: Task[], today: string, days = 14): Map<stri
   return groups;
 }
 
+// --- "Up next" suggestions (SPEC Phase 5) ---
+// Plain date/threshold heuristics only - no invented smarts.
+
+export const UPNEXT_STALE_DAYS = 14;
+export const UPNEXT_DUE_SOON_DAYS = 2;
+
+export interface UpNextGroups {
+  overdue: Task[];
+  dueSoon: Task[];
+  staleBacklog: Task[];
+  brokenRules: Task[];
+}
+
+export function upNextGroups(tasks: Task[], today: string, now: number): UpNextGroups {
+  const act = tasks.filter((t) => active(t) && topLevel(t));
+  const staleMs = UPNEXT_STALE_DAYS * 86400000;
+  const soonLimit = addDays(today, UPNEXT_DUE_SOON_DAYS);
+  return {
+    overdue: sortTasks(act.filter((t) => t.dueDate !== null && t.dueDate < today)),
+    dueSoon: sortTasks(act.filter((t) => t.dueDate !== null && t.dueDate > today && t.dueDate <= soonLimit)),
+    staleBacklog: sortTasks(act.filter((t) => t.dueDate === null && now - t.updatedAt >= staleMs)),
+    brokenRules: sortTasks(act.filter((t) => t.recurrence !== null && !isRecurrenceValid(t.recurrence))),
+  };
+}
+
 export function backlogTasks(tasks: Task[]): Task[] {
   return sortTasks(tasks.filter((t) => active(t) && topLevel(t) && t.dueDate === null));
 }

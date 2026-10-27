@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { parseQuickAdd, groupCompletedByDay, renamedTags, completeTask, describeRecurrence, isRecurrenceValid, nextOccurrenceDate, makeRecurrence } from './logic';
+import { parseQuickAdd, groupCompletedByDay, renamedTags, completeTask, describeRecurrence, isRecurrenceValid, nextOccurrenceDate, makeRecurrence, upNextGroups } from './logic';
 import type { Task } from './types';
 
 describe('parseQuickAdd', () => {
@@ -187,5 +187,59 @@ describe('nextOccurrenceDate monthly clamping', () => {
     expect(nextOccurrenceDate(daily, '2025-01-31', '2025-01-31')).toBe('2025-02-01');
     const weekly = makeRecurrence('weekly', '2025-01-31');
     expect(nextOccurrenceDate(weekly, '2025-01-31', '2025-01-31')).toBe('2025-02-07');
+  });
+});
+
+describe('upNextGroups', () => {
+  const mk = (id: string, over: Partial<Task>): Task => ({
+    id, title: id, note: '', noteDoc: null, projectId: 'inbox', parentId: null,
+    goalId: null, noteId: null, status: 'active', pinned: false, priority: 0,
+    dueDate: null, dueTime: null, recurrence: null, blockedBy: [], tags: [],
+    order: 0, seriesId: null, createdAt: 0, updatedAt: 0, completedAt: null,
+    ...over,
+  });
+  const today = '2026-10-20';
+  const now = new Date('2026-10-20T12:00:00').getTime();
+  const day = 86400000;
+
+  it('groups overdue and due soon, excluding today and including the +2 edge', () => {
+    const g = upNextGroups([
+      mk('over', { dueDate: '2026-10-19' }),
+      mk('today', { dueDate: '2026-10-20' }),
+      mk('soon1', { dueDate: '2026-10-21' }),
+      mk('soon2', { dueDate: '2026-10-22' }),
+      mk('later', { dueDate: '2026-10-23' }),
+    ], today, now);
+    expect(g.overdue.map((t) => t.id)).toEqual(['over']);
+    expect(g.dueSoon.map((t) => t.id)).toEqual(['soon1', 'soon2']);
+  });
+
+  it('flags backlog tasks untouched for 14+ days, not fresher or dated ones', () => {
+    const g = upNextGroups([
+      mk('stale', { updatedAt: now - 14 * day }),
+      mk('fresh', { updatedAt: now - 13 * day }),
+      mk('dated', { dueDate: '2026-10-25', updatedAt: now - 30 * day }),
+    ], today, now);
+    expect(g.staleBacklog.map((t) => t.id)).toEqual(['stale']);
+  });
+
+  it('detects stored repeat rules that fail to parse', () => {
+    const g = upNextGroups([
+      mk('broken', { recurrence: 'BOGUS' }),
+      mk('fine', { recurrence: null }),
+    ], today, now);
+    expect(g.brokenRules.map((t) => t.id)).toEqual(['broken']);
+  });
+
+  it('excludes done, archived and subtasks from every group', () => {
+    const g = upNextGroups([
+      mk('done', { status: 'done', dueDate: '2026-10-19', updatedAt: now - 30 * day, recurrence: 'BOGUS' }),
+      mk('arch', { status: 'archived', dueDate: '2026-10-19', updatedAt: now - 30 * day }),
+      mk('sub', { parentId: 'p', dueDate: '2026-10-19', updatedAt: now - 30 * day }),
+    ], today, now);
+    expect(g.overdue).toEqual([]);
+    expect(g.dueSoon).toEqual([]);
+    expect(g.staleBacklog).toEqual([]);
+    expect(g.brokenRules).toEqual([]);
   });
 });
