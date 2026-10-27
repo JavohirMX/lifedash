@@ -37,6 +37,7 @@ export default function SearchView(props: {
   let taskResults = scope === 'all' || scope === 'tasks' ? searchTasks(props.tasks, selection.query) : [];
   if (statusFilter === 'open') taskResults = taskResults.filter((t) => t.status === 'active');
   if (statusFilter === 'done') taskResults = taskResults.filter((t) => t.status === 'done');
+  const projectIdsInResults = [...new Set(taskResults.map((t) => t.projectId))];
   if (projectFilter) taskResults = taskResults.filter((t) => t.projectId === projectFilter);
 
   const noteResults = scope === 'all' || scope === 'notes' ? searchNotes(notes ?? [], selection.query) : [];
@@ -47,7 +48,6 @@ export default function SearchView(props: {
   const queryTags = selection.query.trim().split(/\s+/).filter((tok) => tok.startsWith('#'));
   const removeTag = (tag: string) =>
     props.onPatch({ query: selection.query.split(/\s+/).filter((tok) => tok !== tag).join(' ') });
-  const projectIdsInResults = [...new Set(taskResults.map((t) => t.projectId))];
 
   const excerpt = (text: string, n = 110): string => {
     const t = text.replace(/\s+/g, ' ').trim();
@@ -121,7 +121,7 @@ export default function SearchView(props: {
               onChange={(e) => props.onPatch({ projectId: e.target.value || null })}
             >
               <option value="">Every project</option>
-              {projectIdsInResults.map((pid) => (
+              {[...new Set([...projectIdsInResults, ...(projectFilter ? [projectFilter] : [])])].map((pid) => (
                 <option key={pid} value={pid}>{props.projects.find((p) => p.id === pid)?.name ?? pid}</option>
               ))}
             </select>

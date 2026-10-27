@@ -10,3 +10,11 @@
 }
 .habit-add .wd[aria-pressed='false'] { background: var(--surface); color: var(--muted); border-color: var(--control); }
 .habit-add .wd[aria-pressed='true'] { background: var(--accent-soft); color: var(--accent); border: 2px solid var(--accent); font-weight: 600; }
+
+.note-editor-pane > .note-back-list { display: none; }
+@media(max-width:700px) {
+ .note-editor-pane, .notes-list { scroll-margin-top: 62px; }
+ .note-is-open .notes-list { display: none; }
+ .note-editor-pane > .note-back-list { display: inline-flex; min-height: 44px; align-items: center; margin-bottom: 10px; }
+ .goal-add > button { min-height: 44px; }
+}

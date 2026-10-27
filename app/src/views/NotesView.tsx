@@ -1,6 +1,6 @@
 import './workflow.css';
 import { requestComplete } from '../completionPrompt';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { Check, ListPlus, Pin, PinOff, Plus, Search, StickyNote, Trash2 } from 'lucide-react';
 
@@ -31,6 +31,13 @@ export default function NotesView(props: { initialOpenId?: string }) {
   const [openId, setOpenId] = useState<string | null>(props.initialOpenId ?? null);
   const [extracted, setExtracted] = useState<number | null>(null);
   const [q, setQ] = useState('');
+  const editorPane = useRef<HTMLDivElement>(null);
+  const noteList = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (openId && window.matchMedia('(max-width: 700px)').matches) {
+      requestAnimationFrame(() => editorPane.current?.scrollIntoView({ block: 'start' }));
+    }
+  }, [openId, notes?.some(n => n.id === openId)]);
 
   const sorted = useMemo(
     () => (notes ?? []).slice().sort((a, b) => Number(b.pinned) - Number(a.pinned) || b.updatedAt - a.updatedAt),
@@ -84,8 +91,8 @@ export default function NotesView(props: { initialOpenId?: string }) {
           <p>Free-form notes with rich text - checklists, links, headings. Pin the ones you come back to.</p>
         </div>
       ) : (
-        <div className="notes-layout">
-          <div className="notes-list" role="list" aria-label="Notes">
+        <div className={`notes-layout${open ? ' note-is-open' : ''}`}>
+          <div ref={noteList} className="notes-list" role="group" aria-label="Notes">
             {shown.map((n) => (
               <button
                 key={n.id}
@@ -105,7 +112,8 @@ export default function NotesView(props: { initialOpenId?: string }) {
             ))}
           </div>
           {open && (
-            <div className="note-editor-pane">
+            <div ref={editorPane} className="note-editor-pane">
+              <button className="mini note-back-list" onClick={() => { setOpenId(null); requestAnimationFrame(() => noteList.current?.scrollIntoView({ block: 'start' })); }}>Back to notes</button>
               <div className="note-editor-head">
                 <input
                   className="note-title-input"

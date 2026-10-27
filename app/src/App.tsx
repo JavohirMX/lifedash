@@ -315,6 +315,7 @@ export default function App() {
             </span>
           )}
         </h1>
+        <p className="workflow-hint">Open tasks in this project and its subprojects. Progress above includes completed top-level tasks.</p>
         {projEditing && project && (
           <div className="goal-add proj-settings">
             <input
