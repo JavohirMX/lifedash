@@ -270,6 +270,12 @@ describe('skipOccurrence', () => {
     expect(r!.updates.skippedDates).toEqual(['2026-10-26', '2026-10-27']);
   });
 
+  it('skippedDates survives the JSON roundtrip used by export and sync', () => {
+    const t = { ...base, skippedDates: ['2026-10-25', '2026-10-26'] };
+    const round = JSON.parse(JSON.stringify(t));
+    expect(round.skippedDates).toEqual(['2026-10-25', '2026-10-26']);
+  });
+
   it('carries skipped dates into the spawned occurrence on completion', () => {
     const t = { ...base, skippedDates: ['2026-10-25', '2026-10-26'] };
     const { spawned } = completeTask(t, '2026-10-27', 1000);
