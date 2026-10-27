@@ -140,7 +140,7 @@ export default function GoogleCalendarPanel(props: { settings: SyncSettings | nu
           ? 'Disconnected, and Google confirmed access was removed.'
           : 'Disconnected from LifeDash. Google did not confirm, so also remove LifeDash in your Google Account under Third-party access.',
       );
-      setState({ kind: 'disconnected' });
+      setState(state.kind==='connected' && state.unavailable ? {kind:'unavailable'} : { kind: 'disconnected' });
     } catch (e) {
       if(live.current && request===requestGeneration.current)setState(stateFromError(e));
     } finally {
