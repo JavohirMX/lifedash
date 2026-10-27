@@ -76,7 +76,17 @@ export default function App() {
   const [nudgeOn, setNudgeOn] = useState(journalPromptEnabled);
   const tasksRef = useRef<Task[]>([]);
   const journalRef = useRef<JournalEntry[]>([]);
-  const quickAddFocus = () => document.querySelector<HTMLInputElement>('.quick-add input')?.focus();
+  const [quickAddRequested, setQuickAddRequested] = useState(false);
+  const quickAddFocus = () => {
+    const input = document.querySelector<HTMLInputElement>('.quick-add input');
+    if (input) input.focus();
+    else { setSelection({ kind: 'backlog' }); setQuickAddRequested(true); }
+  };
+  useEffect(() => {
+    if (!quickAddRequested) return;
+    const input = document.querySelector<HTMLInputElement>('.quick-add input');
+    if (input) { input.focus(); setQuickAddRequested(false); }
+  }, [selection, quickAddRequested]);
   useGlobalKeys({
     onPalette: () => setPaletteOpen((o) => !o),
     onNewTask: quickAddFocus,
