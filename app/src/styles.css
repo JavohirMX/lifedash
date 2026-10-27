@@ -894,6 +894,11 @@ h2 { font-family: var(--font-display); font-size: var(--fs-section); font-weight
 }
 .switch.on { background: var(--accent); }
 .switch.on .knob { transform: translateX(14px); }
+.rule-user-list { display: flex; flex-direction: column; gap: 2px; margin: 4px 0; }
+.rule-form { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+.rule-form select, .rule-form input { min-height: 34px; padding: 4px 8px; border: 1px solid var(--control); border-radius: var(--radius, 8px); background: var(--surface); color: var(--text); font: inherit; }
+.rule-form select { min-width: 10rem; }
+.rule-form input { flex: 1; min-width: 8rem; }
 .rule-coming {
   display: flex; align-items: center; gap: 8px; margin-top: 14px;
   font-size: var(--fs-small); color: var(--muted);

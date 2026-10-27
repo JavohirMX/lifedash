@@ -24,9 +24,9 @@ import AutomationDialog from './components/AutomationDialog';
 import SyncDialog from './components/SyncDialog';
 import AppearanceDialog from './components/AppearanceDialog';
 import { cycleTheme } from './theme';
-import { loadRules, saveRules, type AutomationRules } from './automation';
+import { loadRules, saveRules, loadUserRules, saveUserRules, type AutomationRules, type UserRule } from './automation';
 import { remindersEnabled, setRemindersEnabled, startReminders } from './reminders';
-import { applyRollover } from './repo';
+import { applyRollover, applyWeeklyUserRules } from './repo';
 import { startAutoSync } from './sync';
 import { SyncConflictBanner } from './components/SyncConflictBanner';
 import {
@@ -61,6 +61,7 @@ export default function App() {
   const [appearanceOpen, setAppearanceOpen] = useState(false);
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
   const [rules, setRules] = useState<AutomationRules>(loadRules);
+  const [userRules, setUserRules] = useState<UserRule[]>(loadUserRules);
   const [remindOn, setRemindOn] = useState(remindersEnabled);
   const tasksRef = useRef<Task[]>([]);
   const quickAddFocus = () => document.querySelector<HTMLInputElement>('.quick-add input')?.focus();
@@ -75,6 +76,7 @@ export default function App() {
     void ensureSeed();
     startAutoSync();
     if (loadRules().rollover) void applyRollover(todayStr());
+    void applyWeeklyUserRules(todayStr());
   }, []);
 
   tasksRef.current = tasks ?? [];
@@ -111,6 +113,10 @@ export default function App() {
     return <div className="boot">Loading LifeDash...</div>;
   }
 
+  const changeUserRules = (next: UserRule[]) => {
+    setUserRules(next);
+    saveUserRules(next);
+  };
   const changeRules = (next: AutomationRules) => {
     setRules(next);
     saveRules(next);
@@ -327,7 +333,7 @@ export default function App() {
         />
       )}
       {importPreset !== false && <ImportDialog projects={projects} initialSource={importPreset} onClose={() => setImportPreset(false)} />}
-      {automationOpen && <AutomationDialog rules={rules} onChange={changeRules} onClose={() => setAutomationOpen(false)} />}
+      {automationOpen && <AutomationDialog rules={rules} onChange={changeRules} userRules={userRules} onUserRulesChange={changeUserRules} onClose={() => setAutomationOpen(false)} />}
       {aiOpen && <AssistantDialog tasks={tasks} onClose={() => setAiOpen(false)} />}
       {syncOpen && <SyncDialog onClose={() => setSyncOpen(false)} />}
       {appearanceOpen && <AppearanceDialog onClose={() => setAppearanceOpen(false)} />}

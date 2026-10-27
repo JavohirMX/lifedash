@@ -1,4 +1,5 @@
-import { loadRules, rolloverTargets, shouldCompleteParent } from './automation';
+import { loadRules, rolloverTargets, shouldCompleteParent, loadUserRules, saveUserRules, tagRulesFor, weeklyRulesDue, hasOpenTitle } from './automation';
+import { parseLocalDate } from './dates';
 import { db, newId } from './db';
 import type { Task, Project, Goal, Note, JournalEntry } from './types';
 import { completeTask, wouldCreateCycle, normalizeTag, normalizeTask, reorderedPosition, renamedTags } from './logic';
@@ -77,6 +78,45 @@ export async function toggleComplete(task: Task): Promise<void> {
       if (parent) await toggleComplete(parent);
     }
   }
+  await applyUserRulesForCompletion(task);
+}
+
+/** Fire user tag rules for a just-completed task. Created tasks carry no
+ * tags, so a rule's own product can never retrigger it. */
+export async function applyUserRulesForCompletion(task: Task): Promise<number> {
+  const due = tagRulesFor(loadUserRules(), task);
+  if (due.length === 0) return 0;
+  const all = await db.tasks.toArray();
+  let created = 0;
+  for (const rule of due) {
+    if (hasOpenTitle(all, rule.title)) continue;
+    const t = await addTask({ title: rule.title, projectId: task.projectId });
+    all.push(t);
+    created++;
+  }
+  return created;
+}
+
+/** Fire due weekly user rules on app open. lastFired is stamped even when
+ * creation is skipped (open task with the same title), so a rule still fires
+ * at most once per day. */
+export async function applyWeeklyUserRules(today: string): Promise<number> {
+  const weekday = parseLocalDate(today).getDay();
+  const rules = loadUserRules();
+  const due = weeklyRulesDue(rules, today, weekday);
+  if (due.length === 0) return 0;
+  const all = await db.tasks.toArray();
+  let created = 0;
+  for (const rule of due) {
+    if (!hasOpenTitle(all, rule.title)) {
+      const t = await addTask({ title: rule.title, projectId: 'inbox' });
+      all.push(t);
+      created++;
+    }
+    rule.lastFired = today;
+  }
+  saveUserRules(rules);
+  return created;
 }
 
 /** Move every overdue active task into Today. Returns how many moved. */
