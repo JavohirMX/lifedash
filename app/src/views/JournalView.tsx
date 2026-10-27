@@ -1,3 +1,4 @@
+import { radioKeyIndex } from '../radioKeys';
 import { useEffect, useState } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { BookOpen, ChevronLeft, ChevronRight, Frown, Meh, Smile, CloudRain, Laugh } from 'lucide-react';
@@ -79,11 +80,19 @@ export default function JournalView(props: { initialDate?: string }) {
         })}
       </div>
       <div className="mood-row" role="radiogroup" aria-label="Mood">
-        {MOODS.map(({ v, Icon, label }) => (
+        {MOODS.map(({ v, Icon, label }, index) => (
           <button
             key={v}
             role="radio"
             aria-checked={entry?.mood === v}
+            tabIndex={entry?.mood === v || (!entry?.mood && index === 0) ? 0 : -1}
+            onKeyDown={e => {
+              const next = radioKeyIndex(e.key, index, MOODS.length);
+              if (next === null) return;
+              e.preventDefault();
+              e.currentTarget.closest('[role=radiogroup]')?.querySelectorAll<HTMLButtonElement>('[role=radio]')[next]?.focus();
+              void getOrCreateJournalEntry(date).then(entry => updateJournalEntry(entry.id, { mood: MOODS[next].v }));
+            }}
             className={`mood-btn ${entry?.mood === v ? 'active' : ''}`}
             title={label}
             onClick={() => void getOrCreateJournalEntry(date).then((e) => updateJournalEntry(e.id, { mood: entry?.mood === v ? null : v }))}

@@ -85,6 +85,13 @@ try {
     await page.keyboard.press('Escape');
     await page.getByLabel('Task title', { exact: true }).waitFor({ state: 'detached' });
     assert(await taskButton.evaluate(el => el === document.activeElement));
+    if (width < 500) await page.getByRole('button', { name: 'More', exact: true }).click();
+    await page.locator(width < 500 ? '.mobile-sheet' : '.sidebar').getByRole('button', { name: 'Journal', exact: true }).click();
+    await page.getByRole('radio', { name: 'Rough', exact: true }).focus();
+    await page.keyboard.press('End');
+    await page.waitForFunction(() => document.querySelector('[role=radio][aria-checked=true]')?.textContent?.trim() === 'Great');
+    await page.keyboard.press('ArrowRight');
+    await page.waitForFunction(() => document.querySelector('[role=radio][aria-checked=true]')?.textContent?.trim() === 'Rough');
     console.log(`${width}px palette containment, Escape, focus return and modal shortcut guard passed`);
     await page.close();
   }
