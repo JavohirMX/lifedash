@@ -110,6 +110,20 @@ try {
     await page.waitForFunction(() => !!document.activeElement?.closest('.tiptap'));
     await page.keyboard.type('Keyboard formatting probe');
     await editor.locator('strong', { hasText: 'Keyboard formatting probe' }).waitFor();
+    const noteTitle = await page.getByLabel('Note title', { exact: true }).inputValue();
+    await page.locator(width < 500 ? '.bottombar' : '.sidebar').getByRole('button', { name: /^Today/ }).click();
+    await page.waitForFunction(async title => {
+      const { db } = await import('/src/db.ts');
+      return (await db.notes.toArray()).some(note => note.title === title && note.note.includes('Keyboard formatting probe'));
+    }, noteTitle);
+    if (width < 500) await page.getByRole('button', { name: 'More', exact: true }).click();
+    await page.locator(width < 500 ? '.mobile-sheet' : '.sidebar').getByRole('button', { name: 'Journal', exact: true }).click();
+    await page.locator('.tiptap').fill('Pending journal save survives changing the day');
+    await page.getByLabel('Previous day', { exact: true }).click();
+    await page.waitForFunction(async () => {
+      const { db } = await import('/src/db.ts');
+      return (await db.journal.toArray()).some(entry => entry.note.includes('Pending journal save survives'));
+    });
     console.log(`${width}px palette containment, Escape, focus return and modal shortcut guard passed`);
     await page.close();
   }
