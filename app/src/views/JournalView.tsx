@@ -88,7 +88,8 @@ export default function JournalView(props: { initialDate?: string }) {
             title={label}
             onClick={() => void getOrCreateJournalEntry(date).then((e) => updateJournalEntry(e.id, { mood: entry?.mood === v ? null : v }))}
           >
-            <Icon size={18} strokeWidth={1.75} />
+            <Icon size={18} strokeWidth={1.75} aria-hidden="true" />
+            <span>{label}</span>
           </button>
         ))}
       </div>

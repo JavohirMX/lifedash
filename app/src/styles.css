@@ -1672,3 +1672,66 @@ main > .quick-add { margin-bottom: 24px; }
  .habit-actions .mini { min-height: 36px; padding: 6px 13px; }
  .habit-identity .habit-name { font-size: 16px; }
 }
+
+/* Page-specific working surfaces: readable titles and reachable controls. */
+.goal-top { align-items: flex-start; flex-wrap: wrap; }
+.goal-top > strong { flex: 1 1 240px; min-width: 0; overflow-wrap: anywhere; line-height: 1.45; }
+.goal-actions { flex: none; }
+.goal-actions .icon-btn { width: 36px; height: 36px; border: 1px solid var(--border); }
+.goal-meta { flex-wrap: wrap; gap: 8px 16px; }
+.goal-tasks-toggle { min-height: 32px; }
+.notes-layout, .notes-list, .note-item, .note-editor-pane { min-width: 0; }
+.note-item-title { overflow-wrap: anywhere; }
+.note-item-excerpt { min-width: 0; }
+.note-editor-head { flex-wrap: wrap; }
+.note-title-input { min-width: 0; width: 100%; flex: 1 1 160px; }
+.ed-content { overflow-wrap: anywhere; }
+.time-pop { flex-wrap: wrap; }
+.plan-row > .icon-btn { opacity: 1; width: 36px; height: 36px; color: var(--muted); }
+.hour-body { min-width: 0; }
+.hour-label { color: var(--muted); }
+.journal-nav > .icon-btn { width: 36px; height: 36px; }
+.mood-btn { width: auto; min-width: 52px; height: auto; min-height: 58px; border-radius: var(--radius-control); flex-direction: column; gap: 5px; font-size: 11px; }
+.mood-row { gap: 8px; flex-wrap: wrap; }
+.cal-drill .widget-task { white-space: normal; overflow-wrap: anywhere; line-height: 1.45; }
+@media(max-width:640px) {
+ .goal-actions { width: 100%; gap: 8px; }
+ .goal-actions .icon-btn { width: 44px; height: 44px; }
+ .goal-top > strong { flex-basis: 100%; }
+ .goal-tasks-toggle { min-height: 44px; }
+ .note-title-input { flex-basis: 100%; }
+ .note-editor-head > .icon-btn, .plan-row > .icon-btn, .journal-nav > .icon-btn { width: 44px; height: 44px; }
+ .ed-toolbar { flex-wrap: wrap; gap: 4px; }
+ .ed-toolbar .ed-btn { width: 36px; height: 36px; }
+ .habit-actions .mini { min-height: 44px; }
+ .week-grid { grid-template-columns: 1fr; }
+ .week-col { min-height: 96px; padding: 12px; }
+ .week-col .task-row { padding: 10px; }
+ .week-col .checkbox { width: 20px; height: 20px; }
+ .week-col .task-title { font-size: var(--fs-body); }
+ .week-head { padding-bottom: 12px; }
+ .week-dayname { color: var(--muted); font-weight: 600; }
+ .mood-row { gap: 6px; }
+ .mood-btn { flex: 1; min-width: 42px; }
+}
+main.schedule-main { max-width: 1280px; width: 100%; min-width: 0; }
+.week-grid { grid-template-columns: repeat(7, minmax(0, 1fr)); }
+.week-col { min-width: 0; }
+.week-head { flex-wrap: wrap; gap: 4px; }
+@media(min-width:721px) and (max-width:1100px) { .week-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+@media(max-width:640px) {
+ .week-grid { grid-template-columns: 1fr; }
+ .cal-day { min-height: 32px; }
+ button.cal-more { font-size: 10px; line-height: 1.4; white-space: nowrap; }
+ .cal-cell { padding-left: 2px; padding-right: 2px; }
+}
+
+/* Keep secondary and error text readable in both modes of optional styles. */
+:root { --faint: #6b6e65; }
+:root[data-theme='dark'] { --faint: #8c8c85; --negative: #e66b64; }
+:root[data-style='nexus'][data-theme='light'] { --faint: #555e9d; --negative: #b42338; }
+:root[data-style='nexus'][data-theme='dark'] { --faint: #838dbf; --accent: #a198ff; }
+:root[data-style='compact'][data-theme='dark'] { --faint: #80929f; --negative: #ed827a; }
+:root[data-style='polar'][data-theme='light'] { --faint: #526a89; }
+:root[data-style='polar'][data-theme='dark'] { --faint: #7893ba; --negative: #ee827e; }
+:root[data-style='nexus'][data-theme='dark'] { --accent-ink: #13132b; }
