@@ -14,6 +14,16 @@ Run the app and sync server together with Docker Compose:
 App on http://localhost:8080, sync server on http://localhost:8787.
 Details and other deployment options: [server/SELFHOST.md](server/SELFHOST.md).
 
+## Local development
+
+Run `make install` once to install npm dependencies and a server virtual
+environment, including test dependencies. Then `make dev` starts the app on
+Vite's local URL and the sync server on http://127.0.0.1:8787. Ctrl-C stops
+both. `make test` runs both suites; `make build` builds the frontend.
+`make help` lists individual app/server and Docker targets. Python 3 with
+venv support, Node/npm and make are required. Docker targets additionally
+need Docker Engine and the Compose plugin.
+
 ## Docs
 
 - [docs/ROADMAP.md](docs/ROADMAP.md) - where the project is going, phase by phase

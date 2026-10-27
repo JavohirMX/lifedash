@@ -100,7 +100,7 @@ tailscale funnel --bg 8787
 
 ## Connect the app
 
-In Lifedash: sidebar -> **Sync** -> paste the server URL
+In Lifedash: sidebar -> **Settings** -> **Sync** -> paste the server URL
 (`https://sync.example.com`) -> sign in (or create the account here
 while registration is open). Sync runs on focus, on reconnect, every
 5 minutes, and a few seconds after any edit. Sync now forces a round.
@@ -115,9 +115,17 @@ Everything is one SQLite file. Stop-free backup with the SQLite CLI:
 sqlite3 /data/lifedash.db ".backup '/backups/lifedash-$(date +%F).db'"
 ```
 
-With Docker: `docker compose exec sync sqlite3 /data/lifedash.db ".backup '/data/backup.db'"`
-and copy `backup.db` out of the volume. Nightly cron is plenty - the
-file is small.
+The container includes Python, not the SQLite command-line program. From
+the repo root, use Python's online backup API and copy the result out:
+
+```bash
+docker compose exec sync python -c "import sqlite3; src=sqlite3.connect('/data/lifedash.db'); dst=sqlite3.connect('/data/backup.db'); src.backup(dst); dst.close(); src.close()"
+docker compose cp sync:/data/backup.db ./lifedash-backup.db
+```
+
+Keep the copied backup somewhere separate from the running data volume.
+The destination file is overwritten on the next backup, so rename or archive
+it if you need multiple versions.
 
 ## Upgrading
 
