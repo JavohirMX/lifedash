@@ -15,6 +15,7 @@ from pydantic import BaseModel, Field
 
 from .auth import current_user, hash_password, new_token, verify_password
 from .db import get_conn, init_db
+from .gcal import router as gcal_router
 
 COLLECTIONS = {"tasks", "projects", "tags", "habits", "habitLogs", "goals", "notes", "journal"}
 
@@ -32,6 +33,8 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+app.include_router(gcal_router)
 
 
 class Credentials(BaseModel):
