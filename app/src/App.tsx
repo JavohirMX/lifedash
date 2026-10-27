@@ -25,6 +25,7 @@ import AutomationDialog from './components/AutomationDialog';
 import TVDashboard from './views/TVDashboard';
 import SyncDialog from './components/SyncDialog';
 import AppearanceDialog from './components/AppearanceDialog';
+import SettingsDialog from './components/SettingsDialog';
 import { cycleTheme } from './theme';
 import { projectWithDescendants } from './projects';
 import { loadRules, saveRules, loadUserRules, saveUserRules, type AutomationRules, type UserRule } from './automation';
@@ -69,6 +70,7 @@ export default function App() {
   const [syncOpen, setSyncOpen] = useState(false);
   const [aiOpen, setAiOpen] = useState(false);
   const [appearanceOpen, setAppearanceOpen] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
   const [rules, setRules] = useState<AutomationRules>(loadRules);
   const [userRules, setUserRules] = useState<UserRule[]>(loadUserRules);
@@ -378,7 +380,7 @@ export default function App() {
           });
         }}
         onScheduleToday={(id) => void updateTask(id, { dueDate: today })}
-        onAI={() => setAiOpen(true)} onImport={() => setImportPreset(null)} onRestore={() => setImportPreset('lifedash-json')} onAutomation={() => setAutomationOpen(true)} onSync={() => setSyncOpen(true)} onAppearance={() => setAppearanceOpen(true)} />
+        onAI={() => setAiOpen(true)} onImport={() => setImportPreset(null)} onRestore={() => setImportPreset('lifedash-json')} onAutomation={() => setAutomationOpen(true)} onSync={() => setSyncOpen(true)} onAppearance={() => setAppearanceOpen(true)} onSettings={() => setSettingsOpen(true)} />
       <main>
         {SAMPLE_MODE && <div className="sample-banner" role="status">Sample-data sandbox · Fictional data · <a href="/">Exit to your real data</a></div>}
         <SyncConflictBanner />
@@ -401,6 +403,21 @@ export default function App() {
       {automationOpen && <AutomationDialog rules={rules} onChange={changeRules} userRules={userRules} onUserRulesChange={changeUserRules} onClose={() => setAutomationOpen(false)} />}
       {aiOpen && <AssistantDialog tasks={tasks} onClose={() => setAiOpen(false)} />}
       {syncOpen && <SyncDialog onClose={() => setSyncOpen(false)} />}
+      {settingsOpen && <SettingsDialog
+        onClose={() => setSettingsOpen(false)}
+        onSync={() => { setSettingsOpen(false); setSyncOpen(true); }}
+        onAppearance={() => { setSettingsOpen(false); setAppearanceOpen(true); }}
+        reminders={typeof Notification === 'undefined' ? 'unsupported' : Notification.permission === 'denied' ? 'blocked' : remindOn ? 'on' : 'off'}
+        onToggleReminders={() => {
+          if (remindOn) { setRemindersEnabled(false); setRemindOn(false); return; }
+          if (typeof Notification === 'undefined') return;
+          void (Notification.permission === 'granted' ? Promise.resolve('granted' as NotificationPermission) : Notification.requestPermission()).then(perm => {
+            if (perm === 'granted') { setRemindersEnabled(true); setRemindOn(true); }
+          });
+        }}
+        journalNudge={nudgeOn}
+        onToggleJournalNudge={() => { const next = !nudgeOn; setJournalPromptEnabled(next); setNudgeOn(next); }}
+      />}
       {appearanceOpen && <AppearanceDialog onClose={() => setAppearanceOpen(false)} />}
       {shortcutsOpen && <ShortcutsDialog onClose={() => setShortcutsOpen(false)} />}
       <CommandPalette

@@ -1,3 +1,4 @@
+import { SAMPLE_MODE } from './dev/sampleMode';
 import type { Task } from './types';
 
 export interface AutomationRules {
@@ -5,7 +6,7 @@ export interface AutomationRules {
   completeParent: boolean;
 }
 
-const KEY = 'lifedash-rules';
+const KEY = SAMPLE_MODE ? 'lifedash-sample-rules' : 'lifedash-rules';
 
 export const DEFAULT_RULES: AutomationRules = { rollover: false, completeParent: false };
 
@@ -56,7 +57,7 @@ export interface UserRule {
   lastFired: string | null; // local YYYY-MM-DD; stamped even when creation is skipped
 }
 
-const USER_KEY = 'lifedash-user-rules';
+const USER_KEY = SAMPLE_MODE ? 'lifedash-sample-user-rules' : 'lifedash-user-rules';
 
 export function loadUserRules(): UserRule[] {
   try {

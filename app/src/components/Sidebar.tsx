@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
-import { Bell, BellRing,
+import { Settings, CalendarClock,
   Sun, CalendarDays, Archive, Clock, CalendarRange, Repeat, CheckCircle2,
-  Search, Plus, Menu, X, Download, Upload, Palette, Zap, Cloud, House, Target, StickyNote, BookOpen, Monitor,
+  Search, Plus, Menu, X, Download, Upload, Palette, Zap, House, Target, StickyNote, BookOpen, Monitor,
 } from 'lucide-react';
 import { projectTree } from '../projects';
 import type { Project } from '../types';
@@ -28,19 +28,23 @@ function Mark() {
   );
 }
 
-const MAIN_ITEMS = [
-  { kind: 'home', label: 'Home', Icon: House },
-  { kind: 'today', label: 'Today', Icon: Sun },
-  { kind: 'upcoming', label: 'Upcoming', Icon: CalendarDays },
-  { kind: 'backlog', label: 'Backlog', Icon: Archive },
-  { kind: 'planner', label: 'Planner', Icon: Clock },
-  { kind: 'week', label: 'Week', Icon: CalendarRange },
-  { kind: 'habits', label: 'Habits', Icon: Repeat },
-  { kind: 'goals', label: 'Goals', Icon: Target },
-  { kind: 'notes', label: 'Notes', Icon: StickyNote },
-  { kind: 'journal', label: 'Journal', Icon: BookOpen },
-  { kind: 'calendar', label: 'Calendar', Icon: CalendarDays },
-  { kind: 'completed', label: 'Completed', Icon: CheckCircle2 },
+const NAV_GROUPS = [
+  { label: 'Plan', items: [
+    { kind: 'home', label: 'Home', Icon: House },
+    { kind: 'today', label: 'Today', Icon: Sun },
+    { kind: 'upcoming', label: 'Upcoming', Icon: CalendarClock },
+    { kind: 'planner', label: 'Planner', Icon: Clock },
+    { kind: 'week', label: 'Week', Icon: CalendarRange },
+    { kind: 'calendar', label: 'Calendar', Icon: CalendarDays },
+    { kind: 'backlog', label: 'Backlog', Icon: Archive },
+    { kind: 'completed', label: 'Completed', Icon: CheckCircle2 },
+  ] },
+  { label: 'Track', items: [
+    { kind: 'habits', label: 'Habits', Icon: Repeat },
+    { kind: 'goals', label: 'Goals', Icon: Target },
+    { kind: 'journal', label: 'Journal', Icon: BookOpen },
+    { kind: 'notes', label: 'Notes', Icon: StickyNote },
+  ] },
 ] as const;
 
 const DOCK_ITEMS = [
@@ -67,6 +71,7 @@ export default function Sidebar(props: {
   reminders: 'on' | 'off' | 'blocked' | 'unsupported';
   onToggleReminders: () => void;
   onAppearance: () => void;
+  onSettings: () => void;
   onPalette?: () => void;
 }) {
   const [adding, setAdding] = useState(false);
@@ -269,90 +274,32 @@ export default function Sidebar(props: {
     </button>
   );
 
-  const importBtn = (
-    <>
-      <button className="nav foot-action" onClick={props.onSync}>
-        <Cloud size={16} strokeWidth={1.75} aria-hidden="true" />
-        Sync
-      </button>
-      <button className="nav foot-action" onClick={props.onAutomation}>
-        <Zap size={16} strokeWidth={1.75} aria-hidden="true" />
-        Automation
-      </button>
-      <button className="nav foot-action" onClick={props.onImport}>
-        <Upload size={16} strokeWidth={1.75} aria-hidden="true" />
-        <span>Import</span>
-      </button>
-    </>
-  );
-
-  const nudgeBtn = (
-    <div className="nudge-block">
-      <button
-        className="nav foot-action"
-        title={
-          props.reminders !== 'on'
-            ? 'Turn Reminders on first. One notification at 21:00 if today\'s journal is still empty, only while Lifedash is open.'
-            : `Journal nudge: ${props.journalNudge ? 'on' : 'off'}. One notification at 21:00 if today's journal is still empty, only while Lifedash is open.`
-        }
-        aria-label={
-          props.reminders !== 'on'
-            ? 'Journal nudge: off. Turn Reminders on first.'
-            : `Journal nudge: ${props.journalNudge ? 'on' : 'off'}. One notification at 21:00 if today's journal is still empty, only while Lifedash is open.`
-        }
-        aria-pressed={props.journalNudge}
-        disabled={props.reminders !== 'on'}
-        onClick={props.onToggleJournalNudge}
-      >
-        <BookOpen size={16} strokeWidth={1.75} aria-hidden="true" />
-        <span>Journal nudge: {props.journalNudge ? 'on' : 'off'}</span>
-      </button>
-      <p className="nudge-conditions">One nudge at 21:00 if today's journal is empty; only while the app is open.</p>
+  const footer = (
+    <div className="sidebar-foot" role="group" aria-label="Tools">
+      <div className="nav-section"><span>Tools</span></div>
+      {props.onAI && <button className="nav foot-action" onClick={() => { setSheet(false); props.onAI?.(); }}>Plan with AI</button>}
+      <button className="nav foot-action" onClick={() => { setSheet(false); props.onAutomation(); }}><Zap size={16} aria-hidden="true" /> Automation</button>
+      {tvBtn}
+      <button className="nav foot-action" onClick={() => { setSheet(false); props.onImport(); }}><Upload size={16} aria-hidden="true" /> Import</button>
+      {restoreBtn}{exportBtn}
+      <button className="nav foot-action" onClick={() => { setSheet(false); props.onSettings(); }}><Settings size={16} aria-hidden="true" /> Settings</button>
     </div>
   );
-
-  const remindersBtn = (
-    <button
-      className="nav foot-action"
-      title={
-        props.reminders === 'on'
-          ? 'Reminders on: tasks with a time notify while Lifedash is open (click to turn off)'
-          : props.reminders === 'blocked'
-            ? 'Notifications are blocked in browser settings'
-            : props.reminders === 'unsupported'
-              ? 'This browser does not support notifications'
-              : 'Reminders off: tasks with a time can notify while Lifedash is open (click to turn on)'
-      }
-      aria-pressed={props.reminders === 'on'}
-      disabled={props.reminders === 'blocked' || props.reminders === 'unsupported'}
-      onClick={props.onToggleReminders}
-    >
-      {props.reminders === 'on'
-        ? <BellRing size={16} strokeWidth={1.75} aria-hidden="true" />
-        : <Bell size={16} strokeWidth={1.75} aria-hidden="true" />}
-      <span>Reminders: {props.reminders}</span>
-    </button>
-  );
-
-  const themeBtn = (
-    <button
-      className="nav foot-action"
-      title="Appearance: style and mode"
-      onClick={props.onAppearance}
-    >
-      <ThemeIcon size={16} strokeWidth={1.75} aria-hidden="true" />
-      <span>Appearance</span>
-    </button>
-  );
+  const navigation = (after?: () => void) => NAV_GROUPS.map(group => (
+    <div role="group" aria-label={group.label} key={group.label}>
+      <div className="nav-section"><span>{group.label}</span></div>
+      {group.items.map(({kind, label, Icon}) => item(kind, label, Icon, after))}
+    </div>
+  ));
 
   return (
     <>
       <nav className="sidebar">
         <div className="brand"><Mark /><span>Lifedash</span></div>
         {searchBox}
-        {MAIN_ITEMS.map(({ kind, label, Icon }) => item(kind, label, Icon))}
+        {navigation()}
         {projectsBlock}
-        <div className="sidebar-foot">{props.onAI && <button className="nav foot-action" onClick={() => { setSheet(false); props.onAI?.(); }}>Plan with AI</button>}{importBtn}{remindersBtn}{nudgeBtn}{tvBtn}{themeBtn}{exportBtn}{restoreBtn}</div>
+        {footer}
       </nav>
 
       <div className="mobile-topbar">
@@ -396,9 +343,9 @@ export default function Sidebar(props: {
             </button>
           </div>
           {searchBox}
-          {MAIN_ITEMS.map(({ kind, label, Icon }) => item(kind, label, Icon, () => setSheet(false)))}
+          {navigation(() => setSheet(false))}
           {projectsBlock}
-          <div className="sidebar-foot">{props.onAI && <button className="nav foot-action" onClick={() => { setSheet(false); props.onAI?.(); }}>Plan with AI</button>}{importBtn}{remindersBtn}{nudgeBtn}{tvBtn}{themeBtn}{exportBtn}{restoreBtn}</div>
+          {footer}
         </div>
       )}
     </>
