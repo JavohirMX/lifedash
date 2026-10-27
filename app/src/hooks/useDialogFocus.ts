@@ -10,10 +10,12 @@ const FOCUSABLE = 'button, [href], input, select, textarea, [tabindex]:not([tabi
 export function useDialogFocus<T extends HTMLElement = HTMLDivElement>(
   onClose: () => void,
   initialFocus?: string,
+  enabled = true,
 ) {
   const panel = useRef<T>(null);
 
   useEffect(() => {
+    if (!enabled) return;
     const opener = document.activeElement as HTMLElement | null;
     const el = panel.current;
     if (!el) return;
@@ -48,7 +50,7 @@ export function useDialogFocus<T extends HTMLElement = HTMLDivElement>(
       opener?.focus?.();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [enabled]);
 
   return panel;
 }

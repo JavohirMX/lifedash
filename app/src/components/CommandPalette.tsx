@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
+import { useDialogFocus } from '../hooks/useDialogFocus';
 import {
   Sun, CalendarDays, Archive, Clock, CalendarRange, Repeat, CheckCircle2,
   Search, Plus, Moon, Check, Pin, Home, Target, StickyNote, BookOpen, Calendar,
@@ -29,13 +30,12 @@ export default function CommandPalette(props: {
 }) {
   const [query, setQuery] = useState('');
   const [index, setIndex] = useState(0);
-  const inputRef = useRef<HTMLInputElement>(null);
+  const panel = useDialogFocus<HTMLDivElement>(props.onClose, 'input', props.open);
 
   useEffect(() => {
     if (props.open) {
       setQuery('');
       setIndex(0);
-      setTimeout(() => inputRef.current?.focus(), 0);
     }
   }, [props.open]);
 
@@ -102,16 +102,14 @@ export default function CommandPalette(props: {
 
   return (
     <div className="palette-overlay" onClick={props.onClose}>
-      <div className="palette" role="dialog" aria-label="Command palette" onClick={(e) => e.stopPropagation()}>
+      <div ref={panel} className="palette" role="dialog" aria-modal="true" aria-label="Command palette" onClick={(e) => e.stopPropagation()}>
         <div className="palette-input-wrap">
           <Search size={15} strokeWidth={1.75} aria-hidden="true" />
           <input
-            ref={inputRef}
             value={query}
             placeholder="Type a command or search tasks, notes, journal"
             onChange={(e) => setQuery(e.target.value)}
             onKeyDown={(e) => {
-              if (e.key === 'Escape') props.onClose();
               if (e.key === 'ArrowDown') { e.preventDefault(); setIndex((i) => Math.min(i + 1, actions.length - 1)); }
               if (e.key === 'ArrowUp') { e.preventDefault(); setIndex((i) => Math.max(i - 1, 0)); }
               if (e.key === 'Enter' && actions[index]) actions[index].run();
@@ -152,12 +150,14 @@ export function useGlobalKeys(handlers: {
     function onKey(e: KeyboardEvent) {
       const target = e.target as HTMLElement;
       const typing = target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable;
+      const dialog = document.querySelector('[role=dialog]');
+      if (dialog && dialog.getAttribute('aria-label') !== 'Command palette') return;
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') {
         e.preventDefault();
         handlers.onPalette();
         return;
       }
-      if (typing) return;
+      if (typing || dialog) return;
       if (e.key === '?') { e.preventDefault(); handlers.onHelp?.(); return; }
       if (e.key === 'n') { e.preventDefault(); handlers.onNewTask(); return; }
       const kind = views[e.key.toLowerCase()];
