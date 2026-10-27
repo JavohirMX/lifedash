@@ -1,4 +1,17 @@
-# Self-hosting the Lifedash sync server
+# Self-hosting Lifedash
+
+The whole stack (app + sync server) runs from the repo root with:
+
+    docker compose up --build
+
+Then open http://localhost:8080 and, in the app, point Settings -> Sync
+at http://localhost:8787. The app is otherwise fully local - it works
+without the sync server, which is only needed to share data between
+devices.
+
+The sections below cover running just the sync server (or running it
+differently), which is useful if you serve the app some other way.
+
 
 The sync server is a single FastAPI process with one SQLite file. No
 other services, no external database. Anything below works on a

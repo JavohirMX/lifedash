@@ -5,6 +5,15 @@ day planner in one place, on web, desktop and mobile.
 
 **Status:** early development. Single-user, local-first.
 
+## Self-host
+
+Run the app and sync server together with Docker Compose:
+
+    docker compose up --build
+
+App on http://localhost:8080, sync server on http://localhost:8787.
+Details and other deployment options: [server/SELFHOST.md](server/SELFHOST.md).
+
 ## Docs
 
 - [docs/ROADMAP.md](docs/ROADMAP.md) - where the project is going, phase by phase

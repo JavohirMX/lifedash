@@ -1,0 +1,23 @@
+# Lifedash: app frontend + sync server.
+#
+#   docker compose up --build
+#
+# Then open http://localhost:8080 and, in the app, point Settings -> Sync
+# at http://localhost:8787.
+services:
+  app:
+    build: ./app
+    ports:
+      - "8080:80"
+    restart: unless-stopped
+
+  sync:
+    build: ./server
+    ports:
+      - "8787:8787"
+    volumes:
+      - sync-data:/data
+    restart: unless-stopped
+
+volumes:
+  sync-data:
