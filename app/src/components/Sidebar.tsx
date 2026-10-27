@@ -5,6 +5,9 @@ import { Bell, BellRing,
 } from 'lucide-react';
 import type { Project } from '../types';
 import { addProject, countAttachments, exportJson } from '../repo';
+import { db } from '../db';
+import { tasksToMarkdown } from '../exportMd';
+import { todayStr } from '../dates';
 
 export type Selection =
   | { kind: 'home' | 'today' | 'upcoming' | 'backlog' | 'completed' | 'habits' | 'planner' | 'week' | 'goals' | 'calendar' }
@@ -179,28 +182,60 @@ export default function Sidebar(props: {
     </>
   );
 
+  const [exportMenu, setExportMenu] = useState(false);
+
+  const downloadFile = (content: string, type: string, name: string) => {
+    const blob = new Blob([content], { type });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = name;
+    a.click();
+    URL.revokeObjectURL(a.href);
+  };
+
+  const doExportJson = () => {
+    setExportMenu(false);
+    void Promise.all([exportJson(), countAttachments()]).then(([json, files]) => {
+      downloadFile(json, 'application/json', `lifedash-export-${new Date().toISOString().slice(0, 10)}.json`);
+      if (files > 0) {
+        window.alert(
+          `Exported. Note: ${files} attachment file${files === 1 ? ' stays' : 's stay'} on this device - the export keeps only their names and metadata.`,
+        );
+      }
+    });
+  };
+
+  const doExportMd = () => {
+    setExportMenu(false);
+    void Promise.all([db.tasks.toArray(), db.projects.toArray()]).then(([tasks, projects]) => {
+      downloadFile(tasksToMarkdown(tasks, projects), 'text/markdown', `lifedash-tasks-${todayStr()}.md`);
+    });
+  };
+
   const exportBtn = (
-    <button
-      className="nav foot-action"
-      onClick={() => {
-        void Promise.all([exportJson(), countAttachments()]).then(([json, files]) => {
-          const blob = new Blob([json], { type: 'application/json' });
-          const a = document.createElement('a');
-          a.href = URL.createObjectURL(blob);
-          a.download = `lifedash-export-${new Date().toISOString().slice(0, 10)}.json`;
-          a.click();
-          URL.revokeObjectURL(a.href);
-          if (files > 0) {
-            window.alert(
-              `Exported. Note: ${files} attachment file${files === 1 ? ' stays' : 's stay'} on this device - the export keeps only their names and metadata.`,
-            );
-          }
-        });
-      }}
-    >
-      <Download size={16} strokeWidth={1.75} aria-hidden="true" />
-      <span>Export JSON</span>
-    </button>
+    <div className="export-wrap" onKeyDown={(e) => { if (e.key === 'Escape') setExportMenu(false); }}>
+      <button
+        className="nav foot-action"
+        aria-haspopup="menu"
+        aria-expanded={exportMenu}
+        onClick={() => setExportMenu(!exportMenu)}
+      >
+        <Download size={16} strokeWidth={1.75} aria-hidden="true" />
+        <span>Export</span>
+      </button>
+      {exportMenu && (
+        <div className="export-menu" role="menu" aria-label="Export format">
+          <button type="button" role="menuitem" className="export-item" onClick={doExportJson}>
+            <strong>JSON backup</strong>
+            <span>Everything, restores into the app</span>
+          </button>
+          <button type="button" role="menuitem" className="export-item" onClick={doExportMd}>
+            <strong>Markdown</strong>
+            <span>Tasks only, readable anywhere</span>
+          </button>
+        </div>
+      )}
+    </div>
   );
 
   const restoreBtn = (
