@@ -103,7 +103,7 @@ try {
     await page.locator('.note-item').first().click();
     await page.getByRole('button', { name: 'Bold', exact: true }).focus();
     await page.keyboard.press('Enter');
-    assert(await page.evaluate(() => !!document.activeElement?.closest('.tiptap')), 'keyboard toolbar did not focus editor');
+    await page.waitForFunction(() => !!document.activeElement?.closest('.tiptap'));
     assert.equal(await page.getByRole('button', { name: 'Bold', exact: true }).getAttribute('aria-pressed'), 'true');
     await page.getByRole('button', { name: 'Bold', exact: true }).click();
     assert.equal(await page.getByRole('button', { name: 'Bold', exact: true }).getAttribute('aria-pressed'), 'false');
