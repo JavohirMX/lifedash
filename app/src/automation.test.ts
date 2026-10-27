@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { rolloverTargets, shouldCompleteParent, loadUserRules, saveUserRules, tagRulesFor, weeklyRulesDue, hasOpenTitle, describeUserRule, type UserRule } from './automation';
+import { exportAutomation, restoreAutomation, saveRules, loadRules, rolloverTargets, shouldCompleteParent, loadUserRules, saveUserRules, tagRulesFor, weeklyRulesDue, hasOpenTitle, describeUserRule, type UserRule } from './automation';
 import type { Task } from './types';
 
 const base: Task = {
@@ -95,5 +95,29 @@ describe('describeUserRule', () => {
   it('states the honest app-open behavior', () => {
     expect(describeUserRule(rule({ trigger: { kind: 'weekly', weekday: 3 } }))).toBe('Every Wednesday when you open Lifedash');
     expect(describeUserRule(rule({ trigger: { kind: 'tag', tag: 'home' } }))).toBe('When a #home task completes');
+  });
+});
+
+
+describe('automation backups', () => {
+  it('roundtrips toggles and rule definitions with stamps', () => {
+    saveRules({ rollover: true, completeParent: false });
+    const rule: UserRule = { id: 'backup-rule', title: 'Review', createdAt: 1, lastFired: '2026-10-27', trigger: { kind: 'weekly', weekday: 2 } };
+    saveUserRules([rule]);
+    const block = JSON.parse(JSON.stringify(exportAutomation()));
+    saveRules({ rollover: false, completeParent: false }); saveUserRules([]);
+    restoreAutomation(block);
+    expect(loadRules().rollover).toBe(true);expect(loadUserRules()).toEqual([rule]);
+  });
+  it('leaves device rules unchanged for absent or malformed blocks', () => {
+    saveRules({ rollover: false, completeParent: true });
+    const before = exportAutomation();
+    for (const v of [undefined, null, [], 'bad', {rules: 'bad', userRules: 'bad'}]) restoreAutomation(v);
+    expect(exportAutomation()).toEqual(before);
+  });
+  it('drops invalid rows individually', () => {
+    const good: UserRule = { id: 'ok', title: 'Review', createdAt: 1, lastFired: null, trigger: { kind: 'tag', tag: 'done' } };
+    restoreAutomation({ userRules: [good, null, {}, {...good, trigger: {kind: 'weekly', weekday: 8}}] });
+    expect(loadUserRules()).toEqual([good]);
   });
 });

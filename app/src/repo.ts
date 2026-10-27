@@ -1,4 +1,4 @@
-import { loadRules, rolloverTargets, shouldCompleteParent, loadUserRules, saveUserRules, tagRulesFor, weeklyRulesDue, hasOpenTitle } from './automation';
+import { exportAutomation, restoreAutomation, loadRules, rolloverTargets, shouldCompleteParent, loadUserRules, saveUserRules, tagRulesFor, weeklyRulesDue, hasOpenTitle } from './automation';
 import { reconcileRunningSessions } from './focus';
 import { hasProjectCycle, wouldCycle } from './projects';
 import type { FocusSession } from './types';
@@ -258,6 +258,7 @@ export async function exportJson(): Promise<string> {
     {
       exportedAt: new Date().toISOString(),
       version: 2,
+      automation: exportAutomation(),
       projects,
       tasks,
       attachments: attachmentMeta,
@@ -506,5 +507,6 @@ export async function importBackup(json: string): Promise<{ restored: Record<str
       }
     }
   });
+  restoreAutomation(data.automation);
   return { restored };
 }

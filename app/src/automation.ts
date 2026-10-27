@@ -95,3 +95,29 @@ export function describeUserRule(rule: UserRule): string {
   if (rule.trigger.kind === 'tag') return `When a #${rule.trigger.tag} task completes`;
   return `Every ${WEEKDAYS[rule.trigger.weekday]} when you open Lifedash`;
 }
+
+
+export function exportAutomation() {
+  return { rules: loadRules(), userRules: loadUserRules() };
+}
+
+/** Missing or malformed blocks leave this device's automation untouched. */
+export function restoreAutomation(value: unknown): void {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return;
+  const block = value as { rules?: unknown; userRules?: unknown };
+  const rules = block.rules as Partial<AutomationRules> | undefined;
+  if (rules && typeof rules === 'object' && typeof rules.rollover === 'boolean' && typeof rules.completeParent === 'boolean')
+    saveRules({ rollover: rules.rollover, completeParent: rules.completeParent });
+  if (Array.isArray(block.userRules)) {
+    const valid = block.userRules.filter((r): r is UserRule => {
+      if (!r || typeof r !== 'object') return false;
+      const x = r as UserRule;
+      if (typeof x.id !== 'string' || !x.id || typeof x.title !== 'string' || !x.title.trim()
+        || typeof x.createdAt !== 'number' || !Number.isFinite(x.createdAt)
+        || !(x.lastFired === null || typeof x.lastFired === 'string') || !x.trigger) return false;
+      return (x.trigger.kind === 'tag' && typeof x.trigger.tag === 'string' && !!x.trigger.tag.trim())
+        || (x.trigger.kind === 'weekly' && Number.isInteger(x.trigger.weekday) && x.trigger.weekday >= 0 && x.trigger.weekday <= 6);
+    });
+    saveUserRules(valid);
+  }
+}
