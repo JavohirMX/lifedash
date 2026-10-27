@@ -4,7 +4,14 @@ Initial slice, not autonomous task execution. AI is off until a user opens the p
 
 ## Plan with AI
 
-Open **Plan with AI** in the sidebar (mobile: More). Enter an OpenAI-compatible API base URL and the exact model ID you have installed or selected:
+Open **Plan with AI** in the sidebar (mobile: More). It starts in
+**On-device** mode: select tasks and choose **Summarize selected tasks on this
+device** for rule-based ranking by due date and priority. This is not model
+inference, supports no free-text request, and sends nothing over the network.
+Suggestions do not change tasks.
+
+For model advice, select **Model provider**. Enter an OpenAI-compatible API
+base URL and the exact model ID you have installed or selected:
 
 - Ollama: `http://localhost:11434/v1`
 - LM Studio: `http://localhost:1234/v1`
@@ -12,7 +19,7 @@ Open **Plan with AI** in the sidebar (mobile: More). Enter an OpenAI-compatible 
 
 The app does not fetch model lists or test credentials automatically. A provider must support browser requests from the app's actual origin (CORS). HTTPS-hosted apps may face browser restrictions when reaching localhost. Configure narrowly scoped allowed origins according to the provider's docs; do not expose an unauthenticated model server to the network. There is no unsafe CORS proxy or server-side key storage fallback.
 
-Choose tasks, write your request and click **Review request**. Nothing is selected by default. Context contains only selected task titles, due dates, priority and status. No task notes, journal, attachments, sync credentials or full database are read by the AI module. The user-written request can itself contain private information, so review it too. The page shows the actual destination, model, prompt and context before the approval checkbox and Send button.
+In Model provider mode, choose tasks, write your request and click **Review request**. Nothing is selected by default. Context contains only selected task titles, due dates, priority and status. No task notes, journal, attachments, sync credentials or full database are read by the AI module. The user-written request can itself contain private information, so review it too. The page shows the actual destination, model, prompt and context before the approval checkbox and Send button.
 
 Approval is consumed by each send. Changing settings, request or selected task data invalidates the review. API keys stay in component memory only and disappear on close. No provider credentials are stored in localStorage, IndexedDB or sync. Provider responses are plain text and have no action execution path. Cookies are omitted; redirects fail rather than forwarding the request. Requests time out after 60 seconds and can be aborted. Aborting only stops waiting locally and may not cancel provider processing or billing.
 
