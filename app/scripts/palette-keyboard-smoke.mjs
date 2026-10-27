@@ -35,10 +35,32 @@ try {
     if (width < 500) await page.getByRole('button', { name: 'More', exact: true }).click();
     await page.getByRole('button', { name: 'Plan with AI', exact: true }).click();
     await page.getByRole('dialog', { name: 'Plan with AI', exact: true }).waitFor();
+    const source = page.getByRole('radiogroup', { name: 'Planner source' });
+    await source.getByRole('radio', { name: 'On-device', exact: true }).focus();
+    await page.keyboard.press('ArrowRight');
+    await page.getByLabel('Provider API base URL').waitFor();
+    await page.keyboard.press('ArrowLeft');
+    await page.getByLabel('Provider API base URL').waitFor({ state: 'detached' });
     await page.keyboard.press('Control+k');
     assert.equal(await page.getByRole('dialog', { name: 'Command palette' }).count(), 0, 'palette opened over native dialog');
     await page.keyboard.press('Escape');
     await page.getByRole('dialog', { name: 'Plan with AI', exact: true }).waitFor({ state: 'detached' });
+    if (width < 500) {
+      await page.getByRole('button', { name: 'More', exact: true }).click();
+      await page.getByRole('dialog', { name: 'More navigation' }).waitFor();
+      for (let i = 0; i < 35; i++) {
+        await page.keyboard.press('Tab');
+        assert(await page.evaluate(() => !!document.activeElement?.closest('.mobile-sheet')), 'Tab left mobile navigation');
+      }
+      await page.keyboard.press('Escape');
+      await page.getByRole('dialog', { name: 'More navigation' }).waitFor({ state: 'detached' });
+      assert.equal(await page.evaluate(() => document.activeElement?.getAttribute('aria-label')), 'More');
+      await page.getByRole('button', { name: 'More', exact: true }).click();
+      await page.getByRole('button', { name: 'Restore backup', exact: true }).click();
+      await page.getByRole('dialog', { name: 'Restore backup' }).waitFor();
+      assert.equal(await page.getByRole('dialog', { name: 'More navigation' }).count(), 0);
+      await page.keyboard.press('Escape');
+    }
     console.log(`${width}px palette containment, Escape, focus return and modal shortcut guard passed`);
     await page.close();
   }

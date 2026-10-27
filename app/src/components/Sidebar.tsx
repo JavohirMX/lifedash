@@ -1,3 +1,4 @@
+import { useDialogFocus } from '../hooks/useDialogFocus';
 import { useEffect, useRef, useState } from 'react';
 import { Settings, CalendarClock,
   Sun, CalendarDays, Archive, Clock, CalendarRange, Repeat, CheckCircle2,
@@ -84,6 +85,7 @@ export default function Sidebar(props: {
   }, [props.selection]);
   const [sheet, setSheet] = useState(false);
   const moreButton = useRef<HTMLButtonElement>(null);
+  const sheetPanel = useDialogFocus<HTMLDivElement>(() => setSheet(false), '[aria-label="Close menu"]', sheet);
   const openTool = (open: () => void) => {
     // A sheet action disappears when the dialog opens. Keep its persistent
     // opener focused so the dialog can return keyboard focus on close.
@@ -276,7 +278,7 @@ export default function Sidebar(props: {
   );
 
   const restoreBtn = (
-    <button className="nav foot-action" onClick={props.onRestore}>
+    <button className="nav foot-action" onClick={() => openTool(props.onRestore)}>
       <Upload size={16} strokeWidth={1.75} aria-hidden="true" />
       <span>Restore backup</span>
     </button>
@@ -343,7 +345,7 @@ export default function Sidebar(props: {
       </div>
 
       {sheet && (
-        <div className="mobile-sheet">
+        <div ref={sheetPanel} className="mobile-sheet" role="dialog" aria-modal="true" aria-label="More navigation">
           <div className="sheet-head">
             <div className="brand"><Mark /><span>Lifedash</span></div>
             <button className="icon-btn" aria-label="Close menu" onClick={() => setSheet(false)}>

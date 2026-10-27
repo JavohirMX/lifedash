@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { radioKeyIndex } from '../radioKeys';
 import type { Task } from '../types';
 import { requestAdvice, reviewRequest, type ReviewedRequest } from './provider';
 import { localPlan } from './localPlanner';
@@ -50,8 +51,14 @@ export default function AssistantDialog({ tasks, onClose }: { tasks: Task[]; onC
     <header><div><p className="ai-eyebrow">OPTIONAL · SECOND OPINION</p><h2 id="ai-title">Plan with AI</h2></div><button aria-label="Close AI planner" onClick={onClose}>Close</button></header>
     <p>Get a second opinion, not an autopilot. Suggestions never change your tasks.</p>
     <div className="mode-seg" role="radiogroup" aria-label="Planner source">
-      {([['local', 'On-device'], ['provider', 'Model provider']] as const).map(([id, label]) =>
-        <button key={id} role="radio" aria-checked={mode === id} className={mode === id ? 'active' : ''} onClick={() => setMode(id)}>{label}</button>)}
+      {([['local', 'On-device'], ['provider', 'Model provider']] as const).map(([id, label], index) =>
+        <button key={id} role="radio" aria-checked={mode === id} tabIndex={mode === id ? 0 : -1} onKeyDown={e => {
+          const next = radioKeyIndex(e.key, index, 2);
+          if (next === null) return;
+          e.preventDefault();
+          setMode(next === 0 ? 'local' : 'provider');
+          e.currentTarget.closest('[role=radiogroup]')?.querySelectorAll<HTMLButtonElement>('[role=radio]')[next]?.focus();
+        }} className={mode === id ? 'active' : ''} onClick={() => setMode(id)}>{label}</button>)}
     </div>
     {mode === 'local'
       ? <p className="ai-hint">Rule-based task ranking on this device: orders the tasks you select by due date and priority. No AI model or network request; free text isn't supported.</p>
