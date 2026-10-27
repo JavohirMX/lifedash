@@ -29,7 +29,7 @@ export function useDialogFocus<T extends HTMLElement = HTMLDivElement>(
       }
       if (e.key !== 'Tab') return;
       const items = Array.from(el.querySelectorAll<HTMLElement>(FOCUSABLE)).filter(
-        (n) => !n.hasAttribute('disabled') && n.getClientRects().length > 0,
+        (n) => !n.hasAttribute('disabled') && n.tabIndex >= 0 && n.getClientRects().length > 0,
       );
       if (!items.length) return;
       const first = items[0];

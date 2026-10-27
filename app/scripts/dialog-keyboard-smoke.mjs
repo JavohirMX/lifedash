@@ -25,6 +25,21 @@ try {
     }
     await page.getByRole('button', { name: 'Appearance Style, light mode and dark mode' }).click();
     await page.getByRole('dialog', { name: 'Appearance', exact: true }).waitFor();
+    const styleGroup = page.getByRole('radiogroup', { name: 'Style', exact: true });
+    await styleGroup.getByRole('radio', { name: /^Paper / }).focus();
+    await page.keyboard.press('ArrowLeft');
+    await page.waitForFunction(() => document.documentElement.dataset.style === 'polar');
+    assert.equal(await page.evaluate(() => document.activeElement?.getAttribute('aria-checked')), 'true');
+    await page.keyboard.press('Home');
+    await page.waitForFunction(() => document.documentElement.dataset.style === 'paper');
+    await page.keyboard.press('Tab');
+    assert.equal(await page.evaluate(() => document.activeElement?.getAttribute('aria-label')), 'Close');
+    await page.keyboard.press('Shift+Tab');
+    assert.equal(await page.evaluate(() => document.activeElement?.getAttribute('data-preview')), 'paper');
+    const modeGroup = page.getByRole('radiogroup', { name: 'Mode', exact: true });
+    await modeGroup.getByRole('radio', { name: 'System', exact: true }).focus();
+    await page.keyboard.press('End');
+    await page.waitForFunction(() => document.documentElement.dataset.theme === 'dark');
     await checkReturn('Settings');
     await open('Import');
     await page.getByRole('dialog', { name: 'Import tasks', exact: true }).waitFor();
