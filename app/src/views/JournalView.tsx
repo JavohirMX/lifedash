@@ -1,6 +1,6 @@
 import './workflow.css';
 import { radioKeyIndex } from '../radioKeys';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { BookOpen, ChevronLeft, ChevronRight, Frown, Meh, Smile, CloudRain, Laugh } from 'lucide-react';
 import { db } from '../db';
@@ -22,6 +22,18 @@ export default function JournalView(props: { initialDate?: string }) {
   const [date, setDate] = useState(props.initialDate ?? today);
   const entries = useLiveQuery(() => db.journal.toArray(), []);
   const entry = (entries ?? []).find((e) => e.date === date) ?? null;
+  const moodWriting = useRef(false);
+  const [moodSaving, setMoodSaving] = useState<string | null>(null);
+  const [moodError, setMoodError] = useState<{ date: string; value: number | null } | null>(null);
+  async function saveMood(value: number | null, targetDate = date) {
+    if (moodWriting.current) return;
+    moodWriting.current = true; setMoodSaving(targetDate); setMoodError(null);
+    try {
+      const target = await getOrCreateJournalEntry(targetDate);
+      await updateJournalEntry(target.id, { mood: value });
+    } catch { setMoodError({ date: targetDate, value }); }
+    finally { moodWriting.current = false; setMoodSaving(null); }
+  }
   const hasEntries = (entries ?? []).length > 0;
 
   // Count consecutive days with an entry ending today (or yesterday if today empty)
@@ -87,24 +99,34 @@ export default function JournalView(props: { initialDate?: string }) {
           <button
             key={v}
             role="radio"
+            aria-disabled={moodSaving !== null}
             aria-checked={entry?.mood === v}
             tabIndex={entry?.mood === v || (!entry?.mood && index === 0) ? 0 : -1}
             onKeyDown={e => {
+              if (moodWriting.current) {
+                if (radioKeyIndex(e.key, index, MOODS.length) !== null || e.key === 'Enter' || e.key === ' ') e.preventDefault();
+                return;
+              }
               const next = radioKeyIndex(e.key, index, MOODS.length);
               if (next === null) return;
               e.preventDefault();
               e.currentTarget.closest('[role=radiogroup]')?.querySelectorAll<HTMLButtonElement>('[role=radio]')[next]?.focus();
-              void getOrCreateJournalEntry(date).then(entry => updateJournalEntry(entry.id, { mood: MOODS[next].v }));
+              void saveMood(MOODS[next].v);
             }}
             className={`mood-btn ${entry?.mood === v ? 'active' : ''}`}
             title={label}
-            onClick={() => void getOrCreateJournalEntry(date).then((e) => updateJournalEntry(e.id, { mood: entry?.mood === v ? null : v }))}
+            onClick={() => void saveMood(entry?.mood === v ? null : v)}
           >
             <Icon size={18} strokeWidth={1.75} aria-hidden="true" />
             <span>{label}</span>
           </button>
         ))}
       </div>
+      {moodSaving === date && <p className="workflow-hint" role="status">Saving mood…</p>}
+      {moodError?.date === date && <div className="mood-save-error">
+        <p className="workflow-hint" role="alert">Couldn't save your mood. Your previous mood is unchanged. Retry mood to save your choice.</p>
+        <button className="mini" disabled={moodSaving !== null} onClick={() => void saveMood(moodError.value, moodError.date)}>Retry mood</button>
+      </div>}
       {entries !== undefined && <JournalHighlight date={date} value={entry?.highlight ?? ''} />}
       <div className="journal-editor">
         {entries !== undefined && (

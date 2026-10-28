@@ -1830,3 +1830,5 @@ main.tv-grid { max-width: none; width: 100%; }
 
 .highlight-save-field > .workflow-hint:empty { display: none; }
 .highlight-save-error .mini { min-height: 44px; }
+
+.mood-save-error .mini { min-height: 44px; margin-bottom: 12px; }

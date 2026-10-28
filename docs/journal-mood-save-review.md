@@ -1,0 +1,7 @@
+# Journal mood save feedback
+
+October28,2026. A Chromium forced rejection reproduced the baseline: mood update rejection raised a page error, previous checked mood remained, and no error/retry was shown. The candidate awaits the existing get-or-create/update chain, shows saving/error/Retry mood, and uses a synchronous pending guard. Requested failed mood is kept with its date for retry while the view remains mounted; navigation hides feedback belonging to another date. Other mood choices are aria-disabled while pending, with click/key guards. Focus remains on the arrow-key target instead of being lost through native disabling.
+
+Existing click-selected-to-clear behavior and keyboard radio selection remain. No optimistic selected mood, body/highlight, streak, TV or sync policy change. Failed mood choice is view-state only, not retained after full Journal exit/reload. Guard temporarily covers all dates in this view; pending write still completes for the original date. One failed request slot, not a multi-date queue.
+
+Six1440/390/320light/dark checks cover failure with previous checked choice unchanged, date-scoped error, retry, toggle-clear, held write/forced duplicate/date isolation, and keyboard focus/selection. Held pending Tab and Shift+Tab escape the focused radio; only selection/activation keys are suppressed while pending.314/build pass. Error pixels inspected and Retry minimum44px. Uses existing recorded NN/g/WAI asynchronous feedback guidance.
