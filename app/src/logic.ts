@@ -41,25 +41,40 @@ export function isRecurrenceValid(rule: string | null): boolean {
   }
 }
 
-export function describeRecurrence(rule: string | null): string {
-  if (!rule) return '';
-  let o: { interval?: number; freq?: Frequency };
-  try {
-    o = RRule.fromString(rule).origOptions;
-  } catch {
-    // Malformed rule (restored/synced row): say so instead of promising repeats.
-    return 'Invalid repeat rule';
-  }
+// Display classification only. Additional constraints must not look like a basic
+// editor-generated schedule. Never normalizes or rewrites the stored rule.
+export function recurrenceChoice(rule: string | null): 'none' | 'daily' | 'weekly' | 'monthly' | 'ndays' | 'invalid' | 'custom' {
+  if (!rule) return 'none';
+  let o: ReturnType<typeof RRule.fromString>['origOptions'];
+  try { o = RRule.fromString(rule).origOptions; } catch { return 'invalid'; }
+  if (!o.dtstart || Object.keys(o).some(key => !['freq', 'interval', 'dtstart', 'byweekday', 'bymonthday'].includes(key))) return 'custom';
   const n = o.interval ?? 1;
-  switch (o.freq) {
-    case Frequency.DAILY:
-      return n === 1 ? 'Daily' : `Every ${n} days`;
-    case Frequency.WEEKLY:
-      return n === 1 ? 'Weekly' : `Every ${n} weeks`;
-    case Frequency.MONTHLY:
-      return n === 1 ? 'Monthly' : `Every ${n} months`;
-    default:
-      return 'Repeats';
+  if (!Number.isInteger(n) || n < 1) return 'custom';
+  if (o.freq === Frequency.DAILY) {
+    return o.byweekday || o.bymonthday ? 'custom' : n === 1 ? 'daily' : 'ndays';
+  }
+  if (o.freq === Frequency.WEEKLY) {
+    const days = Array.isArray(o.byweekday) ? o.byweekday : o.byweekday != null ? [o.byweekday] : [];
+    const day = days[0];
+    const weekday = typeof day === 'number' ? day : typeof day === 'object' ? day.weekday : undefined;
+    return n !== 1 || o.bymonthday || days.length !== 1 || (typeof day === 'object' && day.n != null) || weekday !== (o.dtstart.getUTCDay() + 6) % 7 ? 'custom' : 'weekly';
+  }
+  if (o.freq === Frequency.MONTHLY) {
+    const days = Array.isArray(o.bymonthday) ? o.bymonthday : o.bymonthday != null ? [o.bymonthday] : [];
+    return n !== 1 || o.byweekday || days.length !== 1 || days[0] !== o.dtstart.getUTCDate() ? 'custom' : 'monthly';
+  }
+  return 'custom';
+}
+
+export function describeRecurrence(rule: string | null): string {
+  switch (recurrenceChoice(rule)) {
+    case 'none': return '';
+    case 'invalid': return 'Invalid repeat rule';
+    case 'custom': return 'Custom repeat';
+    case 'daily': return 'Daily';
+    case 'weekly': return 'Weekly';
+    case 'monthly': return 'Monthly';
+    case 'ndays': return `Every ${RRule.fromString(rule!).origOptions.interval} days`;
   }
 }
 

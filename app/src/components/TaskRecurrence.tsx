@@ -1,39 +1,10 @@
 import { useEffect, useRef, useState } from 'react';
-import { RRule, Frequency } from 'rrule';
 import { updateTask } from '../repo';
-import { makeRecurrence, describeRecurrence, isRecurrenceValid } from '../logic';
+import { makeRecurrence, describeRecurrence, recurrenceChoice } from '../logic';
 import { todayStr } from '../dates';
 import type { Task } from '../types';
 
 type RecChoice = 'none' | 'daily' | 'weekly' | 'monthly' | 'ndays' | 'invalid' | 'custom';
-
-function currentChoice(t: Task): RecChoice {
-  if (t.recurrence && !isRecurrenceValid(t.recurrence)) return 'invalid';
-  if (t.recurrence) {
-    const o = RRule.fromString(t.recurrence).origOptions;
-    const keys = Object.keys(o);
-    if (!o.dtstart || keys.some(key => !['freq', 'interval', 'dtstart', 'byweekday', 'bymonthday'].includes(key))) return 'custom';
-    const n = o.interval ?? 1;
-    if (!Number.isInteger(n) || n < 1) return 'custom';
-    if (o.freq === Frequency.DAILY) {
-      if (o.byweekday || o.bymonthday) return 'custom';
-    } else if (o.freq === Frequency.WEEKLY) {
-      const days = Array.isArray(o.byweekday) ? o.byweekday : o.byweekday != null ? [o.byweekday] : [];
-      const day = days[0];
-      const weekday = typeof day === 'number' ? day : typeof day === 'object' ? day.weekday : undefined;
-      if (n !== 1 || o.bymonthday || days.length !== 1 || (typeof day === 'object' && day.n != null) || weekday !== (o.dtstart.getUTCDay() + 6) % 7) return 'custom';
-    } else if (o.freq === Frequency.MONTHLY) {
-      const days = Array.isArray(o.bymonthday) ? o.bymonthday : o.bymonthday != null ? [o.bymonthday] : [];
-      if (n !== 1 || o.byweekday || days.length !== 1 || days[0] !== o.dtstart.getUTCDate()) return 'custom';
-    } else return 'custom';
-  }
-  const d = describeRecurrence(t.recurrence);
-  if (!d) return 'none';
-  if (d === 'Daily') return 'daily';
-  if (d === 'Weekly') return 'weekly';
-  if (d === 'Monthly') return 'monthly';
-  return 'ndays';
-}
 
 function savedDayInterval(task: Task): number {
   const match = /^Every (\d+) days$/.exec(describeRecurrence(task.recurrence));
@@ -44,7 +15,7 @@ export default function TaskRecurrence({ task }: { task: Task }) {
   return <RecurrenceField key={task.id} task={task} />;
 }
 function RecurrenceField({ task }: { task: Task }) {
-  const [choice, setChoice] = useState<RecChoice>(() => currentChoice(task));
+  const [choice, setChoice] = useState<RecChoice>(() => recurrenceChoice(task.recurrence));
   const [nDays, setNDays] = useState(() => savedDayInterval(task));
   const [busy, setBusy] = useState(false), [error, setError] = useState('');
   const writing = useRef(false), failed = useRef(false), mounted = useRef(true);
@@ -52,7 +23,7 @@ function RecurrenceField({ task }: { task: Task }) {
   useEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []);
   useEffect(() => {
     if (!writing.current && !failed.current) {
-      setChoice(currentChoice(task)); setNDays(savedDayInterval(task));
+      setChoice(recurrenceChoice(task.recurrence)); setNDays(savedDayInterval(task));
     }
   }, [task.recurrence]);
   async function write(patch: { recurrence: string | null; dueDate?: string }) {

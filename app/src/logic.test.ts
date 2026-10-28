@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { upcomingTasks, parseQuickAdd, groupCompletedByDay, renamedTags, completeTask, skipOccurrence, searchJournal, blockerCandidates, extractChecklistItems, filterNewChecklistItems, describeRecurrence, isRecurrenceValid, nextOccurrenceDate, makeRecurrence, upNextGroups } from './logic';
+import { upcomingTasks, parseQuickAdd, groupCompletedByDay, renamedTags, completeTask, skipOccurrence, searchJournal, blockerCandidates, extractChecklistItems, filterNewChecklistItems, describeRecurrence, recurrenceChoice, isRecurrenceValid, nextOccurrenceDate, makeRecurrence, upNextGroups } from './logic';
 import type { Task } from './types';
 
 describe('parseQuickAdd', () => {
@@ -139,6 +139,29 @@ describe('completeTask recurrence spawning', () => {
 });
 
 describe('describeRecurrence', () => {
+  it('preserves invalid and absent classification used by the editor', () => {
+    expect(recurrenceChoice(null)).toBe('none');
+    expect(recurrenceChoice('GARBAGE-NOT-A-RULE')).toBe('invalid');
+    expect(isRecurrenceValid('GARBAGE-NOT-A-RULE')).toBe(false);
+  });
+
+  it('labels extra constraints and non-editor shapes honestly without rewriting them', () => {
+    for (const rule of [
+      'DTSTART:20261028T120000Z\nRRULE:FREQ=DAILY;COUNT=5',
+      'DTSTART:20261028T120000Z\nRRULE:FREQ=DAILY;INTERVAL=3;BYDAY=MO,WE',
+      'DTSTART:20261028T120000Z\nRRULE:FREQ=WEEKLY;INTERVAL=2;BYDAY=WE',
+      'DTSTART:20261028T120000Z\nRRULE:FREQ=MONTHLY;BYMONTHDAY=28;UNTIL=20261228T120000Z',
+      'RRULE:FREQ=DAILY',
+    ]) expect(describeRecurrence(rule)).toBe('Custom repeat');
+  });
+  it('keeps every editor-generated basic label across anchor weekdays and month ends', () => {
+    for (const date of ['2026-10-25', '2026-10-26', '2026-10-27', '2026-10-28', '2026-10-29', '2026-10-30', '2026-10-31', '2026-02-28', '2028-02-29']) {
+      for (const [kind, label] of [['daily', 'Daily'], ['weekly', 'Weekly'], ['monthly', 'Monthly'], ['ndays', 'Every 7 days']] as const) {
+        expect(describeRecurrence(makeRecurrence(kind, date, 7))).toBe(label);
+      }
+    }
+  });
+
   it('labels the standard rules', () => {
     expect(describeRecurrence('DTSTART:20261022T120000Z\nRRULE:FREQ=DAILY;INTERVAL=1')).toBe('Daily');
     expect(describeRecurrence('DTSTART:20261022T120000Z\nRRULE:FREQ=DAILY;INTERVAL=3')).toBe('Every 3 days');
