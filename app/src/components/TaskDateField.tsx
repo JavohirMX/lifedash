@@ -11,10 +11,17 @@ function DateField({ id, field, value: saved, label, type }: Props) {
   const [error, setError] = useState('');
   const writing = useRef(false), failed = useRef(false), mounted = useRef(true);
   useEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []);
-  useEffect(() => { if (!writing.current && !failed.current) setValue(saved); }, [saved]);
+  useEffect(() => { if (writing.current) deferred.current = true; else if (!failed.current) setValue(saved); }, [saved]);
+  const deferred = useRef(false);
+  useEffect(() => {
+    if (!busy && deferred.current) {
+      deferred.current = false;
+      if (!failed.current) { setValue(saved); }
+    }
+  }, [busy]);
   async function save(next: string) {
     if (writing.current) return;
-    writing.current = true; setValue(next); setBusy(true); setError('');
+    writing.current = true; deferred.current = false; setValue(next); setBusy(true); setError('');
     try {
       await updateTask(id, field === 'dueDate' ? { dueDate: next || null } : { dueTime: next || null });
       failed.current = false;

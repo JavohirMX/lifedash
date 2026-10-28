@@ -22,13 +22,21 @@ function RecurrenceField({ task }: { task: Task }) {
   const attempt = useRef<{ recurrence: string | null; dueDate?: string } | null>(null);
   useEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []);
   useEffect(() => {
-    if (!writing.current && !failed.current) {
+    if (writing.current) deferred.current = true;
+    else if (!failed.current) {
       setChoice(recurrenceChoice(task.recurrence)); setNDays(savedDayInterval(task));
     }
   }, [task.recurrence]);
+  const deferred = useRef(false);
+  useEffect(() => {
+    if (!busy && deferred.current) {
+      deferred.current = false;
+      if (!failed.current) { setChoice(recurrenceChoice(task.recurrence)); setNDays(savedDayInterval(task)); }
+    }
+  }, [busy]);
   async function write(patch: { recurrence: string | null; dueDate?: string }) {
     if (writing.current) return;
-    writing.current = true; attempt.current = patch; setBusy(true); setError('');
+    writing.current = true; deferred.current = false; attempt.current = patch; setBusy(true); setError('');
     try { await updateTask(task.id, patch); failed.current = false; }
     catch { failed.current = true; if (mounted.current) setError("Repeat wasn't saved. Your choice is kept here. Retry to save it."); }
     finally { writing.current = false; if (mounted.current) setBusy(false); }

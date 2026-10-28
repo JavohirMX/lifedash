@@ -13,11 +13,19 @@ function PinField({ id, pinned }: { id: string; pinned: boolean }) {
   const mounted = useRef(true);
   useEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []);
   useEffect(() => {
-    if (!writing.current && !failed.current) setValue(pinned);
+    if (writing.current) deferred.current = true;
+    else if (!failed.current) setValue(pinned);
   }, [pinned]);
+  const deferred = useRef(false);
+  useEffect(() => {
+    if (!busy && deferred.current) {
+      deferred.current = false;
+      if (!failed.current) { setValue(pinned); }
+    }
+  }, [busy]);
   async function save(next: boolean) {
     if (writing.current) return;
-    writing.current = true;
+    writing.current = true; deferred.current = false;
     setValue(next); setBusy(true); setError('');
     try {
       await updateTask(id, { pinned: next });
