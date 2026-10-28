@@ -1805,3 +1805,10 @@ main.tv-grid { max-width: none; width: 100%; }
 @media (max-width: 700px) {
   .task-attachments .mini { min-height: 44px; }
 }
+
+.sub-add-form { display: flex; gap: 6px; flex-wrap: wrap; }
+.sub-add-form input { flex: 1; min-width: 130px; }
+.sub-add-form .mini { min-height: 40px; }
+.sub-add-feedback { font-size: var(--fs-small); line-height: 1.5; margin: 8px 0; }
+.sub-add-feedback:empty { display: none; }
+@media(max-width:700px) { .sub-add-form .mini { min-height: 44px; } }

@@ -3,6 +3,7 @@ import { X, Check, StickyNote } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import NoteEditor from './NoteEditor';
 import Attachments from './Attachments';
+import SubtaskAdd from './SubtaskAdd';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { runningSession, sessionSeconds, focusTotals, formatClock, formatDuration } from '../focus';
 import { startFocus, stopFocus } from '../repo';
@@ -53,7 +54,6 @@ export default function TaskDetail(props: { taskId: string; onClose: () => void;
     () => (task?.noteId ? db.notes.get(task.noteId) : undefined),
     [task?.noteId],
   );
-  const [newSub, setNewSub] = useState('');
   const [nDays, setNDays] = useState(3);
   const [blockerPick, setBlockerPick] = useState('');
   const [blockerError, setBlockerError] = useState('');
@@ -316,19 +316,7 @@ export default function TaskDetail(props: { taskId: string; onClose: () => void;
             <span>{s.title}</span>
           </div>
         ))}
-        <div className="sub-add">
-          <input
-            value={newSub}
-            placeholder="Add a subtask..."
-            onChange={(e) => setNewSub(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter' && newSub.trim()) {
-                void addTask({ title: newSub, projectId: task.projectId || INBOX_ID, parentId: task.id, dueDate: task.dueDate });
-                setNewSub('');
-              }
-            }}
-          />
-        </div>
+        <SubtaskAdd task={task} />
       </div>
 
       <Attachments taskId={task.id} />
