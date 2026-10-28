@@ -76,7 +76,7 @@ export default function CalendarView(props: { tasks: Task[]; onOpen: (id: string
           )}
         </span>
       </h1>
-      <p className="workflow-hint">Top-level tasks by due date, including completed tasks. Choose a day number to see its full list below the calendar.</p>
+      <p className="workflow-hint">Top-level tasks, including completed</p>
       <div className="cal-grid" role="grid" aria-label={monthLabel(month)}>
         {WEEKDAYS.map((d) => (
           <div key={d} className="cal-weekday">{d}</div>

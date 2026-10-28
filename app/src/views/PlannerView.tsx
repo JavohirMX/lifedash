@@ -81,7 +81,7 @@ export default function PlannerView(props: { tasks: Task[]; onOpen: (id: string)
       <h1>
         Planner <span className="date-sub">{friendlyDate(today, today)} · {weekdayLabel(today)}</span>
       </h1>
-      <p className="workflow-hint">Today's dated tasks only. Use the clock beside a task to set a time, or drag it to an hour. Set it to Anytime to remove the time.</p>
+
       {pending.size > 0 && <p className="workflow-hint" role="status">Scheduling…</p>}
       {Object.entries(errors).filter(([id]) => id !== pickerId).map(([id, error]) => <div key={id} className="sub-add-feedback">
         <p role="alert">Time wasn't saved for "{error.title}". Retry the failed change or choose another time.</p>

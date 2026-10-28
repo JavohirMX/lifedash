@@ -76,7 +76,7 @@ export default function WeekView(props: { tasks: Task[]; onOpen: (id: string) =>
           </button>
         </span>
       </h1>
-      <p className="workflow-hint">Open tasks by due date. Drag a task to another day, or open its title to change the date on any device.</p>
+
       {pending.size > 0 && <p className="workflow-hint" role="status">Scheduling…</p>}
       {Object.entries(errors).map(([id, error]) => <div key={id} className="sub-add-feedback">
         <p role="alert">Date wasn't saved for "{error.title}". Retry to schedule it for {error.date}.</p>
