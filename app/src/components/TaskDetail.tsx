@@ -61,7 +61,7 @@ export default function TaskDetail(props: { taskId: string; onClose: () => void;
   // the overlay, so we check the event target, not the live DOM).
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.key !== 'Escape') return;
+      if (e.key !== 'Escape' || e.isComposing) return;
       if (e.target instanceof HTMLElement && e.target.closest('.palette-overlay, [role=dialog], dialog[open]')) return;
       props.onClose();
     };
