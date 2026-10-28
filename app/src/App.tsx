@@ -50,7 +50,7 @@ import {
 } from './logic';
 import { todayStr, friendlyDate, weekdayLabel } from './dates';
 import { updateTask, moveTask, updateProject, deleteProject } from './repo';
-import type { Task, JournalEntry } from './types';
+import type { Task, JournalEntry, Project } from './types';
 
 export default function App() {
   const [completionPrompt, setCompletionPrompt] = useState<CompletionPrompt | null>(null);
@@ -73,10 +73,12 @@ export default function App() {
   const projWriting = useRef(false);
   const [projSaving, setProjSaving] = useState(false);
   const [projSaveError, setProjSaveError] = useState('');
+  const projDeleting = useRef(false);
+  const [projDeleteBusy, setProjDeleteBusy] = useState(false);
   const selectedProjectId = useRef<string | null>(null);
   selectedProjectId.current = selection.kind === 'project' ? selection.id : null;
   async function saveProject(id: string) {
-    if (projWriting.current || !projName.trim()) return;
+    if (projWriting.current || projDeleting.current || !projName.trim()) return;
     projWriting.current = true; setProjSaving(true); setProjSaveError('');
     try {
       await updateProject(id, { name: projName, color: projColor });
@@ -87,6 +89,16 @@ export default function App() {
   }
 
   useEffect(() => { setProjEditing(false); setProjConfirmDelete(false); setProjSaveError(''); }, [selection.kind, selection.kind === 'project' ? selection.id : null]);
+  async function removeProject(project: Project) {
+    if (projDeleting.current || projWriting.current) return;
+    projDeleting.current = true; setProjDeleteBusy(true);
+    try {
+      await deleteProject(project);
+      if (selectedProjectId.current === project.id) setSelection({ kind: 'project', id: INBOX_ID });
+    } catch (error: unknown) {
+      window.alert(error instanceof Error ? error.message : 'Delete failed.');
+    } finally { projDeleting.current = false; setProjDeleteBusy(false); }
+  }
   const [openId, setOpenId] = useState<string | null>(null);
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [importPreset, setImportPreset] = useState<ImportSource | null | false>(false);
@@ -336,7 +348,7 @@ export default function App() {
         <h1>
           <span className="dot" style={{ background: project?.color }} /> {project?.name ?? 'Project'}
           {project && project.id !== INBOX_ID && (
-            <button className="icon-btn proj-edit-btn" aria-label="Project settings" title="Project settings" disabled={projSaving}
+            <button className="icon-btn proj-edit-btn" aria-label="Project settings" title="Project settings" disabled={projSaving || projDeleteBusy}
               onClick={() => { setProjName(project.name); setProjColor(project.color); setProjEditing(!projEditing); setProjConfirmDelete(false); setProjSaveError(''); }}>
               <Pencil size={15} strokeWidth={2} />
             </button>
@@ -350,7 +362,7 @@ export default function App() {
         </h1>
         <p className="workflow-hint">Open tasks in this project and its subprojects. Progress above includes completed top-level tasks.</p>
         {projEditing && project && (
-          <fieldset className="goal-add proj-settings save-form" disabled={projSaving} aria-busy={projSaving}>
+          <fieldset className="goal-add proj-settings save-form" disabled={projSaving || projDeleteBusy} aria-busy={projSaving || projDeleteBusy}>
             <input
               autoFocus
               value={projName}
@@ -379,7 +391,7 @@ export default function App() {
                     Deletes its {projDirect.length} task{projDirect.length === 1 ? '' : 's'}
                     {projects.some((p) => (p.parentId ?? null) === project.id) ? '; subprojects move up one level' : ''}.
                   </span>
-                  <button className="mini danger" onClick={() => { void deleteProject(project).then(() => setSelection({ kind: 'project', id: INBOX_ID })).catch((e: unknown) => window.alert(e instanceof Error ? e.message : 'Delete failed.')); }}>
+                  <button className="mini danger" onClick={() => void removeProject(project)}>
                     Confirm delete
                   </button>
                 </>
@@ -388,6 +400,7 @@ export default function App() {
               )}
             </div>
           {projSaving && <p className="form-save-status" role="status">Saving project…</p>}
+          {projDeleteBusy && <p className="form-save-status" role="status">Deleting project…</p>}
             {projSaveError && <p className="form-save-error" role="alert">{projSaveError}</p>}
           </fieldset>
         )}
