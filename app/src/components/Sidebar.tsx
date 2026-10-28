@@ -205,7 +205,7 @@ export default function Sidebar(props: {
             onChange={(e) => setName(e.target.value)}
             onKeyDown={(e) => {
               if (e.key === 'Enter' && !e.nativeEvent.isComposing) void createProject();
-              if (e.key === 'Escape') setAdding(false);
+              if (e.key === 'Escape' && !e.nativeEvent.isComposing) setAdding(false);
             }}
           />
           <select

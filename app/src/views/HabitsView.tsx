@@ -118,7 +118,7 @@ export default function HabitsView() {
             onChange={(e) => setName(e.target.value)}
             onKeyDown={(e) => {
               if (e.key === 'Enter' && !e.nativeEvent.isComposing) void submitHabit();
-              if (e.key === 'Escape') setAdding(false);
+              if (e.key === 'Escape' && !e.nativeEvent.isComposing) setAdding(false);
             }}
           />
           <div className="wd-picker">
@@ -185,7 +185,7 @@ export default function HabitsView() {
                     value={editName}
                     aria-label="Habit name"
                     onChange={(e) => setEditName(e.target.value)}
-                    onKeyDown={(e) => { if (e.key === 'Enter' && !e.nativeEvent.isComposing) void saveEdit(); if (e.key === 'Escape') setEditingId(null); }}
+                    onKeyDown={(e) => { if (e.key === 'Enter' && !e.nativeEvent.isComposing) void saveEdit(); if (e.key === 'Escape' && !e.nativeEvent.isComposing) setEditingId(null); }}
                   />
                   <div className="wd-picker">
                     {DAY_LETTERS.map((l, i) => {

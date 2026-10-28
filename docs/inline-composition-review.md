@@ -1,0 +1,3 @@
+# Inline form composing Escape
+
+New project/goal/habit inputs reproduced hiding on synthetic composing Escape. Six create/edit text handlers (project/goal/habit) now cancel only for noncomposing Escape. Existing Enter handling, buttons, drafts and persistence unchanged. Six viewport/theme groups check all six controls retain entered text for composing Escape and ordinary Escape still hides each form; sample-only goal/habit creation supports edit setup.315tests/build pass.390light/320dark project edit screenshots inspected readable retained text. Synthetic Chromium only, not native OS/Safari/Firefox/keyCode229 proof. One initial mobile fixture failed because ordinary Escape closes More sheet by design; reopened More in fixture. No product change to sheet behavior.

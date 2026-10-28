@@ -93,7 +93,7 @@ export default function GoalsView(props: { tasks: Task[]; onOpen: (id: string) =
             onChange={(e) => setTitle(e.target.value)}
             onKeyDown={(e) => {
               if (e.key === 'Enter' && !e.nativeEvent.isComposing) void submit();
-              if (e.key === 'Escape') setAdding(false);
+              if (e.key === 'Escape' && !e.nativeEvent.isComposing) setAdding(false);
             }}
           />
           <input type="date" value={target} aria-label="Target date (optional)" onChange={(e) => setTarget(e.target.value)} />
@@ -139,7 +139,7 @@ export default function GoalsView(props: { tasks: Task[]; onOpen: (id: string) =
                     value={editTitle}
                     aria-label="Goal title"
                     onChange={(e) => setEditTitle(e.target.value)}
-                    onKeyDown={(e) => { if (e.key === 'Enter' && !e.nativeEvent.isComposing) void saveEdit(); if (e.key === 'Escape') setEditingId(null); }}
+                    onKeyDown={(e) => { if (e.key === 'Enter' && !e.nativeEvent.isComposing) void saveEdit(); if (e.key === 'Escape' && !e.nativeEvent.isComposing) setEditingId(null); }}
                   />
                   <input type="date" value={editTarget} aria-label="Target date (optional)" onChange={(e) => setEditTarget(e.target.value)} />
                   <button className="btn-primary" onClick={saveEdit} disabled={!editTitle.trim()}>Save</button>

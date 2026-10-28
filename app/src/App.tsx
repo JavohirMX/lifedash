@@ -392,7 +392,7 @@ export default function App() {
               onChange={(e) => setProjName(e.target.value)}
               onKeyDown={(e) => {
                 if (e.key === 'Enter' && !e.nativeEvent.isComposing) void saveProject(project.id);
-                if (e.key === 'Escape') setProjEditing(false);
+                if (e.key === 'Escape' && !e.nativeEvent.isComposing) setProjEditing(false);
               }}
             />
             <div className="proj-colors">
