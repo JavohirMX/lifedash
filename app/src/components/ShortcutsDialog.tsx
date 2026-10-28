@@ -5,7 +5,7 @@ const GROUPS: { title: string; rows: [string, string][] }[] = [
     title: 'General',
     rows: [
       ['Ctrl/⌘ K', 'Command palette: search tasks, notes and journal'],
-      ['n', 'New task (focuses the quick-add box)'],
+      ['n', 'New task (opens capture without leaving this view)'],
       ['?', 'This help'],
       ['Esc', 'Close the open dialog or task panel'],
     ],

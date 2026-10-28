@@ -75,6 +75,7 @@ export default function Sidebar(props: {
   onAppearance: () => void;
   onSettings: () => void;
   onPalette?: () => void;
+  onCapture?: () => void;
 }) {
   const [adding, setAdding] = useState(false);
   const [addParent, setAddParent] = useState<string | null>(null);
@@ -348,6 +349,7 @@ export default function Sidebar(props: {
     <>
       <nav className="sidebar">
         <div className="brand"><Mark /><span>Lifedash</span></div>
+        {props.onCapture && <button className="sidebar-capture btn-secondary" aria-label="Capture task" onClick={props.onCapture}><Plus size={16} aria-hidden="true" />Capture task <kbd>n</kbd></button>}
         {searchBox}
         {navigation()}
         {projectsBlock}
@@ -357,6 +359,7 @@ export default function Sidebar(props: {
       <div className="mobile-topbar">
         <div className="brand"><Mark /><span>Lifedash</span></div>
         <div className="mobile-topbar-actions">
+          {props.onCapture && <button className="icon-btn" title="Capture task (n)" aria-label="Capture task" onClick={props.onCapture}><Plus size={20} aria-hidden="true" /></button>}
           {props.onPalette && (
             <button className="icon-btn" title="Search (Ctrl+K)" aria-label="Search tasks, notes and journal" onClick={props.onPalette}>
               <Search size={18} strokeWidth={1.75} />
@@ -394,7 +397,8 @@ export default function Sidebar(props: {
               <X size={20} strokeWidth={1.75} />
             </button>
           </div>
-          {searchBox}
+          {props.onCapture && <button className="sidebar-capture btn-secondary" aria-label="Capture task" onClick={props.onCapture}><Plus size={16} aria-hidden="true" />Capture task <kbd>n</kbd></button>}
+        {searchBox}
           {navigation(() => setSheet(false))}
           {projectsBlock}
           {footer}

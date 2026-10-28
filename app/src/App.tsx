@@ -11,6 +11,7 @@ import { db, INBOX_ID, ensureSeed } from './db';
 import AssistantDialog from './ai/AssistantDialog';
 import Sidebar, { type Selection } from './components/Sidebar';
 import QuickAdd from './components/QuickAdd';
+import CaptureDialog from './components/CaptureDialog';
 import BacklogSchedule from './components/BacklogSchedule';
 import TaskList, { TASK_DRAG_MIME } from './components/TaskList';
 import HabitsView from './views/HabitsView';
@@ -150,17 +151,8 @@ export default function App() {
 
   const tasksRef = useRef<Task[]>([]);
   const journalRef = useRef<JournalEntry[]>([]);
-  const [quickAddRequested, setQuickAddRequested] = useState(false);
-  const quickAddFocus = () => {
-    const input = document.querySelector<HTMLInputElement>('.quick-add input');
-    if (input) input.focus();
-    else { setSelection({ kind: 'backlog' }); setQuickAddRequested(true); }
-  };
-  useEffect(() => {
-    if (!quickAddRequested) return;
-    const input = document.querySelector<HTMLInputElement>('.quick-add input');
-    if (input) { input.focus(); setQuickAddRequested(false); }
-  }, [selection, quickAddRequested]);
+  const [captureState, setCaptureState] = useState<'open' | 'closed' | null>(null);
+  const quickAddFocus = () => setCaptureState('open');
   useGlobalKeys({
     onPalette: () => setPaletteOpen((o) => !o),
     onNewTask: quickAddFocus,
@@ -439,6 +431,7 @@ export default function App() {
   return (
     <div className="app">
       <Sidebar projects={projects} selection={selection} onSelect={setSelection} counts={counts} activeByProject={activeByProject}
+        onCapture={quickAddFocus}
         onPalette={() => setPaletteOpen(true)}
         reminders={typeof Notification === 'undefined' ? 'unsupported' : Notification.permission === 'denied' ? 'blocked' : remindOn ? 'on' : 'off'}
         journalNudge={nudgeOn}
@@ -466,6 +459,7 @@ export default function App() {
         </div>)}
         {body}
       </main>
+      {captureState !== null && <CaptureDialog open={captureState === 'open'} projects={projects} onClose={() => setCaptureState('closed')} />}
       {completionPrompt && <CompletionDialog prompt={completionPrompt} />}
       {openId && (
         <TaskDetail

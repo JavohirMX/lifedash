@@ -4,20 +4,32 @@ import { db } from '../db';
 import { addTask } from '../repo';
 import { parseQuickAdd, describeRecurrence } from '../logic';
 import { parseNatural } from '../natural';
-import { todayStr, friendlyDate } from '../dates';
+import { todayStr, friendlyDate, addDays } from '../dates';
+import type { Project } from '../types';
 
 type CaptureJob = { id: number; raw: string; input: Parameters<typeof addTask>[0] };
 const failedCaptures = new Map<string, CaptureJob[]>();
 const retryingCaptures = new Set<CaptureJob>();
+const pendingCaptures = new Set<CaptureJob>();
 window.addEventListener('beforeunload', event => {
-  if (retryingCaptures.size || [...failedCaptures.values()].some(items => items.length > 0)) {
+  if (pendingCaptures.size || retryingCaptures.size || [...failedCaptures.values()].some(items => items.length > 0)) {
     event.preventDefault(); event.returnValue = '';
   }
 });
 let captureId = 0;
 
-export default function QuickAdd(props: { projectId: string; dueDate?: string | null; placeholder?: string }) {
+export default function QuickAdd(props: { projectId: string; dueDate?: string | null; placeholder?: string; captureProjects?: Project[] }) {
   const [title, setTitle] = useState('');
+  const [chosenProject, setChosenProject] = useState(props.projectId);
+  // undefined means use natural-language parsing; null explicitly means no date.
+  const [chosenDate, setChosenDate] = useState<string | null | undefined>(undefined);
+  const projectId = props.captureProjects ? chosenProject : props.projectId;
+  useEffect(() => {
+    if (!props.captureProjects) return;
+    const warn = (event: BeforeUnloadEvent) => { if (currentTitle.current.trim()) { event.preventDefault(); event.returnValue = ''; } };
+    window.addEventListener('beforeunload', warn);
+    return () => window.removeEventListener('beforeunload', warn);
+  }, [props.captureProjects]);
   const currentTitle = useRef('');
   const fieldId = useId();
   const chain = useRef<Promise<unknown>>(Promise.resolve());
@@ -36,6 +48,8 @@ export default function QuickAdd(props: { projectId: string; dueDate?: string | 
   }, []);
 
   function enqueue(job: CaptureJob) {
+    // Register synchronously, including jobs still waiting behind another write.
+    pendingCaptures.add(job);
     setPending((n) => n + 1);
     setStatus('');
     // A failed write must not prevent later captures from being saved.
@@ -46,6 +60,7 @@ export default function QuickAdd(props: { projectId: string; dueDate?: string | 
       } catch {
         rememberFailed([...(failedCaptures.get(db.name) ?? []), job]);
       } finally {
+        pendingCaptures.delete(job);
         retryingCaptures.delete(job);
         setPending((n) => n - 1);
       }
@@ -55,6 +70,10 @@ export default function QuickAdd(props: { projectId: string; dueDate?: string | 
   function submit() {
     const raw = currentTitle.current.trim();
     if (!raw) return;
+    if (props.captureProjects && !props.captureProjects.some(project => project.id === projectId)) {
+      setError('Choose an available project. Your text is still here.');
+      return;
+    }
     const parsed = parseQuickAdd(raw);
     const nat = parseNatural(parsed.title);
     if (!nat.title) {
@@ -63,8 +82,8 @@ export default function QuickAdd(props: { projectId: string; dueDate?: string | 
     }
     setError('');
     enqueue({ id: ++captureId, raw, input: {
-      title: nat.title, tags: parsed.tags, projectId: props.projectId,
-      dueDate: nat.dueDate ?? props.dueDate ?? null,
+      title: nat.title, tags: parsed.tags, projectId,
+      dueDate: props.captureProjects && chosenDate !== undefined ? chosenDate : nat.dueDate ?? props.dueDate ?? null,
       dueTime: nat.dueTime, recurrence: nat.recurrence, priority: nat.priority,
     } });
     currentTitle.current = '';
@@ -72,9 +91,12 @@ export default function QuickAdd(props: { projectId: string; dueDate?: string | 
     inputRef.current?.focus();
   }
 
+  const parsed = parseQuickAdd(title);
+  const natural = parseNatural(parsed.title);
+  const finalDate = props.captureProjects && chosenDate !== undefined ? chosenDate : natural.dueDate ?? props.dueDate ?? null;
   const hint = (() => {
     if (!title.trim()) return null;
-    const nat = parseNatural(parseQuickAdd(title).title);
+    const nat = natural;
     const bits: string[] = [];
     if (nat.dueDate) bits.push(friendlyDate(nat.dueDate, todayStr()));
     if (nat.dueTime) bits.push(nat.dueTime);
@@ -94,7 +116,7 @@ export default function QuickAdd(props: { projectId: string; dueDate?: string | 
             ref={inputRef}
             value={title}
             placeholder={props.placeholder ?? 'Add a task'}
-            aria-describedby={`${fieldId}-hint${error ? ` ${fieldId}-error` : ''}`}
+            aria-describedby={`${fieldId}-${props.captureProjects ? 'preview' : 'hint'}${error ? ` ${fieldId}-error` : ''}`}
             aria-invalid={error ? true : undefined}
             onChange={(e) => { currentTitle.current = e.target.value; setTitle(e.target.value); setError(''); setStatus(''); }}
             onKeyDown={(e) => {
@@ -105,9 +127,36 @@ export default function QuickAdd(props: { projectId: string; dueDate?: string | 
         </div>
         <button type="submit" className="mini quick-add-submit" disabled={!title.trim()}>Add</button>
       </form>
-      <div id={`${fieldId}-hint`} className="quick-add-hint" aria-live="polite">
+      <div hidden={Boolean(props.captureProjects)} id={`${fieldId}-hint`} className="quick-add-hint" aria-live="polite">
         {hint ?? 'Dates, times and #tags supported'}
       </div>
+      {props.captureProjects && <>
+        <fieldset className="capture-options">
+          <legend>Save to</legend>
+          <label>Project<select aria-label="Capture project" value={chosenProject} onChange={e => setChosenProject(e.target.value)}>
+            {props.captureProjects.map(project => <option key={project.id} value={project.id}>{project.name}</option>)}
+          </select></label>
+          <label>Due date<input aria-label="Capture due date" type="date" value={finalDate ?? ''} onChange={e => setChosenDate(e.target.value || null)} /></label>
+          <div className="capture-date-chips" role="group" aria-label="Quick due date">
+            <button type="button" className="mini" aria-pressed={chosenDate === todayStr()} onClick={() => setChosenDate(todayStr())}>Today</button>
+            <button type="button" className="mini" aria-pressed={chosenDate === addDays(todayStr(), 1)} onClick={() => setChosenDate(addDays(todayStr(), 1))}>Tomorrow</button>
+            <button type="button" className="mini" aria-pressed={chosenDate === null} onClick={() => setChosenDate(null)}>No date</button>
+            <button type="button" className="mini" aria-pressed={chosenDate === undefined} onClick={() => setChosenDate(undefined)}>Use parsed date</button>
+          </div>
+          <div className="capture-project-chips" role="group" aria-label="Quick project">
+            {props.captureProjects.slice(0, 4).map(project => <button key={project.id} type="button" className="mini" aria-pressed={chosenProject === project.id} onClick={() => setChosenProject(project.id)}>{project.name}</button>)}
+          </div>
+        </fieldset>
+        <div id={`${fieldId}-preview`} className="capture-preview" role="status" aria-label="Task preview">
+          <strong>Will add</strong>
+          <p>{title.trim() ? natural.title || 'Add a task name' : 'Your task name'}</p>
+          <p>{props.captureProjects.find(project => project.id === projectId)?.name ?? 'Choose a project'} · {finalDate ? friendlyDate(finalDate, todayStr()) : 'No due date'}{natural.dueTime ? ` · ${natural.dueTime}` : ''}</p>
+          {natural.recurrence && <p>{describeRecurrence(natural.recurrence)}</p>}
+          {natural.priority > 0 && <p>Priority {natural.priority}</p>}
+          {parsed.tags.length > 0 && <p>{parsed.tags.map(tag => `#${tag}`).join(' ')}</p>}
+          {chosenDate !== undefined && natural.dueDate && <p>Selected date replaces the parsed date ({friendlyDate(natural.dueDate, todayStr())}).</p>}
+        </div>
+      </>}
       {error && <p id={`${fieldId}-error`} className="quick-add-error" role="alert">{error}</p>}
       <div className="quick-add-status" role="status">{pending ? `Saving ${pending} ${pending === 1 ? 'task' : 'tasks'}…` : status}</div>
       {failed.map((job) => (
