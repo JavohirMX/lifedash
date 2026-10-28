@@ -48,7 +48,7 @@ vi.mock('./db', () => ({
   },
 }));
 
-import { acknowledgeConflictNotice, getConflictNotice, logout, syncNow } from './sync';
+import { acknowledgeConflictNotice, getConflictNotice, loadSyncStatus, logout, syncNow } from './sync';
 
 const settings = { url: 'http://test', username: 'u', token: 'tok' };
 
@@ -346,5 +346,21 @@ describe('sync push batching', () => {
     }));
     await expect(syncNow(settings)).rejects.toThrow('push failed: 503');
     expect([...meta.keys()].filter(k => k.startsWith('dirty:'))).toHaveLength(1);
+  });
+});
+
+
+describe('sync status persistence', () => {
+  it('does not turn successful sync into failure when status storage fails', async () => {
+    mockFetch({ changesResponses: [] });
+    const original = localStorage.setItem;
+    localStorage.setItem = () => { throw new Error('Status storage unavailable'); };
+    try {
+      expect(await syncNow(settings)).toMatchObject({ pushed: 0, pulled: 0 });
+      expect(loadSyncStatus()).toMatchObject({ ok: true, persistenceFailed: true });
+    } finally { localStorage.setItem = original; }
+    await syncNow(settings);
+    expect(loadSyncStatus()).toMatchObject({ ok: true });
+    expect(loadSyncStatus()?.persistenceFailed).toBeUndefined();
   });
 });

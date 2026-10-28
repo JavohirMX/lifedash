@@ -12,12 +12,15 @@ export interface SyncStatus {
   at: number;
   ok: boolean;
   summary: string;
+  persistenceFailed?: boolean;
 }
 
 const STATUS_KEY = 'lifedash-sync-status';
+let unsavedSyncStatus: SyncStatus | null = null;
 
 export function loadSyncStatus(): SyncStatus | null {
   if (SAMPLE_MODE) return null;
+  if (unsavedSyncStatus) return unsavedSyncStatus;
   try {
     const raw = localStorage.getItem(STATUS_KEY);
     return raw ? (JSON.parse(raw) as SyncStatus) : null;
@@ -27,7 +30,12 @@ export function loadSyncStatus(): SyncStatus | null {
 }
 
 function saveSyncStatus(s: SyncStatus): void {
-  localStorage.setItem(STATUS_KEY, JSON.stringify(s));
+  try {
+    localStorage.setItem(STATUS_KEY, JSON.stringify(s));
+    unsavedSyncStatus = null;
+  } catch {
+    unsavedSyncStatus = { ...s, persistenceFailed: true };
+  }
   window.dispatchEvent(new Event('lifedash-sync-status'));
 }
 

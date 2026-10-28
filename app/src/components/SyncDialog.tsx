@@ -1,5 +1,5 @@
 import { SAMPLE_MODE } from '../dev/sampleMode';
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useDialogFocus } from '../hooks/useDialogFocus';
 import { checkSyncUrl, syncFailureMessage } from '../syncFormFeedback';
 import './SyncDialog.css';
@@ -23,13 +23,19 @@ export default function SyncDialog(props: { onClose: () => void; onBack?: () => 
   const [password, setPassword] = useState('');
   const [settings, setSettings] = useState<SyncSettings | null>(existing);
   const [status, setStatus] = useState('');
+  const statusSource = useRef<'auth' | 'sync' | 'disconnect' | null>(null);
   const [localClearFailed, setLocalClearFailed] = useState(false);
   const revokedSession = useRef<string | null>(null);
   const [feedback, setFeedback] = useState<'status'|'error'>('status');
   const [urlError,setUrlError]=useState('');
   const [authAction,setAuthAction]=useState<'login'|'register'|null>(null);
   const urlInput=useRef<HTMLInputElement>(null);
-  const last = loadSyncStatus();
+  const [last, setLast] = useState(loadSyncStatus);
+  useEffect(() => {
+    const refresh = () => { setLast(loadSyncStatus()); if (statusSource.current === 'sync') setStatus(''); };
+    window.addEventListener('lifedash-sync-status', refresh);
+    return () => window.removeEventListener('lifedash-sync-status', refresh);
+  }, []);
   const [busy, setBusy] = useState(false);
   const working = useRef(false);
 
@@ -42,6 +48,7 @@ export default function SyncDialog(props: { onClose: () => void; onBack?: () => 
     const issue=checkSyncUrl(url);
     if(issue){setUrlError(issue);setFeedback('error');setStatus('');urlInput.current?.focus();return;}
     working.current = true;
+    statusSource.current = 'auth';
     setUrlError('');setAuthAction(kind);setFeedback('status');
     setBusy(true);
     setStatus(kind==='login'?'Signing in…':'Creating account…');
@@ -62,6 +69,7 @@ export default function SyncDialog(props: { onClose: () => void; onBack?: () => 
 
   async function doSync() {
     if (!settings || working.current) return;
+    statusSource.current = 'sync';
     working.current = true;
     setBusy(true);
     setFeedback('status');setStatus('Syncing...');
@@ -80,6 +88,7 @@ export default function SyncDialog(props: { onClose: () => void; onBack?: () => 
 
   async function disconnect() {
     if (!settings || working.current) return;
+    statusSource.current = 'disconnect';
     working.current = true;
     setBusy(true);setFeedback('status');
     try {
@@ -172,6 +181,7 @@ export default function SyncDialog(props: { onClose: () => void; onBack?: () => 
           </>
         )}
         {status && <p className={`sync-status${feedback==='error'?' sync-feedback-error':''}`} role={feedback==='error'?'alert':'status'}>{status}</p>}
+        {last?.persistenceFailed && <p className="sync-feedback-error" role="alert">The latest sync status could not be saved on this device. It is kept for this page only. This does not change the sync result.</p>}
         {!status && last && (
           <p className="sync-status">
             Last synced {new Date(last.at).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
