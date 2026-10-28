@@ -1,0 +1,7 @@
+# Planner scheduling feedback
+
+October28,2026. Isolated clock time write failure immediately closed picker, lost choice, no alert and uncaught rejection. Planner now awaits original picker/Anytime/drop patches, guards same-task pending actions and retains failed picker choice with Retry. Successful writes alone close the originating picker. PlanTask extracted from nested function to stable component so parent feedback updates do not remount native input. Existing task row/time controls and timeline placement retained.
+
+Six1440/390/320light/dark groups test picker, Anytime button, hour drop and Anytime drop rejection, unchanged saved record, exact patches, retry, shared duplicate guard.314tests/build and combined Backlog/Week/Planner groups pass. Initial top-only error missed scrolled picker; caught during pixel inspection and changed to inline picker error plus top-level error for nonpicker drops.390light/320dark final pixels show failed time, inline error and wrapped Retry. Native picker popup/nonChromium/mobileOS and native pointer drag gesture not separately proved.
+
+Original mappings retained: picker dueDate today + nonempty time; Anytime button dueTime null only; drops dueDate today + hour:00/null. No repo/grouping/schedule policy change. Mounted view state/per-task guard only; no cross-entrypoint/tab/external edit isolation. Retry exact patch may overwrite meanwhile date/time edit. Closing picker keeps failed draft in view until remount and exposes named error above timeline; pending write continues after navigation.
