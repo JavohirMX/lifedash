@@ -8,6 +8,12 @@ import { todayStr, friendlyDate } from '../dates';
 
 type CaptureJob = { id: number; raw: string; input: Parameters<typeof addTask>[0] };
 const failedCaptures = new Map<string, CaptureJob[]>();
+const retryingCaptures = new Set<CaptureJob>();
+window.addEventListener('beforeunload', event => {
+  if (retryingCaptures.size || [...failedCaptures.values()].some(items => items.length > 0)) {
+    event.preventDefault(); event.returnValue = '';
+  }
+});
 let captureId = 0;
 
 export default function QuickAdd(props: { projectId: string; dueDate?: string | null; placeholder?: string }) {
@@ -21,15 +27,10 @@ export default function QuickAdd(props: { projectId: string; dueDate?: string | 
   const [failed, setFailed] = useState<CaptureJob[]>(() => failedCaptures.get(db.name) ?? []);
   function rememberFailed(items: CaptureJob[]) { failedCaptures.set(db.name, items); setFailed(items); window.dispatchEvent(new Event('lifedash-capture-drafts')); }
   useEffect(() => {
-    const warn = (event: BeforeUnloadEvent) => {
-      if ((failedCaptures.get(db.name)?.length ?? 0) > 0) { event.preventDefault(); event.returnValue = ''; }
-    };
     const refresh = () => setFailed(failedCaptures.get(db.name) ?? []);
     window.addEventListener('lifedash-capture-drafts', refresh);
-    window.addEventListener('beforeunload', warn);
     return () => {
       window.removeEventListener('lifedash-capture-drafts', refresh);
-      window.removeEventListener('beforeunload', warn);
     };
   }, []);
 
@@ -44,6 +45,7 @@ export default function QuickAdd(props: { projectId: string; dueDate?: string | 
       } catch {
         rememberFailed([...(failedCaptures.get(db.name) ?? []), job]);
       } finally {
+        retryingCaptures.delete(job);
         setPending((n) => n - 1);
       }
     });
@@ -111,6 +113,7 @@ export default function QuickAdd(props: { projectId: string; dueDate?: string | 
           <p role="alert">Couldn't save this task. Your text is kept here:</p>
           <p className="quick-add-draft">{job.raw}</p>
           <button type="button" className="mini" onClick={() => {
+            retryingCaptures.add(job);
             rememberFailed((failedCaptures.get(db.name) ?? []).filter((item) => item.id !== job.id));
             enqueue(job);
           }}>Retry save</button>
