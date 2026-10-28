@@ -25,3 +25,5 @@ fieldset.save-form { min-width: 0; border: 0; margin-inline: 0; }
 .form-save-status { color: var(--muted); font-size: var(--fs-small); line-height: 1.5; }
 .form-save-status:empty { display: none; }
 .form-save-error { flex-basis: 100%; color: var(--text); font-size: var(--fs-small); line-height: 1.5; margin: 6px 0; }
+
+.backlog-schedule-feedback { flex-basis: 100%; margin: 0 0 10px; }

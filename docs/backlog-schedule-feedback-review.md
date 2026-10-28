@@ -1,0 +1,7 @@
+# Backlog scheduling feedback
+
+October 28, 2026. Isolated Backlog Today write rejection left the row unscheduled with no alert and an uncaught rejection. BacklogSchedule now awaits the same updateTask dueDate patch, shares a pending guard between Today/date controls, retains a failed date choice and provides Retry schedule for the exact failed date. Successful writes naturally remove the row from Backlog through its existing filter.
+
+Six 1440/390/320 light/dark browser groups pass Today/date rejection, unchanged saved date, retained date input, retry, held duplicate, dueTime preservation, independent other-row availability and original write completion after navigating Home. Build passes with existing bundle warning. 390-light Today and320-dark date failure pixels inspected: clear error and Retry below same row, no horizontal overflow. Date pending is readOnly+aria-disabled to retain native segmented focus. Native picker popup/non-Chromium/mobile OS pickers not separately tested.
+
+Mapping remains nonempty date only, Today uses the existing current-day prop, dueTime retained unchanged. Scope is Backlog only, not Week/Planner/CommandPalette. ID-keyed mounted feedback and per-row guard, no cross-entrypoint/tab or concurrent external task-edit/deletion guarantees. Retry replays the failed dueDate and can overwrite a date changed elsewhere meanwhile. Pending writes continue after navigation; failed choices disappear on close.

@@ -9,6 +9,7 @@ import { db, INBOX_ID, ensureSeed } from './db';
 import AssistantDialog from './ai/AssistantDialog';
 import Sidebar, { type Selection } from './components/Sidebar';
 import QuickAdd from './components/QuickAdd';
+import BacklogSchedule from './components/BacklogSchedule';
 import TaskList, { TASK_DRAG_MIME } from './components/TaskList';
 import HabitsView from './views/HabitsView';
 import PlannerView from './views/PlannerView';
@@ -251,18 +252,7 @@ export default function App() {
               }}>
               <TaskList tasks={[t]} allTasks={tasks} onOpen={setOpenId} onTag={openTag} />
             </div>
-            <button className="mini" onClick={() => void updateTask(t.id, { dueDate: today })}>
-              <ArrowRight size={12} strokeWidth={1.75} aria-hidden="true" /> Today
-            </button>
-            <input
-              type="date"
-              className="mini backlog-date"
-              aria-label={`Schedule ${t.title} to a date`}
-              value=""
-              onChange={(e) => {
-                if (e.target.value) void updateTask(t.id, { dueDate: e.target.value });
-              }}
-            />
+            <BacklogSchedule id={t.id} title={t.title} today={today} />
           </div>
         ))}
       </section>
