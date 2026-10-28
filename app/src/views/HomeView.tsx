@@ -2,10 +2,10 @@ import './home.css';
 import { requestComplete } from '../completionPrompt';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { useEffect, useState } from 'react';
-import { Check, Flame, ArrowRight, Target, SlidersHorizontal, Zap } from 'lucide-react';
+import { Check, ArrowRight, Target, SlidersHorizontal, Zap } from 'lucide-react';
 import QuickAdd from '../components/QuickAdd';
 import { db } from '../db';
-import { toggleHabitForDate } from '../repo';
+import HomeHabitCheck from '../components/HomeHabitCheck';
 import HomeFocusStop from '../components/HomeFocusStop';
 import { runningSession, sessionSeconds, focusTotals, formatClock, formatDuration } from '../focus';
 import { todayTasks, upcomingTasks, suggestedTask, upNextGroups } from '../logic';
@@ -229,21 +229,7 @@ export default function HomeView(props: { tasks: Task[]; onSelect: (kind: string
                   const done = logsByDate(logs ?? [], h.id).has(today);
                   const streak = currentStreak(h, logs ?? [], today);
                   return (
-                    <li key={h.id}>
-                      <button
-                        className={`checkbox home-check ${done ? 'checked' : ''}`}
-                        aria-label={`${done ? 'Uncheck' : 'Check'} ${h.name} for today`}
-                        onClick={() => void toggleHabitForDate(h.id, today)}
-                      >
-                        {done && <Check size={12} strokeWidth={2.5} aria-hidden="true" />}
-                      </button>
-                      <span className={`widget-task ${done ? 'done' : ''}`}>{h.name}</span>
-                      {streak >= 2 && (
-                        <span className="widget-streak num">
-                          <Flame size={12} strokeWidth={2} aria-hidden="true" /> {streak}
-                        </span>
-                      )}
-                    </li>
+                    <HomeHabitCheck key={`${h.id}:${today}`} id={h.id} name={h.name} date={today} done={done} streak={streak} />
                   );
                 })}
               </ul>

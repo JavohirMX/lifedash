@@ -18,3 +18,6 @@
  .home .focus-task { gap: 6px; }
  .home .home-widget-count { display: inline-block; }
 }
+
+.home .home-habit-row { flex-wrap: wrap; }
+.home .home-habit-feedback { flex-basis: 100%; margin: 0; }
