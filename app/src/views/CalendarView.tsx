@@ -1,5 +1,5 @@
 import './workflow.css';
-import { requestComplete } from '../completionPrompt';
+import CompletionButton from '../components/CompletionButton';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Check, ChevronLeft, ChevronRight } from 'lucide-react';
 import { todayStr, addDays, friendlyDate, weekdayLabel } from '../dates';
@@ -128,13 +128,11 @@ export default function CalendarView(props: { tasks: Task[]; onOpen: (id: string
             <ul className="widget-list">
               {(byDate.get(day) ?? []).map((t) => (
                 <li key={t.id}>
-                  <button
+                  <CompletionButton task={t}
                     className={`checkbox ${t.status === 'done' ? 'checked' : ''}`}
-                    aria-label={t.status === 'done' ? 'Mark not done' : 'Mark done'}
-                    onClick={() => void requestComplete(t)}
-                  >
+                    label={t.status === 'done' ? 'Mark not done' : 'Mark done'}>
                     {t.status === 'done' ? <Check size={13} strokeWidth={2.5} aria-hidden="true" /> : null}
-                  </button>
+                  </CompletionButton>
                   <button className={`widget-task ${t.status === 'done' ? 'done' : ''}`} onClick={() => props.onOpen(t.id)}>{t.title}</button>
                 </li>
               ))}
