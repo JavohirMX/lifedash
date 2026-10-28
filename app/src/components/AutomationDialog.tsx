@@ -7,6 +7,8 @@ import { describeUserRule } from '../automation';
 const WEEKDAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 
 export default function AutomationDialog(props: {
+  weeklyFailed?: boolean;
+  onDismissWeekly?: () => void;
   rolloverFailed?: boolean;
   onDismissRollover?: () => void;
   rules: AutomationRules;
@@ -79,6 +81,7 @@ export default function AutomationDialog(props: {
         <p className="rule-note">
           Optional automatic behaviors. They run while Lifedash is open - never in the background or while the app is closed.
         </p>
+        {props.weeklyFailed && <div role="alert"><p>Couldn't finish running weekly rules. Some tasks may have been created or rule history may not have been saved. Check tasks and rules before trying again.</p><button className="btn-secondary" onClick={props.onDismissWeekly}>Dismiss weekly-rule notice</button></div>}
         {props.rolloverFailed && <div role="alert"><p>Couldn't finish moving overdue tasks to Today. Part of the change may have been saved. Check task dates before trying again. Your automation setting is unchanged.</p><button className="btn-secondary" onClick={props.onDismissRollover}>Dismiss rollover notice</button></div>}
         {saveError && <p role="alert" className="import-warnings">{saveError}</p>}
         <div className="rule-row">

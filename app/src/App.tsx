@@ -91,6 +91,11 @@ export default function App() {
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [importPreset, setImportPreset] = useState<ImportSource | null | false>(false);
   const [automationOpen, setAutomationOpen] = useState(false);
+  const [weeklyFailed, setWeeklyFailed] = useState(false);
+  async function runWeeklyRules() {
+    try { await applyWeeklyUserRules(todayStr()); }
+    catch { setWeeklyFailed(true); }
+  }
   const [rolloverFailed, setRolloverFailed] = useState(false);
   async function runRollover() {
     try { await applyRollover(todayStr()); }
@@ -131,7 +136,7 @@ export default function App() {
     void ensureSeed();
     startAutoSync();
     if (loadRules().rollover) void runRollover();
-    void applyWeeklyUserRules(todayStr());
+    void runWeeklyRules();
   }, []);
 
   tasksRef.current = tasks ?? [];
@@ -420,6 +425,7 @@ export default function App() {
       <main className={selection.kind === 'home' ? 'home-main' : ['week', 'calendar'].includes(selection.kind) ? 'schedule-main' : undefined}>
         {SAMPLE_MODE && <div className="sample-banner" role="status">Sample-data sandbox · Fictional data · <a href="/">Exit to your real data</a></div>}
         <SyncConflictBanner />
+        {weeklyFailed && !automationOpen && <div role="alert"><p>Couldn't finish running weekly rules. Some tasks may have been created or rule history may not have been saved. Check tasks and rules before trying again.</p><button className="btn-secondary" onClick={() => setWeeklyFailed(false)}>Dismiss weekly-rule notice</button></div>}
         {rolloverFailed && !automationOpen && <div role="alert"><p>Couldn't finish moving overdue tasks to Today. Part of the change may have been saved. Check task dates before trying again. Your automation setting is unchanged.</p><button className="btn-secondary" onClick={() => setRolloverFailed(false)}>Dismiss rollover notice</button></div>}
         <CompletionFailureNotice />
         {showQuickAdd && (
@@ -444,7 +450,7 @@ export default function App() {
         />
       )}
       {importPreset !== false && <ImportDialog projects={projects} initialSource={importPreset} onClose={() => setImportPreset(false)} />}
-      {automationOpen && <AutomationDialog rolloverFailed={rolloverFailed} onDismissRollover={() => setRolloverFailed(false)} rules={rules} onChange={changeRules} userRules={userRules} onUserRulesChange={changeUserRules} onClose={() => setAutomationOpen(false)} />}
+      {automationOpen && <AutomationDialog weeklyFailed={weeklyFailed} onDismissWeekly={() => setWeeklyFailed(false)} rolloverFailed={rolloverFailed} onDismissRollover={() => setRolloverFailed(false)} rules={rules} onChange={changeRules} userRules={userRules} onUserRulesChange={changeUserRules} onClose={() => setAutomationOpen(false)} />}
       {aiOpen && <AssistantDialog tasks={tasks} onClose={() => setAiOpen(false)} />}
       {syncOpen && <SyncDialog onClose={() => setSyncOpen(false)} onBack={settingsChild === 'sync' ? () => { setSyncOpen(false); setSettingsOpen(true); } : undefined} />}
       {googleCalendarOpen && <GoogleCalendarDialog onClose={()=>setGoogleCalendarOpen(false)} onBack={()=>{setGoogleCalendarOpen(false);setSettingsOpen(true);}}/>}
