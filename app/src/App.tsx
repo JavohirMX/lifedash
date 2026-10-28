@@ -68,7 +68,23 @@ export default function App() {
   const [projName, setProjName] = useState('');
   const [projColor, setProjColor] = useState('');
   const [projConfirmDelete, setProjConfirmDelete] = useState(false);
-  useEffect(() => { setProjEditing(false); setProjConfirmDelete(false); }, [selection.kind, selection.kind === 'project' ? selection.id : null]);
+  const projWriting = useRef(false);
+  const [projSaving, setProjSaving] = useState(false);
+  const [projSaveError, setProjSaveError] = useState('');
+  const selectedProjectId = useRef<string | null>(null);
+  selectedProjectId.current = selection.kind === 'project' ? selection.id : null;
+  async function saveProject(id: string) {
+    if (projWriting.current || !projName.trim()) return;
+    projWriting.current = true; setProjSaving(true); setProjSaveError('');
+    try {
+      await updateProject(id, { name: projName, color: projColor });
+      if (selectedProjectId.current === id) setProjEditing(false);
+    } catch {
+      if (selectedProjectId.current === id) setProjSaveError("Couldn't save this project. Your name and color are still here. Try Save again.");
+    } finally { projWriting.current = false; setProjSaving(false); }
+  }
+
+  useEffect(() => { setProjEditing(false); setProjConfirmDelete(false); setProjSaveError(''); }, [selection.kind, selection.kind === 'project' ? selection.id : null]);
   const [openId, setOpenId] = useState<string | null>(null);
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [importPreset, setImportPreset] = useState<ImportSource | null | false>(false);
@@ -306,8 +322,8 @@ export default function App() {
         <h1>
           <span className="dot" style={{ background: project?.color }} /> {project?.name ?? 'Project'}
           {project && project.id !== INBOX_ID && (
-            <button className="icon-btn proj-edit-btn" aria-label="Project settings" title="Project settings"
-              onClick={() => { setProjName(project.name); setProjColor(project.color); setProjEditing(!projEditing); setProjConfirmDelete(false); }}>
+            <button className="icon-btn proj-edit-btn" aria-label="Project settings" title="Project settings" disabled={projSaving}
+              onClick={() => { setProjName(project.name); setProjColor(project.color); setProjEditing(!projEditing); setProjConfirmDelete(false); setProjSaveError(''); }}>
               <Pencil size={15} strokeWidth={2} />
             </button>
           )}
@@ -320,17 +336,14 @@ export default function App() {
         </h1>
         <p className="workflow-hint">Open tasks in this project and its subprojects. Progress above includes completed top-level tasks.</p>
         {projEditing && project && (
-          <div className="goal-add proj-settings">
+          <fieldset className="goal-add proj-settings save-form" disabled={projSaving} aria-busy={projSaving}>
             <input
               autoFocus
               value={projName}
               aria-label="Project name"
               onChange={(e) => setProjName(e.target.value)}
               onKeyDown={(e) => {
-                if (e.key === 'Enter' && projName.trim()) {
-                  void updateProject(project.id, { name: projName, color: projColor });
-                  setProjEditing(false);
-                }
+                if (e.key === 'Enter' && !e.nativeEvent.isComposing) void saveProject(project.id);
                 if (e.key === 'Escape') setProjEditing(false);
               }}
             />
@@ -342,7 +355,7 @@ export default function App() {
             </div>
             <div className="habit-edit-actions">
               <button className="btn-primary" disabled={!projName.trim()}
-                onClick={() => { void updateProject(project.id, { name: projName, color: projColor }); setProjEditing(false); }}>
+                onClick={() => void saveProject(project.id)}>
                 Save
               </button>
               <button className="mini" onClick={() => setProjEditing(false)}>Cancel</button>
@@ -360,7 +373,9 @@ export default function App() {
                 <button className="mini danger" style={{ marginLeft: 'auto' }} onClick={() => setProjConfirmDelete(true)}>Delete project</button>
               )}
             </div>
-          </div>
+          {projSaving && <p className="form-save-status" role="status">Saving project…</p>}
+            {projSaveError && <p className="form-save-error" role="alert">{projSaveError}</p>}
+          </fieldset>
         )}
         {list.length === 0 && <p className="empty">No active tasks in this project or its subprojects.</p>}
         <TaskList tasks={list} allTasks={tasks} showDate onOpen={setOpenId} onTag={openTag}
