@@ -17,7 +17,7 @@ export default function GoalsView(props: { tasks: Task[]; onOpen: (id: string) =
   const goals = useLiveQuery(() => db.goals.orderBy('order').toArray(), []);
   const [adding, setAdding] = useState(false);
   const writing = useRef(false);
-  const [saving, setSaving] = useState<'create' | 'edit' | null>(null);
+  const [saving, setSaving] = useState<'create' | 'edit' | 'status' | null>(null);
   const [createError, setCreateError] = useState('');
   const [editError, setEditError] = useState('');
   const [saveStatus, setSaveStatus] = useState('');
@@ -47,6 +47,14 @@ export default function GoalsView(props: { tasks: Task[]; onOpen: (id: string) =
     } catch { setEditError("Couldn't save this goal. Your changes are still here. Try Save again."); }
     finally { writing.current = false; setSaving(null); }
   }
+  const [statusError, setStatusError] = useState('');
+  async function changeStatus(goal: Goal, status: Goal['status']) {
+    if (writing.current) return;
+    writing.current = true; setSaving('status'); setStatusError(''); setSaveStatus('');
+    try { await updateGoal(goal.id, { status }); }
+    catch { setStatusError(`Couldn't change the status of "${goal.title}". Try the same button again.`); }
+    finally { writing.current = false; setSaving(null); }
+  }
   const today = todayStr();
 
   const active = (goals ?? []).filter((g) => g.status === 'active');
@@ -74,6 +82,7 @@ export default function GoalsView(props: { tasks: Task[]; onOpen: (id: string) =
       </h1>
       <p className="workflow-hint">Link a task to a goal from Task details → Goal. Progress follows those linked tasks; marking a goal done is separate.</p>
       <p className="form-save-status" role="status">{saving ? 'Saving…' : saveStatus}</p>
+      {statusError && <p className="form-save-error" role="alert">{statusError}</p>}
       {adding && (
         <fieldset className="goal-add save-form" disabled={saving !== null} aria-busy={saving === 'create'}>
           <input
@@ -114,11 +123,11 @@ export default function GoalsView(props: { tasks: Task[]; onOpen: (id: string) =
                     <Pencil size={15} strokeWidth={2} />
                   </button>
                   <button className="icon-btn" aria-label={`Mark ${g.title} done`} title="Mark done" disabled={saving !== null}
-                    onClick={() => void updateGoal(g.id, { status: 'done' })}>
+                    onClick={() => void changeStatus(g, 'done')}>
                     <Check size={15} strokeWidth={2} />
                   </button>
                   <button className="icon-btn" aria-label={`Archive ${g.title}`} title="Archive" disabled={saving !== null}
-                    onClick={() => void updateGoal(g.id, { status: 'archived' })}>
+                    onClick={() => void changeStatus(g, 'archived')}>
                     <X size={15} strokeWidth={2} />
                   </button>
                 </div>
@@ -185,8 +194,8 @@ export default function GoalsView(props: { tasks: Task[]; onOpen: (id: string) =
               <div key={g.id} className="goal-card done">
                 <div className="goal-top">
                   <strong>{g.title}</strong>
-                  <button className="icon-btn" aria-label={`Reopen ${g.title}`} title="Reopen"
-                    onClick={() => void updateGoal(g.id, { status: 'active' })}>
+                  <button className="icon-btn" aria-label={`Reopen ${g.title}`} title="Reopen" disabled={saving !== null}
+                    onClick={() => void changeStatus(g, 'active')}>
                     <Check size={15} strokeWidth={2} />
                   </button>
                 </div>
