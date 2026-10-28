@@ -16,17 +16,26 @@ function currentChoice(t: Task): RecChoice {
   return 'ndays';
 }
 
+function savedDayInterval(task: Task): number {
+  const match = /^Every (\d+) days$/.exec(describeRecurrence(task.recurrence));
+  return match ? Number(match[1]) : 3;
+}
+
 export default function TaskRecurrence({ task }: { task: Task }) {
   return <RecurrenceField key={task.id} task={task} />;
 }
 function RecurrenceField({ task }: { task: Task }) {
   const [choice, setChoice] = useState<RecChoice>(() => currentChoice(task));
-  const [nDays, setNDays] = useState(3);
+  const [nDays, setNDays] = useState(() => savedDayInterval(task));
   const [busy, setBusy] = useState(false), [error, setError] = useState('');
   const writing = useRef(false), failed = useRef(false), mounted = useRef(true);
   const attempt = useRef<{ recurrence: string | null; dueDate?: string } | null>(null);
   useEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []);
-  useEffect(() => { if (!writing.current && !failed.current) setChoice(currentChoice(task)); }, [task.recurrence]);
+  useEffect(() => {
+    if (!writing.current && !failed.current) {
+      setChoice(currentChoice(task)); setNDays(savedDayInterval(task));
+    }
+  }, [task.recurrence]);
   async function write(patch: { recurrence: string | null; dueDate?: string }) {
     if (writing.current) return;
     writing.current = true; attempt.current = patch; setBusy(true); setError('');
