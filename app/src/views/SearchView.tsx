@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { BookOpen, StickyNote, Target, X } from 'lucide-react';
 import { db } from '../db';
@@ -20,10 +20,8 @@ export default function SearchView(props: {
   onSelect: (sel: Selection) => void;
 }) {
   const { selection } = props;
+  const [renameStatus, setRenameStatus] = useState('');
   const notes = useLiveQuery(() => db.notes.toArray(), []);
-  const [renaming, setRenaming] = useState(false);
-  const [newTag, setNewTag] = useState('');
-  const [renamed, setRenamed] = useState<string | null>(null);
   // A query that is exactly one #tag enables tag management.
   const tagMatch = selection.query.trim().match(/^#([\w-]+)$/);
   const onlyTag = tagMatch ? normalizeTag(tagMatch[1]) : null;
@@ -58,32 +56,9 @@ export default function SearchView(props: {
     <section>
       <h1>Search <span className="date-sub">{total} result{total === 1 ? '' : 's'}</span></h1>
       <p className="search-query">Results for <strong>{selection.query}</strong></p>
-      {onlyTag && (
-        <div className="tag-manage">
-          {!renaming ? (
-            <button className="mini" onClick={() => { setRenaming(true); setNewTag(onlyTag); setRenamed(null); }}>Rename #{onlyTag}</button>
-          ) : (
-            <form
-              className="tag-rename"
-              onSubmit={(e) => {
-                e.preventDefault();
-                const to = normalizeTag(newTag);
-                if (!to || to === onlyTag) { setRenaming(false); return; }
-                void renameTag(onlyTag, to).then((n) => {
-                  setRenaming(false);
-                  setRenamed(`Renamed #${onlyTag} to #${to} on ${n} task${n === 1 ? '' : 's'}.`);
-                  props.onPatch({ query: `#${to}` });
-                });
-              }}
-            >
-              <input value={newTag} onChange={(e) => setNewTag(e.target.value)} aria-label="New tag name" autoFocus />
-              <button className="mini" type="submit">Save</button>
-              <button className="mini" type="button" onClick={() => setRenaming(false)}>Cancel</button>
-            </form>
-          )}
-          {renamed && <span className="date-sub">{renamed}</span>}
-        </div>
-      )}
+      {renameStatus && <p className="date-sub" role="status">{renameStatus}</p>}
+      {onlyTag && <TagRename key={onlyTag} tag={onlyTag} onRenamed={(to, status) => { setRenameStatus(status); props.onPatch({ query: `#${to}` }); }} />}
+
       <div className="filter-chips" role="group" aria-label="Search scope">
         {(['all', 'tasks', 'notes', 'journal', 'goals'] as const).map((sc) => (
           <button
@@ -190,4 +165,35 @@ export default function SearchView(props: {
       )}
     </section>
   );
+}
+
+function TagRename({ tag, onRenamed }: { tag: string; onRenamed: (to: string, status: string) => void }) {
+  const [renaming, setRenaming] = useState(false), [newTag, setNewTag] = useState(tag);
+  const [error, setError] = useState(''), [busy, setBusy] = useState(false);
+  const writing = useRef(false), mounted = useRef(true);
+  useEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []);
+  async function save() {
+    if (writing.current) return;
+    const to = normalizeTag(newTag);
+    if (!to || to === tag) { setRenaming(false); return; }
+    writing.current = true; setBusy(true); setError('');
+    try {
+      const n = await renameTag(tag, to);
+      if (mounted.current) {
+        setRenaming(false);
+        onRenamed(to, `Renamed #${tag} to #${to} on ${n} task${n === 1 ? '' : 's'}.`);
+      }
+    } catch { if (mounted.current) setError("Couldn't rename this tag. Your text is still here. Try Save again."); }
+    finally { writing.current = false; if (mounted.current) setBusy(false); }
+  }
+  return <div className="tag-manage">
+    {!renaming ? <button className="mini" onClick={() => { setRenaming(true); setNewTag(tag); setError(''); }}>Rename #{tag}</button> :
+      <form className="tag-rename" onSubmit={e => { e.preventDefault(); void save(); }} aria-busy={busy}>
+        <input value={newTag} disabled={busy} onChange={e => setNewTag(e.target.value)} aria-label="New tag name" autoFocus />
+        <button className="mini" type="submit" disabled={busy}>Save</button>
+        <button className="mini" type="button" disabled={busy} onClick={() => setRenaming(false)}>Cancel</button>
+        {busy && <p className="sub-add-feedback" role="status">Renaming tag…</p>}
+        {error && <p className="form-save-error" role="alert">{error}</p>}
+      </form>}
+  </div>;
 }

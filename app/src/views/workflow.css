@@ -27,3 +27,6 @@ fieldset.save-form { min-width: 0; border: 0; margin-inline: 0; }
 .form-save-error { flex-basis: 100%; color: var(--text); font-size: var(--fs-small); line-height: 1.5; margin: 6px 0; }
 
 .backlog-schedule-feedback { flex-basis: 100%; margin: 0 0 10px; }
+.tag-manage, .tag-rename { min-width: 0; flex-wrap: wrap; }
+.tag-rename .sub-add-feedback, .tag-rename .form-save-error { flex-basis: 100%; }
+@media(max-width:640px) { .tag-rename input { min-width: 0; flex: 1 1 140px; } }
