@@ -1,0 +1,5 @@
+# Wallpaper decode lifecycle
+
+Held image bitmap decode, selected newer Aurora preset, released old decode: old custom image overwrote preset. Generation now invalidates pending image work on any new wallpaper choice or unmount. Stale decode success/error/finally ignored. Preset invalidation releases busy UI; current upload still saves normally. Font choice/default, wallpaper schema/storage/intensity, resize/type/size limits unchanged. Six1440/390/320light/dark groups prove stale success/rejection after preset ignored, close/reopen Dunes choice retained after older decode success, fresh upload works;315tests/build PASS.390light/320dark pixels inspected Dunes selected, narrow form remains vertically scrollable. No claim of decode cancellation: obsolete work finishes but cannot apply.
+
+Independent overlapping-finally fixture integrated: A held, preset chosen, B upload starts, A rejects; B remains busy/no stale error, B finishes custom. Six groups PASS on exact source;315tests/build PASS after integration.
