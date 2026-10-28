@@ -1,13 +1,32 @@
 import { useEffect, useRef, useState } from 'react';
+import { RRule, Frequency } from 'rrule';
 import { updateTask } from '../repo';
 import { makeRecurrence, describeRecurrence, isRecurrenceValid } from '../logic';
 import { todayStr } from '../dates';
 import type { Task } from '../types';
 
-type RecChoice = 'none' | 'daily' | 'weekly' | 'monthly' | 'ndays' | 'invalid';
+type RecChoice = 'none' | 'daily' | 'weekly' | 'monthly' | 'ndays' | 'invalid' | 'custom';
 
 function currentChoice(t: Task): RecChoice {
   if (t.recurrence && !isRecurrenceValid(t.recurrence)) return 'invalid';
+  if (t.recurrence) {
+    const o = RRule.fromString(t.recurrence).origOptions;
+    const keys = Object.keys(o);
+    if (!o.dtstart || keys.some(key => !['freq', 'interval', 'dtstart', 'byweekday', 'bymonthday'].includes(key))) return 'custom';
+    const n = o.interval ?? 1;
+    if (!Number.isInteger(n) || n < 1) return 'custom';
+    if (o.freq === Frequency.DAILY) {
+      if (o.byweekday || o.bymonthday) return 'custom';
+    } else if (o.freq === Frequency.WEEKLY) {
+      const days = Array.isArray(o.byweekday) ? o.byweekday : o.byweekday != null ? [o.byweekday] : [];
+      const day = days[0];
+      const weekday = typeof day === 'number' ? day : typeof day === 'object' ? day.weekday : undefined;
+      if (n !== 1 || o.bymonthday || days.length !== 1 || (typeof day === 'object' && day.n != null) || weekday !== (o.dtstart.getUTCDay() + 6) % 7) return 'custom';
+    } else if (o.freq === Frequency.MONTHLY) {
+      const days = Array.isArray(o.bymonthday) ? o.bymonthday : o.bymonthday != null ? [o.bymonthday] : [];
+      if (n !== 1 || o.byweekday || days.length !== 1 || days[0] !== o.dtstart.getUTCDate()) return 'custom';
+    } else return 'custom';
+  }
   const d = describeRecurrence(t.recurrence);
   if (!d) return 'none';
   if (d === 'Daily') return 'daily';
@@ -43,7 +62,7 @@ function RecurrenceField({ task }: { task: Task }) {
     catch { failed.current = true; if (mounted.current) setError("Repeat wasn't saved. Your choice is kept here. Retry to save it."); }
     finally { writing.current = false; if (mounted.current) setBusy(false); }
   }
-  async function setRecurrence(c: Exclude<RecChoice, 'invalid'>, interval = nDays) {
+  async function setRecurrence(c: Exclude<RecChoice, 'invalid' | 'custom'>, interval = nDays) {
     if (writing.current) return;
     setChoice(c);
     const anchor = task.dueDate ?? todayStr();
@@ -52,7 +71,8 @@ function RecurrenceField({ task }: { task: Task }) {
   return <div aria-busy={busy}>
       <label className="field">
         <span>Repeats</span>
-        <select aria-label="Repeats" disabled={busy} value={choice} onChange={(e) => void setRecurrence(e.target.value as Exclude<RecChoice, 'invalid'>)}>
+        <select aria-label="Repeats" disabled={busy} value={choice} onChange={(e) => void setRecurrence(e.target.value as Exclude<RecChoice, 'invalid' | 'custom'>)}>
+          {choice === 'custom' && <option value="custom" disabled>Custom saved rule</option>}
           {choice === 'invalid' && <option value="invalid" disabled>Unreadable saved rule</option>}
           <option value="none">Does not repeat</option>
           <option value="daily">Daily</option>
@@ -61,6 +81,7 @@ function RecurrenceField({ task }: { task: Task }) {
           <option value="ndays">Every N days</option>
         </select>
       </label>
+      {choice === 'custom' && task.recurrence && <details className="rule-note"><summary>Saved repeat rule</summary><code style={{whiteSpace: 'pre-wrap', overflowWrap: 'anywhere'}}>{task.recurrence}</code><p>Kept unchanged. Choose a repeat above to replace it.</p></details>}
       {choice === 'invalid' && task.recurrence && (
         <p className="rule-note invalid-rule-note" role="alert">
           This saved repeat rule can't be read, so completing the task won't schedule a next
