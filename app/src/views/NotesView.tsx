@@ -30,6 +30,22 @@ function relTime(ts: number): string {
 export default function NotesView(props: { initialOpenId?: string }) {
   const notes = useLiveQuery(() => db.notes.toArray(), []);
   const [openId, setOpenId] = useState<string | null>(props.initialOpenId ?? null);
+  const selectedNote = useRef(openId);
+  selectedNote.current = openId;
+  const deleting = useRef(false);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [deleteError, setDeleteError] = useState<{ id: string; text: string } | null>(null);
+  async function removeNote(note: { id: string; title: string }) {
+    if (deleting.current) return;
+    if (!window.confirm(`Delete note ${note.title || 'Untitled'}? This cannot be undone.`)) return;
+    deleting.current = true; setDeletingId(note.id); setDeleteError(null);
+    try {
+      await deleteNote(note.id);
+      discardDeletedNoteTitle(note.id);
+      if (selectedNote.current === note.id) setOpenId(null);
+    } catch { setDeleteError({ id: note.id, text: "Couldn't delete this note. Nothing was deleted. Try Delete note again." }); }
+    finally { deleting.current = false; setDeletingId(null); }
+  }
   const converting = useRef(false);
   const [convertingId, setConvertingId] = useState<string | null>(null);
   const [convertError, setConvertError] = useState<{ id: string; text: string } | null>(null);
@@ -167,15 +183,14 @@ export default function NotesView(props: { initialOpenId?: string }) {
                   className="icon-btn"
                   aria-label="Delete note"
                   title="Delete"
-                  onClick={() => {
-                    if (!window.confirm(`Delete note ${open.title || 'Untitled'}? This cannot be undone.`)) return;
-                    void deleteNote(open.id).then(() => discardDeletedNoteTitle(open.id), () => undefined);
-                    setOpenId(null);
-                  }}
+                  disabled={deletingId !== null}
+                  onClick={() => void removeNote(open)}
                 >
                   <Trash2 size={15} strokeWidth={2} />
                 </button>
               </div>
+              {deletingId === open.id && <p className="workflow-hint" role="status">Deleting note…</p>}
+              {deleteError?.id === open.id && <p className="workflow-hint" role="alert">{deleteError.text}</p>}
               {convertingId === open.id && <p className="workflow-hint" role="status">Creating checklist tasks…</p>}
               {convertError?.id === open.id && <p className="workflow-hint" role="alert">{convertError.text}</p>}
               <NoteEditor collection="notes"

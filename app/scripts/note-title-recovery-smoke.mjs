@@ -28,8 +28,7 @@ try {for(const width of [1440,390,320]) for(const mode of ['light','dark']) {
  await p.evaluate(async()=>{const{db}=await import('/src/db.ts');const orig=db.notes.update.bind(db.notes);db.notes.update=(id,change)=>'title'in change?Promise.reject(Error('Delete cleanup test')):orig(id,change)});
  await input.fill('Unsaved deleted title');await p.getByRole('button',{name:'Retry title',exact:true}).waitFor();assert(await warned());
  await p.evaluate(async()=>{const{db}=await import('/src/db.ts');const orig=db.notes.delete.bind(db.notes);let fail=true;db.notes.delete=(...args)=>{if(fail){fail=false;return Promise.reject(Error('Injected delete failure'))}return orig(...args)}});
- p.once('dialog',dialog=>dialog.accept());await p.getByRole('button',{name:'Delete note',exact:true}).click();await input.waitFor({state:'detached'});assert(await warned());
- await p.getByRole('button',{name:/Latest title/}).click();assert.equal(await input.inputValue(),'Unsaved deleted title');
+ p.once('dialog',dialog=>dialog.accept());await p.getByRole('button',{name:'Delete note',exact:true}).click();await p.getByText("Couldn't delete this note. Nothing was deleted. Try Delete note again.",{exact:true}).waitFor();assert(await warned());assert.equal(await input.inputValue(),'Unsaved deleted title');
  p.once('dialog',dialog=>dialog.accept());await p.getByRole('button',{name:'Delete note',exact:true}).click();await input.waitFor({state:'detached'});await p.waitForFunction(()=>{const e=new Event('beforeunload',{cancelable:true});window.dispatchEvent(e);return !e.defaultPrevented});
  assert.deepEqual(errors,[]);assert(await p.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));console.log(width,mode,'title failure, navigation, retry and ordered writes PASS');await p.close();
 }}finally{await b.close()}
