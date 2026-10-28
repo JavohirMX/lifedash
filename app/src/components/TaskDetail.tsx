@@ -12,27 +12,14 @@ import TaskPriority from './TaskPriority';
 import TaskPin from './TaskPin';
 import TaskLinkField from './TaskLinkField';
 import TaskDateField from './TaskDateField';
+import TaskRecurrence from './TaskRecurrence';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { runningSession, sessionSeconds, focusTotals, formatClock, formatDuration } from '../focus';
 import { startFocus, stopFocus } from '../repo';
 import { db, INBOX_ID } from '../db';
 import { addTask, skipTask, updateTask } from '../repo';
-import { makeRecurrence, describeRecurrence, isRecurrenceValid } from '../logic';
 import { todayStr } from '../dates';
 import { projectTree } from '../projects';
-import type { Task } from '../types';
-
-type RecChoice = 'none' | 'daily' | 'weekly' | 'monthly' | 'ndays' | 'invalid';
-
-function currentChoice(t: Task): RecChoice {
-  if (t.recurrence && !isRecurrenceValid(t.recurrence)) return 'invalid';
-  const d = describeRecurrence(t.recurrence);
-  if (!d) return 'none';
-  if (d === 'Daily') return 'daily';
-  if (d === 'Weekly') return 'weekly';
-  if (d === 'Monthly') return 'monthly';
-  return 'ndays';
-}
 
 export default function TaskDetail(props: { taskId: string; onClose: () => void; onOpenNote: (noteId: string) => void }) {
   const panel = useRef<HTMLElement>(null);
@@ -62,7 +49,6 @@ export default function TaskDetail(props: { taskId: string; onClose: () => void;
     () => (task?.noteId ? db.notes.get(task.noteId) : undefined),
     [task?.noteId],
   );
-  const [nDays, setNDays] = useState(3);
 
   useEffect(() => {
     if (task) panel.current?.querySelector<HTMLInputElement>('.detail-title')?.focus();
@@ -84,20 +70,7 @@ export default function TaskDetail(props: { taskId: string; onClose: () => void;
   }, []);
 
   if (!task || !projects) return null;
-  const choice = currentChoice(task);
 
-  async function setRecurrence(c: Exclude<RecChoice, 'invalid'>, interval = nDays) {
-    if (!task) return;
-    if (c === 'none') {
-      await updateTask(task.id, { recurrence: null });
-      return;
-    }
-    const anchor = task.dueDate ?? todayStr();
-    await updateTask(task.id, {
-      dueDate: anchor,
-      recurrence: makeRecurrence(c, anchor, interval),
-    });
-  }
 
   return (
     <aside ref={panel} className="detail" aria-label="Task details">
@@ -148,43 +121,7 @@ export default function TaskDetail(props: { taskId: string; onClose: () => void;
             </option>
           )}
       </TaskLinkField>
-      <label className="field">
-        <span>Repeats</span>
-        <select value={choice} onChange={(e) => void setRecurrence(e.target.value as Exclude<RecChoice, 'invalid'>)}>
-          {choice === 'invalid' && <option value="invalid" disabled>Unreadable saved rule</option>}
-          <option value="none">Does not repeat</option>
-          <option value="daily">Daily</option>
-          <option value="weekly">Weekly (same weekday)</option>
-          <option value="monthly">Monthly (same day)</option>
-          <option value="ndays">Every N days</option>
-        </select>
-      </label>
-      {choice === 'invalid' && task.recurrence && (
-        <p className="rule-note invalid-rule-note" role="alert">
-          This saved repeat rule can't be read, so completing the task won't schedule a next
-          occurrence. Stored rule: <code>{task.recurrence}</code> Pick a repeat above to replace
-          it, or choose "Does not repeat" to clear it.
-        </p>
-      )}
-      {choice === 'ndays' && (
-        <label className="field">
-          <span>Every</span>
-          <span className="ndays">
-            <input
-              type="number"
-              min={1}
-              max={365}
-              value={nDays}
-              onChange={(e) => {
-                const v = Math.max(1, Number(e.target.value) || 1);
-                setNDays(v);
-                void setRecurrence('ndays', v);
-              }}
-            />
-            days
-          </span>
-        </label>
-      )}
+      <TaskRecurrence task={task} />
       {task.recurrence && task.dueDate && task.status !== 'done' && (
         <div className="field row">
           <button className="btn-secondary" onClick={() => void skipTask(task)}>
