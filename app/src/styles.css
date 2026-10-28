@@ -1412,6 +1412,7 @@ input[type='checkbox'], input[type='radio'], input[type='range'] { accent-color:
   color: var(--ink);
   font-size: var(--fs-small);
 }
+.conflict-dismiss-error { display: block; margin-top: 6px; }
 .conflict-banner button {
   min-height: 36px;
   padding: 0 12px;
