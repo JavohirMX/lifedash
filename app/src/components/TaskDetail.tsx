@@ -1,4 +1,4 @@
-import { requestComplete } from '../completionPrompt';
+import CompletionButton from './CompletionButton';
 import { X, Check, StickyNote } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import NoteEditor from './NoteEditor';
@@ -133,12 +133,11 @@ export default function TaskDetail(props: { taskId: string; onClose: () => void;
         <h3>Subtasks</h3>
         {(subtasks ?? []).map((s) => (
           <div key={s.id} className={`sub-row ${s.status === 'done' ? 'done' : ''}`}>
-            <button
+            <CompletionButton task={s} showFailure
               className={`checkbox ${s.status === 'done' ? 'checked' : ''}`}
-              onClick={() => void requestComplete(s)}
-            >
+              label={`${s.status === 'done' ? 'Mark incomplete' : 'Complete'} ${s.title}`}>
               {s.status === 'done' ? <Check size={12} strokeWidth={2.5} aria-hidden="true" /> : null}
-            </button>
+            </CompletionButton>
             <span>{s.title}</span>
           </div>
         ))}
