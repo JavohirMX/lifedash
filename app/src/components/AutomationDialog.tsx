@@ -15,7 +15,13 @@ export default function AutomationDialog(props: {
 }) {
   const { rules, userRules } = props;
   const panel = useDialogFocus<HTMLDivElement>(props.onClose, '.switch, .rule-form input, .rule-form select, .rule-form button');
-  const set = (patch: Partial<AutomationRules>) => props.onChange({ ...rules, ...patch });
+  const [saveError, setSaveError] = useState('');
+  const save = (action: () => void): boolean => {
+    setSaveError('');
+    try { action(); return true; }
+    catch { setSaveError("Couldn't save this automation change. Your saved rules are unchanged. Try the same action again."); return false; }
+  };
+  const set = (patch: Partial<AutomationRules>) => save(() => props.onChange({ ...rules, ...patch }));
 
   const [editingId, setEditingId] = useState<string | null>(null);
   const [kind, setKind] = useState<'tag' | 'weekly'>('tag');
@@ -44,6 +50,7 @@ export default function AutomationDialog(props: {
     const cleanTag = tag.trim().replace(/^#/, '').toLowerCase();
     if (!cleanTitle || (kind === 'tag' && !cleanTag)) return;
     const trigger = kind === 'tag' ? { kind: 'tag' as const, tag: cleanTag } : { kind: 'weekly' as const, weekday };
+    const saved = save(() => {
     if (editingId) {
       // In-place edit: id, createdAt and lastFired carry over, so an edited
       // weekly rule still fires at most once per day.
@@ -54,7 +61,8 @@ export default function AutomationDialog(props: {
         { id: `ur-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`, trigger, title: cleanTitle, createdAt: Date.now(), lastFired: null },
       ]);
     }
-    resetForm();
+    });
+    if (saved) resetForm();
   };
 
   return (
@@ -69,6 +77,7 @@ export default function AutomationDialog(props: {
         <p className="rule-note">
           Optional automatic behaviors. They run while Lifedash is open - never in the background or while the app is closed.
         </p>
+        {saveError && <p role="alert" className="import-warnings">{saveError}</p>}
         <div className="rule-row">
           <div className="rule-copy">
             <strong>Roll overdue tasks into Today</strong>
@@ -115,7 +124,7 @@ export default function AutomationDialog(props: {
                   className="icon-btn"
                   aria-label={`Delete rule ${rule.title}`}
                   title="Delete rule"
-                  onClick={() => props.onUserRulesChange(userRules.filter((r) => r.id !== rule.id))}
+                  onClick={() => save(() => props.onUserRulesChange(userRules.filter((r) => r.id !== rule.id)))}
                 >
                   <Trash2 size={15} strokeWidth={1.75} />
                 </button>

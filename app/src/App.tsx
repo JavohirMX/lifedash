@@ -195,12 +195,12 @@ export default function App() {
   }
 
   const changeUserRules = (next: UserRule[]) => {
-    setUserRules(next);
     saveUserRules(next);
+    setUserRules(next);
   };
   const changeRules = (next: AutomationRules) => {
-    setRules(next);
     saveRules(next);
+    setRules(next);
     if (next.rollover && !rules.rollover) void applyRollover(todayStr());
   };
 
