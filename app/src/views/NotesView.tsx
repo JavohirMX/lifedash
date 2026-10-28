@@ -122,7 +122,7 @@ export default function NotesView(props: { initialOpenId?: string }) {
             aria-label="Filter notes"
             value={q}
             onChange={(e) => setQ(e.target.value)}
-            onKeyDown={(e) => { if (e.key === 'Escape') setQ(''); }}
+            onKeyDown={(e) => { if (e.key === 'Escape' && !e.nativeEvent.isComposing) setQ(''); }}
           />
         </div>
       )}

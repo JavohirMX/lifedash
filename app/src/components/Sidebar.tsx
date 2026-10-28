@@ -161,7 +161,7 @@ export default function Sidebar(props: {
           } else props.onSelect(prevSelection.current ?? { kind: 'today' });
         }}
         onKeyDown={(e) => {
-          if (e.key === 'Escape') {
+          if (e.key === 'Escape' && !e.nativeEvent.isComposing) {
             setQuery('');
             props.onSelect(prevSelection.current ?? { kind: 'today' });
           }

@@ -95,7 +95,7 @@ export default function QuickAdd(props: { projectId: string; dueDate?: string | 
             onChange={(e) => { setTitle(e.target.value); setError(''); setStatus(''); }}
             onKeyDown={(e) => {
               if (e.key === 'Enter' && e.nativeEvent.isComposing) e.preventDefault();
-              if (e.key === 'Escape') (e.target as HTMLInputElement).blur();
+              if (e.key === 'Escape' && !e.nativeEvent.isComposing) (e.target as HTMLInputElement).blur();
             }}
           />
         </div>
