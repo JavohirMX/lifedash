@@ -80,7 +80,7 @@ export default function ImportDialog(props: { projects: Project[]; initialSource
 
   async function runFullRestore() {
     if (writing.current) return;
-    writing.current = true; setBusy(true);
+    writing.current = true; fileRead.current++; setBusy(true);
     setRestoreError('');
     try { setRestored((await importBackup(text)).restored); }
     catch (e) { setRestoreError(e instanceof Error ? e.message : 'Restore failed. Nothing was restored.'); }
@@ -89,7 +89,7 @@ export default function ImportDialog(props: { projects: Project[]; initialSource
 
   async function run() {
     if (writing.current || !result || result.tasks.length === 0) return;
-    writing.current = true; setBusy(true);
+    writing.current = true; fileRead.current++; setBusy(true);
     setImportError('');
     try {
       const n = await db.transaction('rw', db.projects, db.tasks, async () => {
@@ -140,7 +140,7 @@ export default function ImportDialog(props: { projects: Project[]; initialSource
           <>
             <div className="field">
               <span>Source file</span>
-              <input aria-label="Source file"
+              <input disabled={busy} aria-label="Source file"
                 ref={fileRef}
                 type="file"
                 accept=".csv,.md,.markdown,.txt,.json"
@@ -149,7 +149,7 @@ export default function ImportDialog(props: { projects: Project[]; initialSource
             </div>
             <div className="field">
               <span>or paste text {filename && `(loaded: ${filename})`}</span>
-              <textarea aria-label="Import source text" ref={areaRef}
+              <textarea disabled={busy} aria-label="Import source text" ref={areaRef}
                 rows={5}
                 value={text}
                 placeholder={source === 'lifedash-json' ? '{"version": 2, "tasks": [ ... ], ...}' : '- [ ] A task\n- [x] A finished one'}
@@ -166,7 +166,7 @@ export default function ImportDialog(props: { projects: Project[]; initialSource
             </div>
             <div className="field">
               <span>Format</span>
-              <select aria-label="Import format" value={source ?? ''} onChange={(e) => reparse(e.target.value as ImportSource)}>
+              <select disabled={busy} aria-label="Import format" value={source ?? ''} onChange={(e) => reparse(e.target.value as ImportSource)}>
                 <option value="" disabled>Pick a format</option>
                 {SOURCES.map((s) => <option key={s.id} value={s.id}>{s.label}</option>)}
               </select>
@@ -210,7 +210,7 @@ export default function ImportDialog(props: { projects: Project[]; initialSource
                 {result.tasks.length > 0 && (
                   <div className="field">
                     <span>Add to</span>
-                    <select aria-label="Add imported tasks to" value={target} onChange={(e) => setTarget(e.target.value)}>
+                    <select disabled={busy} aria-label="Add imported tasks to" value={target} onChange={(e) => setTarget(e.target.value)}>
                       <option value={INBOX_ID}>Inbox</option>
                       {props.projects.filter((p) => p.id !== INBOX_ID).map((p) => (
                         <option key={p.id} value={p.id}>{p.name}</option>
