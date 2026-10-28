@@ -46,6 +46,16 @@ export default function NotesView(props: { initialOpenId?: string }) {
     } catch { setDeleteError({ id: note.id, text: "Couldn't delete this note. Nothing was deleted. Try Delete note again." }); }
     finally { deleting.current = false; setDeletingId(null); }
   }
+  const pinning = useRef(false);
+  const [pinningId, setPinningId] = useState<string | null>(null);
+  const [pinError, setPinError] = useState<{ id: string; text: string } | null>(null);
+  async function togglePin(note: { id: string; pinned: boolean }) {
+    if (pinning.current) return;
+    pinning.current = true; setPinningId(note.id); setPinError(null);
+    try { await updateNote(note.id, { pinned: !note.pinned }); }
+    catch { setPinError({ id: note.id, text: "Couldn't change this note's pin. Try the pin button again." }); }
+    finally { pinning.current = false; setPinningId(null); }
+  }
   const converting = useRef(false);
   const [convertingId, setConvertingId] = useState<string | null>(null);
   const [convertError, setConvertError] = useState<{ id: string; text: string } | null>(null);
@@ -175,7 +185,8 @@ export default function NotesView(props: { initialOpenId?: string }) {
                   className="icon-btn"
                   aria-label={open.pinned ? 'Unpin note' : 'Pin note'}
                   title={open.pinned ? 'Unpin' : 'Pin'}
-                  onClick={() => void updateNote(open.id, { pinned: !open.pinned })}
+                  disabled={pinningId !== null}
+                  onClick={() => void togglePin(open)}
                 >
                   {open.pinned ? <PinOff size={15} strokeWidth={2} /> : <Pin size={15} strokeWidth={2} />}
                 </button>
@@ -189,6 +200,8 @@ export default function NotesView(props: { initialOpenId?: string }) {
                   <Trash2 size={15} strokeWidth={2} />
                 </button>
               </div>
+              {pinningId === open.id && <p className="workflow-hint" role="status">Saving note pin…</p>}
+              {pinError?.id === open.id && <p className="workflow-hint" role="alert">{pinError.text}</p>}
               {deletingId === open.id && <p className="workflow-hint" role="status">Deleting note…</p>}
               {deleteError?.id === open.id && <p className="workflow-hint" role="alert">{deleteError.text}</p>}
               {convertingId === open.id && <p className="workflow-hint" role="status">Creating checklist tasks…</p>}
