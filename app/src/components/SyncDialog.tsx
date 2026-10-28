@@ -31,14 +31,17 @@ export default function SyncDialog(props: { onClose: () => void; onBack?: () => 
   const urlInput=useRef<HTMLInputElement>(null);
   const last = loadSyncStatus();
   const [busy, setBusy] = useState(false);
+  const working = useRef(false);
 
   const panel = useDialogFocus<HTMLDivElement>(props.onClose, existing ? undefined : 'input[type="url"]');
 
   const fail = (e: unknown, action:'login'|'register'|'sync') => { setFeedback('error'); setStatus(syncFailureMessage(e,action)); };
 
   async function doAuth(kind: 'login' | 'register') {
+    if (working.current) return;
     const issue=checkSyncUrl(url);
     if(issue){setUrlError(issue);setFeedback('error');setStatus('');urlInput.current?.focus();return;}
+    working.current = true;
     setUrlError('');setAuthAction(kind);setFeedback('status');
     setBusy(true);
     setStatus(kind==='login'?'Signing in…':'Creating account…');
@@ -53,12 +56,13 @@ export default function SyncDialog(props: { onClose: () => void; onBack?: () => 
     } catch (e) {
       fail(e,kind);
     } finally {
-      setBusy(false);setAuthAction(null);
+      working.current = false;setBusy(false);setAuthAction(null);
     }
   }
 
   async function doSync() {
-    if (!settings) return;
+    if (!settings || working.current) return;
+    working.current = true;
     setBusy(true);
     setFeedback('status');setStatus('Syncing...');
     try {
@@ -69,12 +73,14 @@ export default function SyncDialog(props: { onClose: () => void; onBack?: () => 
     } catch (e) {
       fail(e,'sync');
     } finally {
+      working.current = false;
       setBusy(false);
     }
   }
 
   async function disconnect() {
-    if (!settings) return;
+    if (!settings || working.current) return;
+    working.current = true;
     setBusy(true);setFeedback('status');
     try {
       const result = await logout(settings);
@@ -99,6 +105,7 @@ export default function SyncDialog(props: { onClose: () => void; onBack?: () => 
           : 'Disconnected on this device. The server did not confirm logout, so the saved token may still be valid there.',
       );
     } finally {
+      working.current = false;
       setBusy(false);
     }
   }
