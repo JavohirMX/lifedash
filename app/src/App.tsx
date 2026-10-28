@@ -162,6 +162,19 @@ export default function App() {
   }, [remindOn, nudgeOn]);
 
   const today = todayStr();
+  const schedulingToday = useRef(new Set<string>());
+  const [todayPending, setTodayPending] = useState<Set<string>>(new Set());
+  const [todayErrors, setTodayErrors] = useState<Record<string, { title: string; date: string }>>({});
+  async function scheduleDroppedToday(id: string, date: string) {
+    if (schedulingToday.current.has(id)) return;
+    schedulingToday.current.add(id); setTodayPending(new Set(schedulingToday.current));
+    setTodayErrors(current => { const next = { ...current }; delete next[id]; return next; });
+    const title = tasks?.find(task => task.id === id)?.title || 'task';
+    try { await updateTask(id, { dueDate: date }); }
+    catch { setTodayErrors(current => ({ ...current, [id]: { title, date } })); }
+    finally { schedulingToday.current.delete(id); setTodayPending(new Set(schedulingToday.current)); }
+  }
+
 
   const activeByProject = (tasks ?? []).reduce<Record<string, number>>((acc, t) => {
     if (t.status === 'active' && t.parentId === null) acc[t.projectId] = (acc[t.projectId] ?? 0) + 1;
@@ -396,7 +409,7 @@ export default function App() {
             if (perm === 'granted') { setRemindersEnabled(true); setRemindOn(true); }
           });
         }}
-        onScheduleToday={(id) => void updateTask(id, { dueDate: today })}
+        onScheduleToday={(id) => void scheduleDroppedToday(id, today)}
         onAI={() => setAiOpen(true)} onImport={() => setImportPreset(null)} onRestore={() => setImportPreset('lifedash-json')} onAutomation={() => setAutomationOpen(true)} onSync={() => { setSettingsChild(null); setSyncOpen(true); }} onAppearance={() => { setSettingsChild(null); setAppearanceOpen(true); }} onSettings={() => setSettingsOpen(true)} />
       <main className={selection.kind === 'home' ? 'home-main' : ['week', 'calendar'].includes(selection.kind) ? 'schedule-main' : undefined}>
         {SAMPLE_MODE && <div className="sample-banner" role="status">Sample-data sandbox · Fictional data · <a href="/">Exit to your real data</a></div>}
@@ -407,6 +420,11 @@ export default function App() {
             dueDate={quickAddContext.dueDate}
           />
         )}
+        {todayPending.size > 0 && <p className="workflow-hint" role="status">Scheduling dropped task…</p>}
+        {Object.entries(todayErrors).map(([id, error]) => <div key={id} className="sub-add-feedback">
+          <p role="alert">Date wasn't saved for "{error.title}". Retry to schedule it for {error.date}.</p>
+          <button className="btn-secondary" onClick={() => void scheduleDroppedToday(id, error.date)}>Retry Today drop for {error.title}</button>
+        </div>)}
         {body}
       </main>
       {completionPrompt && <CompletionDialog prompt={completionPrompt} />}
