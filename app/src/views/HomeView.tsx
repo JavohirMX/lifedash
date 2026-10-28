@@ -5,7 +5,8 @@ import { useEffect, useState } from 'react';
 import { Check, Flame, ArrowRight, Target, SlidersHorizontal, Zap } from 'lucide-react';
 import QuickAdd from '../components/QuickAdd';
 import { db } from '../db';
-import { toggleHabitForDate, stopFocus } from '../repo';
+import { toggleHabitForDate } from '../repo';
+import HomeFocusStop from '../components/HomeFocusStop';
 import { runningSession, sessionSeconds, focusTotals, formatClock, formatDuration } from '../focus';
 import { todayTasks, upcomingTasks, suggestedTask, upNextGroups } from '../logic';
 import { currentStreak, isScheduledOn, logsByDate } from '../habits';
@@ -124,12 +125,11 @@ export default function HomeView(props: { tasks: Task[]; onSelect: (kind: string
             <h2><Zap size={14} strokeWidth={2} aria-hidden="true" className="focus-icon" /> Focusing</h2>
             <span className="focus-reason num">{formatClock(sessionSeconds(running, focusNow))}</span>
           </div>
-          <div className="focus-task">
+          <HomeFocusStop key={running.id}>
             <button className="focus-title" onClick={() => runningTask && props.onOpen(runningTask.id)}>
               {runningTask?.title ?? 'Task'}
             </button>
-            <button className="btn-secondary focus-stop" onClick={() => void stopFocus()}>Stop</button>
-          </div>
+          </HomeFocusStop>
           {focusedToday > 0 && <p className="widget-meta num">Focused today: {formatDuration(focusedToday)}</p>}
         </div>
         )}
