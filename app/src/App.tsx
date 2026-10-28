@@ -124,6 +124,28 @@ export default function App() {
   const [userRules, setUserRules] = useState<UserRule[]>(loadUserRules);
   const [remindOn, setRemindOn] = useState(remindersEnabled);
   const [nudgeOn, setNudgeOn] = useState(journalPromptEnabled);
+  const [notificationError, setNotificationError] = useState('');
+  const notificationWriting = useRef(false);
+  const [notificationBusy, setNotificationBusy] = useState(false);
+  async function toggleReminders() {
+    if (notificationWriting.current || typeof Notification === 'undefined') return;
+    notificationWriting.current = true; setNotificationBusy(true); setNotificationError('');
+    try {
+      if (remindOn) { setRemindersEnabled(false); setRemindOn(false); return; }
+      let permission: NotificationPermission;
+      try { permission = Notification.permission === 'granted' ? 'granted' : await Notification.requestPermission(); }
+      catch { setNotificationError("Couldn't request notification permission. Your reminder preference is unchanged. Try Reminders again."); return; }
+      if (permission === 'granted') { setRemindersEnabled(true); setRemindOn(true); }
+    } catch { setNotificationError("Couldn't save Reminders. Your previous preference is unchanged. Try Reminders again."); }
+    finally { notificationWriting.current = false; setNotificationBusy(false); }
+  }
+  function toggleJournalNudge() {
+    if (notificationWriting.current) return;
+    setNotificationError('');
+    try { const next = !nudgeOn; setJournalPromptEnabled(next); setNudgeOn(next); }
+    catch { setNotificationError("Couldn't save Journal nudge. Your previous preference is unchanged. Try Journal nudge again."); }
+  }
+
   const tasksRef = useRef<Task[]>([]);
   const journalRef = useRef<JournalEntry[]>([]);
   const [quickAddRequested, setQuickAddRequested] = useState(false);
@@ -418,21 +440,8 @@ export default function App() {
         onPalette={() => setPaletteOpen(true)}
         reminders={typeof Notification === 'undefined' ? 'unsupported' : Notification.permission === 'denied' ? 'blocked' : remindOn ? 'on' : 'off'}
         journalNudge={nudgeOn}
-        onToggleJournalNudge={() => {
-          const next = !nudgeOn;
-          setJournalPromptEnabled(next);
-          setNudgeOn(next);
-        }}
-        onToggleReminders={() => {
-          if (remindOn) { setRemindersEnabled(false); setRemindOn(false); return; }
-          if (typeof Notification === 'undefined') return;
-          void (Notification.permission === 'granted'
-            ? Promise.resolve('granted' as NotificationPermission)
-            : Notification.requestPermission()
-          ).then((perm) => {
-            if (perm === 'granted') { setRemindersEnabled(true); setRemindOn(true); }
-          });
-        }}
+        onToggleJournalNudge={toggleJournalNudge}
+        onToggleReminders={() => void toggleReminders()}
         onScheduleToday={(id) => void scheduleDroppedToday(id, today)}
         onAI={() => setAiOpen(true)} onImport={() => setImportPreset(null)} onRestore={() => setImportPreset('lifedash-json')} onAutomation={() => setAutomationOpen(true)} onSync={() => { setSettingsChild(null); setSyncOpen(true); }} onAppearance={() => { setSettingsChild(null); setAppearanceOpen(true); }} onSettings={() => setSettingsOpen(true)} />
       <main className={selection.kind === 'home' ? 'home-main' : ['week', 'calendar'].includes(selection.kind) ? 'schedule-main' : undefined}>
@@ -441,6 +450,7 @@ export default function App() {
         {weeklyFailed && !automationOpen && <div role="alert"><p>Couldn't finish running weekly rules. Some tasks may have been created or rule history may not have been saved. Check tasks and rules before trying again.</p><button className="btn-secondary" onClick={() => setWeeklyFailed(false)}>Dismiss weekly-rule notice</button></div>}
         {rolloverFailed && !automationOpen && <div role="alert"><p>Couldn't finish moving overdue tasks to Today. Part of the change may have been saved. Check task dates before trying again. Your automation setting is unchanged.</p><button className="btn-secondary" onClick={() => setRolloverFailed(false)}>Dismiss rollover notice</button></div>}
         <CompletionFailureNotice />
+        {notificationError && !settingsOpen && <p className="form-save-error" role="alert">{notificationError}</p>}
         {showQuickAdd && (
           <QuickAdd
             projectId={quickAddContext.projectId}
@@ -473,15 +483,11 @@ export default function App() {
         onSync={() => { setSettingsChild('sync'); setSettingsOpen(false); setSyncOpen(true); }}
         onAppearance={() => { setSettingsChild('appearance'); setSettingsOpen(false); setAppearanceOpen(true); }}
         reminders={typeof Notification === 'undefined' ? 'unsupported' : Notification.permission === 'denied' ? 'blocked' : remindOn ? 'on' : 'off'}
-        onToggleReminders={() => {
-          if (remindOn) { setRemindersEnabled(false); setRemindOn(false); return; }
-          if (typeof Notification === 'undefined') return;
-          void (Notification.permission === 'granted' ? Promise.resolve('granted' as NotificationPermission) : Notification.requestPermission()).then(perm => {
-            if (perm === 'granted') { setRemindersEnabled(true); setRemindOn(true); }
-          });
-        }}
+        onToggleReminders={() => void toggleReminders()}
         journalNudge={nudgeOn}
-        onToggleJournalNudge={() => { const next = !nudgeOn; setJournalPromptEnabled(next); setNudgeOn(next); }}
+        onToggleJournalNudge={toggleJournalNudge}
+        notificationError={notificationError}
+        notificationBusy={notificationBusy}
       />}
       {appearanceOpen && <AppearanceDialog onClose={() => setAppearanceOpen(false)} onBack={settingsChild === 'appearance' ? () => { setAppearanceOpen(false); setSettingsOpen(true); } : undefined} />}
       {shortcutsOpen && <ShortcutsDialog onClose={() => setShortcutsOpen(false)} />}

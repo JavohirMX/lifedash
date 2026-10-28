@@ -10,6 +10,8 @@ export default function SettingsDialog(props: {
   onGoogleCalendar?: () => void;
   reminders: 'on' | 'off' | 'blocked' | 'unsupported';
   onToggleReminders: () => void;
+  notificationError?: string;
+  notificationBusy?: boolean;
   journalNudge: boolean;
   onToggleJournalNudge: () => void;
 }) {
@@ -29,14 +31,16 @@ export default function SettingsDialog(props: {
         </section>
         <section className="settings-group" aria-labelledby="settings-notifications-heading">
         <h3 id="settings-notifications-heading">Notifications</h3>
+        {props.notificationBusy && <p role="status">Checking notification permission…</p>}
+        {props.notificationError && <p className="form-save-error" role="alert">{props.notificationError}</p>}
         <p className="settings-help">Notifications only arrive while Lifedash is open on this device.</p>
-        <button className="settings-row" aria-describedby="settings-reminder-help" aria-pressed={props.reminders === 'on'} disabled={props.reminders === 'blocked' || props.reminders === 'unsupported'} onClick={props.onToggleReminders}>
+        <button className="settings-row" aria-describedby="settings-reminder-help" aria-pressed={props.reminders === 'on'} disabled={props.notificationBusy || props.reminders === 'blocked' || props.reminders === 'unsupported'} onClick={props.onToggleReminders}>
           <Bell size={19} /><span><strong>Reminders</strong><small>Notify me when a timed task is due.</small></span><span className="settings-state" data-active={remindersAvailable}>{reminderLabel}</span>
         </button>
         <p id="settings-reminder-help" className="settings-help settings-state-help">
           {props.reminders === 'blocked' ? 'Allow notifications in your browser settings, then turn Reminders on.' : props.reminders === 'unsupported' ? 'This browser does not support notifications.' : remindersAvailable ? 'Task reminders are on.' : 'Turn on to allow timed-task notifications.'}
         </p>
-        <button className="settings-row" aria-describedby="settings-nudge-help" aria-pressed={props.journalNudge} disabled={props.reminders !== 'on'} onClick={props.onToggleJournalNudge}>
+        <button className="settings-row" aria-describedby="settings-nudge-help" aria-pressed={props.journalNudge} disabled={props.notificationBusy || props.reminders !== 'on'} onClick={props.onToggleJournalNudge}>
           <BookOpen size={19} /><span><strong>Journal nudge</strong><small>At 21:00, remind me if today's journal is empty.</small></span><span className="settings-state" data-active={remindersAvailable && props.journalNudge}>{nudgeLabel}</span>
         </button>
         <p id="settings-nudge-help" className="settings-help settings-state-help">

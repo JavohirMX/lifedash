@@ -18,11 +18,7 @@ export function remindersEnabled(): boolean {
 }
 
 export function setRemindersEnabled(on: boolean): void {
-  try {
-    localStorage.setItem(PREF_KEY, on ? '1' : '0');
-  } catch {
-    /* private mode - pref just won't stick */
-  }
+  localStorage.setItem(PREF_KEY, on ? '1' : '0');
 }
 
 // The evening journal nudge is a separate opt-in, default OFF, independent
@@ -37,11 +33,7 @@ export function journalPromptEnabled(): boolean {
 }
 
 export function setJournalPromptEnabled(on: boolean): void {
-  try {
-    localStorage.setItem(JOURNAL_PREF_KEY, on ? '1' : '0');
-  } catch {
-    /* private mode - pref just won't stick */
-  }
+  localStorage.setItem(JOURNAL_PREF_KEY, on ? '1' : '0');
 }
 
 /** True at the prompt minute when today's journal is empty and not yet fired. */
