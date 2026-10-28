@@ -23,6 +23,8 @@ export default function SyncDialog(props: { onClose: () => void; onBack?: () => 
   const [password, setPassword] = useState('');
   const [settings, setSettings] = useState<SyncSettings | null>(existing);
   const [status, setStatus] = useState('');
+  const [localClearFailed, setLocalClearFailed] = useState(false);
+  const revokedSession = useRef<string | null>(null);
   const [feedback, setFeedback] = useState<'status'|'error'>('status');
   const [urlError,setUrlError]=useState('');
   const [authAction,setAuthAction]=useState<'login'|'register'|null>(null);
@@ -76,14 +78,27 @@ export default function SyncDialog(props: { onClose: () => void; onBack?: () => 
     setBusy(true);setFeedback('status');
     try {
       const result = await logout(settings);
+      const sessionKey = JSON.stringify([settings.url, settings.token]);
+      if (result === 'revoked') revokedSession.current = sessionKey;
+      const revoked = revokedSession.current === sessionKey;
+      try {
+        saveSyncSettings(null);
+      } catch {
+        setLocalClearFailed(true);
+        setFeedback('error');
+        setStatus(revoked
+          ? 'The server ended the session, but this device could not clear its saved sync settings. Try Disconnect again to clear them.'
+          : 'The server did not confirm logout, and this device could not clear its saved sync settings. Try Disconnect again. The saved token may still be valid on the server.');
+        return;
+      }
+      setLocalClearFailed(false);
+      setSettings(null);
       setStatus(
-        result === 'revoked'
+        revoked
           ? 'Disconnected - the server ended the session.'
-          : 'Disconnected on this device. The server did not confirm logout (older server or unreachable), so the token stays valid there - tokens do not expire in v1.',
+          : 'Disconnected on this device. The server did not confirm logout, so the saved token may still be valid there.',
       );
     } finally {
-      saveSyncSettings(null);
-      setSettings(null);
       setBusy(false);
     }
   }
@@ -141,7 +156,7 @@ export default function SyncDialog(props: { onClose: () => void; onBack?: () => 
         ) : (
           <>
             <p className="rule-note">
-              Connected to <strong>{settings.url}</strong> as <strong>{settings.username}</strong>.
+              {localClearFailed ? 'Saved sync settings for ' : 'Connected to '}<strong>{settings.url}</strong> as <strong>{settings.username}</strong>.
             </p>
             <div className="sync-actions">
               <button className="btn-primary" disabled={busy} onClick={() => void doSync()}>Sync now</button>
