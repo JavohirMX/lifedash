@@ -455,12 +455,16 @@ export async function deleteNote(id: string): Promise<void> {
 }
 
 export async function getOrCreateJournalEntry(date: string): Promise<JournalEntry> {
-  const existing = await db.journal.where('date').equals(date).first();
-  if (existing) return existing;
-  const now = Date.now();
-  const entry: JournalEntry = { id: newId(), date, note: '', noteDoc: null, mood: null, highlight: null, createdAt: now, updatedAt: now };
-  await db.journal.add(entry);
-  return entry;
+  // Mood, highlight and rich-text saves can arrive together. Keep the lookup
+  // and creation in one read-write transaction, including across browser tabs.
+  return db.transaction('rw', db.journal, async () => {
+    const existing = await db.journal.where('date').equals(date).first();
+    if (existing) return existing;
+    const now = Date.now();
+    const entry: JournalEntry = { id: newId(), date, note: '', noteDoc: null, mood: null, highlight: null, createdAt: now, updatedAt: now };
+    await db.journal.add(entry);
+    return entry;
+  });
 }
 
 export async function updateJournalEntry(id: string, patch: Partial<JournalEntry>): Promise<void> {
