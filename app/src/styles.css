@@ -1838,3 +1838,7 @@ main.tv-grid { max-width: none; width: 100%; }
 .task-title-status:empty { display: none; }
 .task-title-error p { margin: 6px 0; }
 .task-title-error .mini { min-height: 44px; margin-bottom: 12px; }
+
+.task-tag-add { display: flex; gap: 8px; margin-top: 8px; align-items: center; }
+.task-tag-add .chip-input { min-width: 0; flex: 1; }
+.task-tag-add .mini { flex-shrink: 0; min-height: 44px; }

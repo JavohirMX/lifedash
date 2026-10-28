@@ -5,11 +5,12 @@ import NoteEditor from './NoteEditor';
 import Attachments from './Attachments';
 import SubtaskAdd from './SubtaskAdd';
 import TaskTitle from './TaskTitle';
+import TaskTags from './TaskTags';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { runningSession, sessionSeconds, focusTotals, formatClock, formatDuration } from '../focus';
 import { startFocus, stopFocus } from '../repo';
 import { db, INBOX_ID } from '../db';
-import { addTask, deleteTask, skipTask, updateTask, addBlocker, removeBlocker, addTag, removeTag } from '../repo';
+import { addTask, deleteTask, skipTask, updateTask, addBlocker, removeBlocker } from '../repo';
 import { makeRecurrence, describeRecurrence, isRecurrenceValid, blockersOf, blockerCandidates, normalizeTask } from '../logic';
 import { todayStr } from '../dates';
 import { projectTree } from '../projects';
@@ -58,7 +59,6 @@ export default function TaskDetail(props: { taskId: string; onClose: () => void;
   const [nDays, setNDays] = useState(3);
   const [blockerPick, setBlockerPick] = useState('');
   const [blockerError, setBlockerError] = useState('');
-  const [newTag, setNewTag] = useState('');
 
   useEffect(() => {
     if (task) panel.current?.querySelector<HTMLInputElement>('.detail-title')?.focus();
@@ -277,26 +277,7 @@ export default function TaskDetail(props: { taskId: string; onClose: () => void;
 
       <div className="subs">
         <h3>Tags</h3>
-        <div className="chips">
-          {(task.tags ?? []).map((t) => (
-            <span key={t} className="chip">
-              #{t}
-              <button aria-label={`Remove tag ${t}`} onClick={() => void removeTag(task.id, t)}><X size={12} strokeWidth={2} /></button>
-            </span>
-          ))}
-          <input
-            className="chip-input"
-            value={newTag}
-            placeholder="Add tag"
-            onChange={(e) => setNewTag(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter' && newTag.trim()) {
-                void addTag(task.id, newTag);
-                setNewTag('');
-              }
-            }}
-          />
-        </div>
+        <TaskTags taskId={task.id} tags={task.tags ?? []} />
       </div>
 
       <div className="subs">
