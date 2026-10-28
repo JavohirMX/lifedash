@@ -30,12 +30,14 @@ export default function CommandPalette(props: {
 }) {
   const [query, setQuery] = useState('');
   const [index, setIndex] = useState(0);
+  const [themeError, setThemeError] = useState('');
   const panel = useDialogFocus<HTMLDivElement>(props.onClose, 'input', props.open);
 
   useEffect(() => {
     if (props.open) {
       setQuery('');
       setIndex(0);
+      setThemeError('');
     }
   }, [props.open]);
 
@@ -60,7 +62,10 @@ export default function CommandPalette(props: {
       nav('completed', 'Completed', CheckCircle2),
       { id: 'appearance', label: 'Appearance: choose style', Icon: Moon, run: () => { props.onAppearance(); props.onClose(); } },
       { id: 'shortcuts', label: 'Keyboard shortcuts', hint: '?', Icon: BookOpen, run: () => { props.onShortcuts(); props.onClose(); } },
-      { id: 'theme', label: 'Toggle light/dark', Icon: Moon, run: () => { props.onToggleTheme(); props.onClose(); } },
+      { id: 'theme', label: 'Toggle light/dark', Icon: Moon, run: () => {
+          try { props.onToggleTheme(); props.onClose(); }
+          catch { setThemeError('Could not save this mode on this device. Your previous mode is unchanged. Free some browser storage and try again.'); }
+        } },
     ];
     const q = query.trim().toLowerCase();
     if (!q) return base;
@@ -119,6 +124,7 @@ export default function CommandPalette(props: {
           <kbd>esc</kbd>
         </div>
         <div className="palette-list">
+          {themeError && <p className="appearance-save-error" role="alert">{themeError}</p>}
           {actions.length === 0 && <div className="palette-empty">No matches.</div>}
           {actions.map((a, i) => (
             <button

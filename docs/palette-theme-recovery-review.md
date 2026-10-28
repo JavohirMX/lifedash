@@ -1,0 +1,3 @@
+# Palette theme-save recovery
+
+Injected theme localStorage.setItem failure previously escaped as pageerror and left the palette without feedback. Catch in Toggle light/dark command now leaves palette open with the same previous-mode-unchanged error used in Appearance. User can retry existing command, close/search/navigation still work. Save-first theme function unchanged, no silent session-only theme/default change. Error clears on reopening. Six1440/390/320light/dark groups verify rejected save retains saved/rendered mode, successful retry persists and closes, reopened palette has no stale error.315tests/build PASS.390light/320dark actual pixels inspected. Composition remains separate earlier patch; no shortcut or Escape change.
