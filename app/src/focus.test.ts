@@ -80,3 +80,14 @@ describe('runningSession / reconcileRunningSessions', () => {
     expect(out[0].endedAt).toBeNull();
   });
 });
+
+describe('local day boundary', () => {
+  it('excludes the next local day and keeps only the pre-midnight half hour', () => {
+    const day = '2026-11-01';
+    const end = new Date(2026, 10, 2).getTime();
+    const next = mk('next', { startedAt: end, endedAt: end + 3600000, seconds: 3600 });
+    const crossing = mk('cross', { startedAt: end - 1800000, endedAt: end + 1800000, seconds: 3600 });
+    expect(focusTotals([next], day, end + 3600000).todayTotal).toBe(0);
+    expect(focusTotals([crossing], day, end + 1800000).todayTotal).toBe(1800);
+  });
+});

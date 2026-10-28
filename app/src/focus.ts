@@ -1,5 +1,5 @@
 import type { FocusSession } from './types';
-import { parseLocalDate } from './dates';
+import { addDays, parseLocalDate } from './dates';
 
 /** Seconds a session has accrued: final value once stopped, live otherwise. */
 export function sessionSeconds(s: FocusSession, now: number): number {
@@ -26,7 +26,7 @@ export function formatDuration(totalSeconds: number): string {
 // Seconds of a session that fall inside the given local calendar day.
 function overlapSeconds(s: FocusSession, day: string, now: number): number {
   const start = parseLocalDate(day).getTime();
-  const end = start + 86400000;
+  const end = parseLocalDate(addDays(day, 1)).getTime();
   const a = Math.max(s.startedAt, start);
   const b = Math.min(s.endedAt ?? now, end);
   return Math.max(0, Math.floor((b - a) / 1000));
