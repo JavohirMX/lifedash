@@ -54,7 +54,6 @@ export default function JournalView(props: { initialDate?: string }) {
       <h1>
         Journal {streak > 0 && <span className="date-sub num">{streak}-day streak</span>}
       </h1>
-      <p className="workflow-hint">A page for each day. Your mood, highlight and notes save as you go. Use the date control to return to an earlier entry.</p>
       <div className="journal-nav">
         <button className="icon-btn" aria-label="Previous day" onClick={() => setDate(addDays(date, -1))}>
           <ChevronLeft size={16} strokeWidth={2} />

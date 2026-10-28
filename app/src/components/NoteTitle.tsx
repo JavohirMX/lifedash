@@ -65,7 +65,7 @@ function TitleInput(props: { id: string; title: string }) {
       onChange={(event) => { setDraft(event.target.value); latest.current = event.target.value; save(event.target.value); }} />
     <span className="note-title-status" role="status">{state === 'saving' ? 'Saving title…' : state === 'saved' ? 'Title saved on this device' : ''}</span>
     {state === 'error' && <div className="note-title-error">
-      <p role="alert">Couldn't save this title. Your text is still here. Retry title to save it.</p>
+      <p role="alert">Title not saved. Your text is kept here.</p>
       <button className="mini" onClick={() => save(latest.current)}>Retry title</button>
     </div>}
   </div>;

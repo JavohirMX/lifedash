@@ -48,9 +48,9 @@ function HighlightInput(props: { date: string; value: string }) {
         onKeyDown={event => { if (event.key === 'Enter' && !event.nativeEvent.isComposing) save(); }}
         onBlur={() => { if (drafts.get(key)?.state === 'editing') save(); }} />
     </label>
-    <p className="workflow-hint" role="status">{state === 'editing' ? 'Unsaved highlight. Press Enter or leave the field to save.' : state === 'saving' ? 'Saving highlight…' : state === 'saved' ? 'Highlight saved on this device' : ''}</p>
+    <p className="workflow-hint" role="status">{state === 'editing' ? 'Unsaved highlight' : state === 'saving' ? 'Saving highlight…' : state === 'saved' ? 'Highlight saved' : ''}</p>
     {state === 'error' && <div className="highlight-save-error">
-      <p className="workflow-hint" role="alert">Couldn't save this highlight. Your text is still here. Retry highlight to save it.</p>
+      <p className="workflow-hint" role="alert">Highlight not saved. Your text is kept here.</p>
       <button className="mini" onClick={() => save()}>Retry highlight</button>
     </div>}
   </div>;

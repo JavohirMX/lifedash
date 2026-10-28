@@ -112,7 +112,6 @@ export default function NotesView(props: { initialOpenId?: string }) {
       </h1>
       {isCreating && <p className="workflow-hint" role="status">Creating note…</p>}
       {createError && <p className="workflow-hint" role="alert">{createError}</p>}
-      <p className="workflow-hint">Notes save as you type. Choose a note to edit; pin it to keep it at the top.</p>
       {sorted.length > 4 && (
         <div className="search-wrap notes-filter">
           <Search size={14} strokeWidth={1.75} aria-hidden="true" className="search-icon" />

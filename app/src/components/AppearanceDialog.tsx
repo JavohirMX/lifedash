@@ -51,7 +51,6 @@ export default function AppearanceDialog(props: { onClose: () => void; onBack?: 
           <div className="settings-child-title" style={{display:'flex',alignItems:'center',gap:8,minWidth:0}}>{props.onBack && <button className="icon-btn" aria-label="Back to Settings" onClick={props.onBack}><ArrowLeft size={18} /></button>}<h2>Appearance</h2></div>
           <button className="icon-btn" aria-label="Close" onClick={props.onClose}><X size={18} strokeWidth={1.75} /></button>
         </div>
-        <p className="rule-note">Make Lifedash your own. Changes apply immediately and are saved on this device.</p>
         {saveError && <p ref={errorNotice} className="appearance-save-error" role="alert">{saveError}</p>}
         <div className="appearance-summary">
           <p className="appearance-current" role="status">Current: <strong>{STYLES.find(s => s.id === style)?.name}</strong> · {mode === 'system' ? `System (${previewMode})` : `${MODES.find(m => m.id === mode)?.label} mode`}</p>
@@ -77,7 +76,7 @@ export default function AppearanceDialog(props: { onClose: () => void; onBack?: 
             </button>
           ))}
         </div>
-        <h3 className="appearance-section-title">Style <span>Changes apply immediately</span></h3>
+        <h3 className="appearance-section-title">Style <span>Saved on this device</span></h3>
         <div className="style-grid" role="radiogroup" aria-label="Style">
           {STYLES.map((s, index) => (
             <button
