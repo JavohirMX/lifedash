@@ -91,6 +91,11 @@ export default function App() {
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [importPreset, setImportPreset] = useState<ImportSource | null | false>(false);
   const [automationOpen, setAutomationOpen] = useState(false);
+  const [rolloverFailed, setRolloverFailed] = useState(false);
+  async function runRollover() {
+    try { await applyRollover(todayStr()); }
+    catch { setRolloverFailed(true); }
+  }
   const [syncOpen, setSyncOpen] = useState(false);
   const [aiOpen, setAiOpen] = useState(false);
   const [appearanceOpen, setAppearanceOpen] = useState(false);
@@ -125,7 +130,7 @@ export default function App() {
   useEffect(() => {
     void ensureSeed();
     startAutoSync();
-    if (loadRules().rollover) void applyRollover(todayStr());
+    if (loadRules().rollover) void runRollover();
     void applyWeeklyUserRules(todayStr());
   }, []);
 
@@ -201,7 +206,7 @@ export default function App() {
   const changeRules = (next: AutomationRules) => {
     saveRules(next);
     setRules(next);
-    if (next.rollover && !rules.rollover) void applyRollover(todayStr());
+    if (next.rollover && !rules.rollover) void runRollover();
   };
 
   const quickAddContext = (() => {
@@ -415,6 +420,7 @@ export default function App() {
       <main className={selection.kind === 'home' ? 'home-main' : ['week', 'calendar'].includes(selection.kind) ? 'schedule-main' : undefined}>
         {SAMPLE_MODE && <div className="sample-banner" role="status">Sample-data sandbox · Fictional data · <a href="/">Exit to your real data</a></div>}
         <SyncConflictBanner />
+        {rolloverFailed && !automationOpen && <div role="alert"><p>Couldn't finish moving overdue tasks to Today. Part of the change may have been saved. Check task dates before trying again. Your automation setting is unchanged.</p><button className="btn-secondary" onClick={() => setRolloverFailed(false)}>Dismiss rollover notice</button></div>}
         <CompletionFailureNotice />
         {showQuickAdd && (
           <QuickAdd
@@ -438,7 +444,7 @@ export default function App() {
         />
       )}
       {importPreset !== false && <ImportDialog projects={projects} initialSource={importPreset} onClose={() => setImportPreset(false)} />}
-      {automationOpen && <AutomationDialog rules={rules} onChange={changeRules} userRules={userRules} onUserRulesChange={changeUserRules} onClose={() => setAutomationOpen(false)} />}
+      {automationOpen && <AutomationDialog rolloverFailed={rolloverFailed} onDismissRollover={() => setRolloverFailed(false)} rules={rules} onChange={changeRules} userRules={userRules} onUserRulesChange={changeUserRules} onClose={() => setAutomationOpen(false)} />}
       {aiOpen && <AssistantDialog tasks={tasks} onClose={() => setAiOpen(false)} />}
       {syncOpen && <SyncDialog onClose={() => setSyncOpen(false)} onBack={settingsChild === 'sync' ? () => { setSyncOpen(false); setSettingsOpen(true); } : undefined} />}
       {googleCalendarOpen && <GoogleCalendarDialog onClose={()=>setGoogleCalendarOpen(false)} onBack={()=>{setGoogleCalendarOpen(false);setSettingsOpen(true);}}/>}
