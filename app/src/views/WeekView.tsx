@@ -1,5 +1,5 @@
 import './workflow.css';
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { ArrowRight, ChevronLeft, ChevronRight } from 'lucide-react';
 import { updateTask } from '../repo';
 import TaskRow from '../components/TaskRow';
@@ -14,6 +14,19 @@ export default function WeekView(props: { tasks: Task[]; onOpen: (id: string) =>
   const today = todayStr();
   const [overDay, setOverDay] = useState<string | null>(null);
   const [weekOffset, setWeekOffset] = useState(0);
+
+  const writing = useRef(new Set<string>());
+  const [pending, setPending] = useState<Set<string>>(new Set());
+  const [errors, setErrors] = useState<Record<string, { date: string; title: string }>>({});
+  async function schedule(id: string, date: string) {
+    if (writing.current.has(id)) return;
+    writing.current.add(id); setPending(new Set(writing.current));
+    setErrors(current => { const next = { ...current }; delete next[id]; return next; });
+    const title = props.tasks.find(t => t.id === id)?.title || 'task';
+    try { await updateTask(id, { dueDate: date }); }
+    catch { setErrors(current => ({ ...current, [id]: { date, title } })); }
+    finally { writing.current.delete(id); setPending(new Set(writing.current)); }
+  }
 
   // Monday of the shown week (weekOffset 0 = this week)
   const dow = (parseLocalDate(today).getDay() + 6) % 7; // Mon=0
@@ -64,6 +77,11 @@ export default function WeekView(props: { tasks: Task[]; onOpen: (id: string) =>
         </span>
       </h1>
       <p className="workflow-hint">Open tasks by due date. Drag a task to another day, or open its title to change the date on any device.</p>
+      {pending.size > 0 && <p className="workflow-hint" role="status">Scheduling…</p>}
+      {Object.entries(errors).map(([id, error]) => <div key={id} className="sub-add-feedback">
+        <p role="alert">Date wasn't saved for "{error.title}". Retry to schedule it for {error.date}.</p>
+        <button className="btn-secondary" onClick={() => void schedule(id, error.date)}>Retry schedule for {error.title}</button>
+      </div>)}
       {overdue.length > 0 && (
         <div
           className={`week-overdue ${overDay === 'overdue' ? 'drop-hot' : ''}`}
@@ -89,7 +107,7 @@ export default function WeekView(props: { tasks: Task[]; onOpen: (id: string) =>
               >
                 <TaskRow task={t} allTasks={props.tasks} onOpen={props.onOpen} />
               </div>
-              <button className="mini" onClick={() => void updateTask(t.id, { dueDate: today })}>
+              <button className="mini" disabled={pending.has(t.id)} onClick={() => void schedule(t.id, today)}>
                 <ArrowRight size={12} strokeWidth={1.75} aria-hidden="true" /> Today
               </button>
             </div>
@@ -113,7 +131,7 @@ export default function WeekView(props: { tasks: Task[]; onOpen: (id: string) =>
               if (!id) return;
               e.preventDefault();
               setOverDay(null);
-              void updateTask(id, { dueDate: day });
+              void schedule(id, day);
             }}
           >
             <div className="week-head">
