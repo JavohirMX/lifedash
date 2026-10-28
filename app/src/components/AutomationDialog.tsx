@@ -79,7 +79,7 @@ export default function AutomationDialog(props: {
           </button>
         </div>
         <p className="rule-note">
-          Optional automatic behaviors. They run while Lifedash is open - never in the background or while the app is closed.
+          Runs only while Lifedash is open.
         </p>
         {props.weeklyFailed && <div role="alert"><p>Couldn't finish running weekly rules. Some tasks may have been created or rule history may not have been saved. Check tasks and rules before trying again.</p><button className="btn-secondary" onClick={props.onDismissWeekly}>Dismiss weekly-rule notice</button></div>}
         {props.rolloverFailed && <div role="alert"><p>Couldn't finish moving overdue tasks to Today. Part of the change may have been saved. Check task dates before trying again. Your automation setting is unchanged.</p><button className="btn-secondary" onClick={props.onDismissRollover}>Dismiss rollover notice</button></div>}
@@ -87,7 +87,7 @@ export default function AutomationDialog(props: {
         <div className="rule-row">
           <div className="rule-copy">
             <strong>Roll overdue tasks into Today</strong>
-            <span>When you open Lifedash, anything past its due date moves to today so nothing slips by.</span>
+            <span>Moves overdue tasks to Today when you open Lifedash.</span>
           </div>
           <button
             className={`switch${rules.rollover ? ' on' : ''}`}
@@ -179,7 +179,7 @@ export default function AutomationDialog(props: {
             <button type="button" className="btn-secondary" onClick={resetForm}>Cancel</button>
           )}
         </form>
-        <p className="rule-note">A rule never creates a duplicate: it skips while an open task with the same title exists.</p>
+        <p className="rule-note">Skips a rule when an open task with the same title is found.</p>
       </div>
     </div>
   );
