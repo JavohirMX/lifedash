@@ -14,6 +14,7 @@ import '@fontsource-variable/source-sans-3';
 import '@fontsource-variable/dm-sans';
 import './styles.css';
 import './personalization.css';
+import './controls.css';
 
 initTheme();
 initAppearancePrefs();

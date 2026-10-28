@@ -125,7 +125,7 @@ export default function QuickAdd(props: { projectId: string; dueDate?: string | 
             }}
           />
         </div>
-        <button type="submit" className="mini quick-add-submit" disabled={!title.trim()}>Add</button>
+        <button type="submit" className="btn-primary quick-add-submit" disabled={!title.trim()}>Add</button>
       </form>
       <div hidden={Boolean(props.captureProjects)} id={`${fieldId}-hint`} className="quick-add-hint" aria-live="polite">
         {hint ?? 'Dates, times and #tags supported'}

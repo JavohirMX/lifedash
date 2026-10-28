@@ -1,0 +1,101 @@
+/* Shared control language. Uses each selected style's colors, type and radius.
+   Native input/select/radio semantics and existing action handlers stay intact. */
+:root { --control-height: 42px; --control-ring: 0 0 0 3px var(--accent-soft); }
+button { -webkit-tap-highlight-color: transparent; touch-action: manipulation; }
+:is(button, input, select, textarea, summary, a):focus-visible {
+  outline: 2px solid var(--accent); outline-offset: 3px;
+}
+:is(.btn-primary,.btn-secondary,.mini,.chip,.habit-toggle,.wd) {
+  min-height: var(--control-height); height: auto; border-radius: var(--radius-control);
+  padding: 9px 14px; line-height: 1.35; font-weight: 550; text-align: center;
+}
+.btn-primary { background: var(--primary-btn); color: var(--primary-btn-ink); border: 1px solid var(--primary-btn); box-shadow: 0 1px 2px rgb(0 0 0 / .08); }
+.btn-secondary { background: var(--surface); border: 1px solid var(--control); color: var(--text); }
+.mini { background: var(--surface); border-color: var(--border); color: var(--text); }
+:is(.btn-secondary,.mini,.chip,.habit-toggle,.wd):hover:not(:disabled):not([aria-disabled='true']) { background: var(--surface-2); border-color: var(--control); color: var(--text); }
+.btn-primary:hover:not(:disabled) { opacity: 1; filter: brightness(.93); box-shadow: 0 2px 4px rgb(0 0 0 / .13); }
+:is(.btn-primary,.btn-secondary,.mini,.chip):active:not(:disabled) { box-shadow: inset 0 1px 3px rgb(0 0 0 / .15); }
+:is(.mini,.chip,.wd)[aria-pressed='true'] { background: var(--accent-soft); border-color: var(--accent); color: var(--text); box-shadow: inset 0 0 0 1px var(--accent); }
+button:disabled,button[aria-disabled='true'] { cursor: not-allowed; }
+:is(.btn-primary,.btn-secondary,.mini,.chip,.habit-toggle):disabled {
+  opacity: 1; background: var(--surface-2); color: var(--muted); border: 1px dashed var(--control); box-shadow: none; filter: none;
+}
+.icon-btn, .detail-head .close { width: 40px; height: 40px; min-width: 40px; flex-shrink: 0; border: 1px solid transparent; border-radius: var(--radius-control); }
+.icon-btn:hover:not(:disabled), .detail-head .close:hover { background: var(--surface-2); border-color: var(--border); }
+.icon-btn:disabled { opacity: .6; background: var(--surface-2); }
+:where(input:not([type='checkbox']):not([type='radio']):not([type='range']):not([type='color']):not([type='file']):not([type='hidden']),select,textarea):not(.detail-title):not(.note-title-input) {
+  min-height: var(--control-height); border: 1px solid var(--control); border-radius: var(--radius-control);
+  background-color: var(--surface); color: var(--text); padding: 10px 12px; line-height: 1.4; max-width: 100%;
+}
+textarea { resize: vertical; }
+.quick-add-field input { padding-left: 36px !important; }
+.quick-add-icon { bottom: calc(var(--control-height) / 2); transform: translateY(50%); }
+:is(input,select,textarea):hover:not(:disabled):not([readonly]) { border-color: var(--accent); }
+:where(input:not([type='checkbox']):not([type='radio']):not([type='range']),select,textarea):focus {
+  outline: 2px solid var(--accent); outline-offset: 1px; border-color: var(--accent); box-shadow: var(--control-ring);
+}
+:is(input,select,textarea):disabled, input[aria-disabled='true'] {
+  opacity: 1; color: var(--muted); background-color: var(--surface-2); border-style: dashed; cursor: not-allowed;
+}
+.quick-add input[aria-invalid='true'], .quick-add input[aria-invalid='true']:focus { border: 2px solid var(--negative); outline-color: var(--negative); box-shadow: none; }
+input[readonly] { background-color: var(--surface-2); }
+:is(input,select,textarea)[aria-invalid='true'] { border: 2px solid var(--negative); }
+:is(input,select,textarea)[aria-invalid='true']:focus { outline-color: var(--negative); }
+select { padding-right: 30px; cursor: pointer; }
+input[type='file'] { max-width: 100%; color: var(--muted); font-size: var(--fs-small); }
+input[type='file']::file-selector-button { min-height: var(--control-height); margin-right: 10px; padding: 8px 12px; border: 1px solid var(--control); border-radius: var(--radius-control); background: var(--surface); color: var(--text); font: inherit; cursor: pointer; }
+input[type='checkbox'],input[type='radio'] { appearance: none; -webkit-appearance: none; display: inline-grid; place-content: center; width: 20px; height: 20px; min-width: 20px; margin: 0; border: 1.5px solid var(--control); background: var(--surface); vertical-align: middle; cursor: pointer; }
+input[type='checkbox'] { border-radius: 5px; }
+input[type='radio'] { border-radius: 50%; }
+input[type='checkbox']:checked,input[type='radio']:checked { background: var(--accent); border-color: var(--accent); }
+input[type='checkbox']::after { content: ''; width: 9px; height: 5px; border: solid var(--accent-ink); border-width: 0 0 2px 2px; transform: rotate(-45deg) translateY(-1px); opacity: 0; }
+input[type='checkbox']:checked::after { opacity: 1; }
+input[type='checkbox']:indeterminate::after { width: 9px; height: 0; border-width: 0 0 2px; transform: none; opacity: 1; }
+input[type='radio']:checked::after { content: ''; width: 8px; height: 8px; border-radius: 50%; background: var(--accent-ink); }
+input:is([type='checkbox'],[type='radio']):disabled { opacity: .55; cursor: not-allowed; }
+.widget-toggle { min-height: 44px; padding: 6px 10px; border: 1px solid var(--border); border-radius: var(--radius-control); gap: 9px; }
+.widget-toggle:has(input:checked) { background: var(--accent-soft); border-color: var(--accent); }
+.widget-toggle:has(input:focus-visible) { outline: 2px solid var(--accent); outline-offset: 2px; }
+.mode-seg { padding: 4px; gap: 4px; background: var(--surface-2); border: 1px solid var(--border); border-radius: var(--radius-card); overflow: visible; }
+.mode-seg button { min-height: var(--control-height); border: 1px solid transparent; border-radius: var(--radius-control); padding: 8px 12px; }
+.mode-seg button + button { border-left: 1px solid transparent; }
+.mode-seg button[aria-checked='true'] { background: var(--surface); color: var(--text); border: 1px solid var(--accent); box-shadow: inset 0 -3px 0 var(--accent); font-weight: 600; }
+.style-card[aria-checked='true'] { border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent); }
+.style-card:focus-visible { outline-offset: 5px; }
+.switch { width: 52px; height: 44px; border: 0; background: transparent !important; border-radius: 8px; }
+.switch::before { content: ''; position: absolute; inset: 9px 0; border: 1px solid var(--control); border-radius: 99px; background: var(--surface-2); }
+.switch .knob { top: 12px; left: 3px; width: 20px; height: 20px; background: var(--control); box-shadow: 0 1px 3px rgb(0 0 0 / .2); }
+.switch.on::before { background: var(--accent); border-color: var(--accent); }
+.switch.on .knob { transform: translateX(26px); background: var(--accent-ink); }
+:is(.quick-add-error,.form-save-error,.appearance-save-error,.personalization-error) {
+  padding: 10px 12px; border: 1px solid var(--negative); border-left-width: 3px; border-radius: var(--radius-control); color: var(--negative); line-height: 1.5; background: var(--surface);
+}
+:is(.quick-add-error,.form-save-error):empty { display: none; }
+.settings-state { border: 1px solid var(--control); border-radius: 99px; padding: 4px 9px; font-weight: 600; }
+.settings-state[data-active='true'] { color: var(--text); background: var(--accent-soft); border-color: var(--accent); }
+@media(max-width:720px) {
+  :root { --control-height: 44px; }
+  .icon-btn,.detail-head .close { width: 44px; height: 44px; min-width: 44px; }
+  :where(input:not([type='checkbox']):not([type='radio']):not([type='range']),select,textarea) { font-size: 16px; }
+  .mode-seg button { padding: 8px; }
+  .mobile-topbar { padding-left: 12px; padding-right: 12px; }
+  .mobile-topbar-actions { gap: 0; }
+}
+@media(forced-colors:active) {
+  input[type='checkbox'],input[type='radio'] { appearance: auto; }
+  .mode-seg button[aria-checked='true'],.style-card[aria-checked='true'] { outline: 2px solid Highlight; }
+  .switch::before { background: Canvas; border-color: ButtonText; }
+  .switch.on::before { background: Highlight; }
+  .switch .knob { background: ButtonText; }
+}
+
+/* Keep built-in controls usable when a style chooses compact typography. */
+:root[data-style='compact'] { --control-height: 38px; }
+:root[data-style='contrast'] :is(.btn-primary,.btn-secondary,.mini,select,input) { border-width: 2px; }
+@media(max-width:720px) { :root[data-style='compact'] { --control-height: 44px; } }
+
+.quick-add-row .quick-add-submit { align-self: flex-end; min-height: var(--control-height); }
+.search-wrap .search-box { padding-left: 34px; }
+/* Weekday controls have a fixed target, not general action-button padding. */
+.wd-picker { flex-wrap: wrap; }
+.wd-picker .wd { width: 44px; min-width: 44px; min-height: 44px; flex: 0 0 44px; padding: 8px 4px; }
