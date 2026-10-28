@@ -1,5 +1,5 @@
 import './workflow.css';
-import { requestComplete } from '../completionPrompt';
+import CompletionButton from '../components/CompletionButton';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { Check, ListPlus, Pin, PinOff, Plus, Search, StickyNote, Trash2 } from 'lucide-react';
@@ -219,13 +219,11 @@ export default function NotesView(props: { initialOpenId?: string }) {
                   <ul className="widget-list">
                     {linkedActive.map((t) => (
                       <li key={t.id}>
-                        <button
+                        <CompletionButton task={t}
                           className={`checkbox ${t.status === 'done' ? 'checked' : ''}`}
-                          aria-label={t.status === 'done' ? 'Mark not done' : 'Mark done'}
-                          onClick={() => void requestComplete(t)}
-                        >
+                          label={t.status === 'done' ? 'Mark not done' : 'Mark done'}>
                           {t.status === 'done' ? <Check size={13} strokeWidth={2.5} aria-hidden="true" /> : null}
-                        </button>
+                        </CompletionButton>
                         <span className={`widget-task ${t.status === 'done' ? 'done' : ''}`}>{t.title}</span>
                       </li>
                     ))}
