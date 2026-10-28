@@ -69,9 +69,11 @@ export default function ImportDialog(props: { projects: Project[]; initialSource
     ['projects', 'project', 'projects'],
     ['tasks', 'task', 'tasks'],
     ['habits', 'habit', 'habits'],
+    ['habitLogs', 'habit log', 'habit logs'],
     ['goals', 'goal', 'goals'],
     ['notes', 'note', 'notes'],
     ['journal', 'journal entry', 'journal entries'],
+    ['focusSessions', 'focus session', 'focus sessions'],
   ];
   const countText = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
   const backupCounts = fullBackup
