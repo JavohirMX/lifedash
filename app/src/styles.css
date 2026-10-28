@@ -1797,3 +1797,11 @@ main.tv-grid { max-width: none; width: 100%; }
 .ed-save-status:empty { display: none; }
 .ed-save-error { color: var(--text); border-top: 1px solid var(--border); }
 .ed-save-error p { margin: 0 0 8px; }
+
+.attachment-feedback { font-size: var(--fs-small); line-height: 1.5; overflow-wrap: anywhere; margin: 8px 0; }
+.attachment-feedback:empty { display: none; }
+
+.task-attachments > .mini { margin: 4px 6px 0 0; }
+@media (max-width: 700px) {
+  .task-attachments .mini { min-height: 44px; }
+}

@@ -33,31 +33,64 @@ function downloadAttachment(a: Attachment): void {
 }
 
 export default function Attachments(props: { taskId: string }) {
+  return <TaskAttachments key={props.taskId} taskId={props.taskId} />;
+}
+
+function TaskAttachments(props: { taskId: string }) {
   const atts = useLiveQuery(() => db.attachments.where('taskId').equals(props.taskId).toArray(), [props.taskId]);
   const inputRef = useRef<HTMLInputElement>(null);
+  const writing = useRef(false);
+  const [busy, setBusy] = useState(false);
+  const [failedFile, setFailedFile] = useState<File | null>(null);
+  const [error, setError] = useState('');
+  const [status, setStatus] = useState('');
+
+  async function attach(file: File) {
+    if (writing.current) return;
+    writing.current = true; setBusy(true); setError(''); setStatus(`Saving ${file.name}…`);
+    try {
+      await addAttachment(props.taskId, file);
+      setFailedFile(null); setStatus(`Saved ${file.name} on this device.`);
+    } catch {
+      setFailedFile(file); setStatus('');
+      setError(`Couldn't save ${file.name}. Retry while this task stays open, or choose the file again later.`);
+    } finally { writing.current = false; setBusy(false); }
+  }
+
+  async function remove(id: string, name: string) {
+    if (writing.current) return;
+    writing.current = true; setBusy(true); setError(''); setStatus(`Removing ${name}…`);
+    try { await deleteAttachment(id); setStatus(`Removed ${name}.`); }
+    catch { setStatus(''); setError(`Couldn't remove ${name}. The attachment is still listed; try Remove again.`); }
+    finally { writing.current = false; setBusy(false); }
+  }
 
   return (
-    <div className="subs">
+    <div className="subs task-attachments" aria-busy={busy}>
       <h3>Attachments</h3>
+      <p className="attachment-feedback" role="status">{status}</p>
+      {error && <p className="attachment-feedback" role="alert">{error}</p>}
+      {failedFile && <button className="mini" disabled={busy} onClick={() => void attach(failedFile)}>Retry attachment</button>}
       {(atts ?? []).map((a) => (
         <div key={a.id} className="att-row">
           <Thumb att={a} />
           <button className="att-name att-open" title={`Download ${a.name}`} aria-label={`Download ${a.name}`} onClick={() => downloadAttachment(a)}>{a.name}</button>
           <span className="att-size">{fmtSize(a.byteSize)}</span>
-          <button className="mini" title="Remove" aria-label="Remove attachment" onClick={() => void deleteAttachment(a.id)}><X size={13} strokeWidth={2} /></button>
+          <button className="mini" title="Remove" aria-label={`Remove ${a.name}`} disabled={busy} onClick={() => void remove(a.id, a.name)}><X size={13} strokeWidth={2} /></button>
         </div>
       ))}
-      <input aria-label="Attach files"
+      {failedFile && <button className="mini" disabled={busy} onClick={() => { setFailedFile(null); setError(''); }}>Discard failed selection</button>}
+      <input disabled={busy || failedFile !== null} aria-label="Attach files"
         ref={inputRef}
         type="file"
         style={{ display: 'none' }}
         onChange={(e) => {
           const f = e.target.files?.[0];
-          if (f) void addAttachment(props.taskId, f);
+          if (f) void attach(f);
           e.target.value = '';
         }}
       />
-      <button className="mini" onClick={() => inputRef.current?.click()}>Attach a file</button>
+      <button className="mini" disabled={busy || failedFile !== null} onClick={() => inputRef.current?.click()}>Attach a file</button>
     </div>
   );
 }
