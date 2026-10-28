@@ -21,3 +21,25 @@
 
 .home .home-habit-row { flex-wrap: wrap; }
 .home .home-habit-feedback { flex-basis: 100%; margin: 0; }
+
+/* Selected Focus-first cockpit: one action, one timed commitment, support. */
+.home .home-greeting { color: var(--muted); margin: 6px 0; font-size: var(--fs-small); }
+.home .home-cockpit { display: grid; grid-template-columns: minmax(0,1.4fr) minmax(0,1fr); gap: 20px; }
+.home .home-primary, .home .home-support { min-width: 0; display: flex; flex-direction: column; gap: 20px; }
+.home .home-focus { padding: 24px; background: var(--accent-soft); border-color: var(--accent); }
+.home .home-focus .focus-title { font-size: clamp(22px,2.2vw,30px); line-height: 1.3; }
+.home .home-focus-actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 20px; align-items: start; }
+.home .home-focus-actions :is(button) { min-height: 44px; }
+.home .home-commitment-time { color: var(--accent); font-size: var(--fs-small); margin: 0 0 10px; }
+.home .home-commitment-title { display: block; font-size: var(--fs-section); line-height: 1.4; margin-bottom: 10px; text-align: left; }
+.home .home-commitment .btn-secondary, .home .home-signals .btn-secondary { min-height: 44px; }
+.home .home-plan-views { display: flex; flex-wrap: wrap; gap: 8px; margin: 20px 0; }
+.home .home-plan-views button { min-height: 44px; padding: 8px 16px; }
+.home .home-extra-widgets { border-top: 1px solid var(--border); padding-top: 16px; margin-top: 4px; }
+.home .home-extra-widgets > summary { cursor: pointer; color: var(--muted); min-height: 44px; }
+.home .home-extra-grid { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 16px; }
+@media(max-width:900px) { .home .home-extra-grid { grid-template-columns: 1fr; } }
+@media(max-width:640px) { .home .home-cockpit { grid-template-columns: 1fr; gap: 16px; } .home .home-primary,.home .home-support { gap: 16px; } .home .home-focus { padding: 18px; } }
+.home .home-commitment .widget-meta { line-height: 1.45; margin: 4px 0; }
+.home .home-habits .widget-list li { padding-top: 7px; padding-bottom: 7px; }
+.home .home-signals .widget-list li { padding-top: 7px; padding-bottom: 7px; }

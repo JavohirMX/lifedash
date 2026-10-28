@@ -254,7 +254,7 @@ export default function App() {
 
   let body;
   if (selection.kind === 'home') {
-    body = <HomeView tasks={tasks} onSelect={(kind) => setSelection({ kind } as Selection)} onOpen={setOpenId} />;
+    body = <HomeView tasks={tasks} onNavigate={setSelection} onSelect={(kind) => setSelection({ kind } as Selection)} onOpen={setOpenId} />;
   } else if (selection.kind === 'today') {
     const list = todayTasks(tasks, today);
     body = (

@@ -1,4 +1,10 @@
 import './home.css';
+import { PlanEditor } from './PlannerView';
+import HomeFocusStart from '../components/HomeFocusStart';
+import WeeklyReview from '../components/WeeklyReview';
+import type { Selection } from '../components/Sidebar';
+import { minutes, validDate } from '../planning';
+import { goalsWithoutNextAction } from '../review';
 import CompletionButton from '../components/CompletionButton';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { useEffect, useRef, useState } from 'react';
@@ -21,10 +27,12 @@ function greeting(hour: number): string {
   return 'Good evening';
 }
 
-export default function HomeView(props: { tasks: Task[]; onSelect: (kind: string) => void; onOpen: (id: string) => void }) {
+export default function HomeView(props: { tasks: Task[]; onSelect: (kind: string) => void; onOpen: (id: string) => void; onNavigate: (selection: Selection) => void }) {
   const habits = useLiveQuery(() => db.habits.orderBy('order').toArray(), []);
   const widgetPref = useLiveQuery(() => db.syncmeta.get('home.widgets'), []);
   const hidden: string[] = (widgetPref?.value as string[] | undefined) ?? [];
+  const [editingPlan, setEditingPlan] = useState<string | null>(null);
+  const [reviewOpen, setReviewOpen] = useState(false);
   const [customizing, setCustomizing] = useState(false);
   const [drillDate, setDrillDate] = useState<string | null>(null);
   const widgetSavingRef = useRef(false);
@@ -42,7 +50,9 @@ export default function HomeView(props: { tasks: Task[]; onSelect: (kind: string
   const goals = useLiveQuery(() => db.goals.orderBy('order').toArray(), []);
   const today = todayStr();
   const suggestion = suggestedTask(props.tasks, today);
-  const now = new Date();
+  const [clock, setClock] = useState(() => Date.now());
+  useEffect(() => { const timer = setInterval(() => setClock(Date.now()), 30_000); return () => clearInterval(timer); }, []);
+  const now = new Date(clock);
   const focusSessions = useLiveQuery(() => db.focusSessions.toArray(), []);
   const [focusNow, setFocusNow] = useState(() => Date.now());
   const running = focusSessions ? runningSession(focusSessions) : null;
@@ -56,10 +66,15 @@ export default function HomeView(props: { tasks: Task[]; onSelect: (kind: string
 
   // todayTasks() is active-only; the progress count needs the done ones too.
   const dueTodayAll = props.tasks.filter((t) => t.parentId === null && t.dueDate !== null && t.dueDate <= today && t.status !== 'archived');
-  const doneToday = dueTodayAll.filter((t) => t.status === 'done').length;
-  const todays = dueTodayAll;
-  const next = todayTasks(props.tasks, today).slice(0, 3);
-  const scheduled = todayTasks(props.tasks, today).filter(t => t.dueDate === today && t.dueTime).sort((a,b) => a.dueTime!.localeCompare(b.dueTime!));
+  const commitments = props.tasks.filter(t => t.status === 'active' && t.parentId === null).flatMap(t => {
+    const rows: { task: Task; date: string; time: string; kind: string }[] = [];
+    if (validDate(t.plannedDate) && minutes(t.plannedTime) !== null) rows.push({ task: t, date: t.plannedDate!, time: t.plannedTime!, kind: 'Planned work' });
+    if (validDate(t.dueDate) && minutes(t.dueTime) !== null) rows.push({ task: t, date: t.dueDate!, time: t.dueTime!, kind: 'Deadline' });
+    return rows;
+  }).filter(item => item.date > today || (item.date === today && minutes(item.time)! >= now.getHours() * 60 + now.getMinutes()))
+    .sort((a, b) => `${a.date} ${a.time}`.localeCompare(`${b.date} ${b.time}`));
+  const commitment = commitments[0];
+  const noNextAction = goalsWithoutNextAction(goals ?? [], props.tasks).length;
 
   const todaysHabits = (habits ?? []).filter((h) => !h.archived && isScheduledOn(h, today));
   const habitsDone = todaysHabits.filter((h) => logsByDate(logs ?? [], h.id).has(today)).length;
@@ -93,7 +108,7 @@ export default function HomeView(props: { tasks: Task[]; onSelect: (kind: string
     <section className="home">
       <header className="home-head">
         <div>
-          <h1>{greeting(now.getHours())}</h1>
+          <h1>One thing at a time</h1><p className="home-greeting">{greeting(now.getHours())} · Daily cockpit</p>
           <p className="home-date">{weekdayLabel(today)} · {now.toLocaleDateString(undefined, { month: 'long', day: 'numeric' })}</p>
         </div>
         <button
@@ -110,8 +125,8 @@ export default function HomeView(props: { tasks: Task[]; onSelect: (kind: string
         <div className="widget-settings" role="group" aria-label="Show or hide widgets" aria-busy={widgetSaving}>
           {[
             ['focus', 'Focus'],
-            ['upnext', 'Up next'],
-            ['today', 'Today'],
+            ['upnext', 'On your radar'],
+            ['today', 'Next commitment'],
             ['habits', 'Habits'],
             ['week', 'This week'],
             ['goals', 'Goals'],
@@ -145,7 +160,7 @@ export default function HomeView(props: { tasks: Task[]; onSelect: (kind: string
         {!hidden.includes('focus') && !running && suggestion && (
         <div className="widget focus-widget home-focus">
           <div className="widget-head">
-            <h2><Zap size={14} strokeWidth={2} aria-hidden="true" className="focus-icon" /> Focus next</h2>
+            <h2><Zap size={14} strokeWidth={2} aria-hidden="true" className="focus-icon" /> Next action</h2>
             <span className="focus-reason">{suggestion.reason}</span>
           </div>
           <div className="focus-task">
@@ -154,66 +169,22 @@ export default function HomeView(props: { tasks: Task[]; onSelect: (kind: string
               {suggestion.task.title}
             </button>
           </div>
+          <div className="home-focus-actions"><HomeFocusStart taskId={suggestion.task.id} /><button className="btn-secondary" onClick={() => props.onOpen(suggestion.task.id)}>Open task</button></div>
         </div>
         )}
-        {!hidden.includes('today') && (
-        <div className="widget home-today">
-          <div className="widget-head">
-            <h2>Today <span className="home-widget-count num">{todayTasks(props.tasks, today).length} open</span></h2>
-            <button className="widget-link" onClick={() => props.onSelect('today')}>
-              Open <ArrowRight size={13} strokeWidth={2} aria-hidden="true" />
-            </button>
-          </div>
-          {todays.length === 0 ? (
-            <p className="widget-empty">Nothing due today. Pull something in from Backlog.</p>
-          ) : (
-            <>
-              <div
-                className="progress"
-                role="progressbar"
-                aria-valuenow={doneToday}
-                aria-valuemin={0}
-                aria-valuemax={todays.length}
-                aria-label="Due and overdue tasks completed"
-              >
-                <div className="progress-fill" style={{ width: `${todays.length ? (doneToday / todays.length) * 100 : 0}%` }} />
-              </div>
-              <p className="widget-meta num">{doneToday} of {todays.length} done <span className="home-progress-context">· Due today or earlier</span></p>
-              <ul className="widget-list">
-                {next.map((t) => (
-                  <li key={t.id}>
-                    <CompletionButton task={t} className="checkbox home-check" label={`Complete ${t.title}`} />
-                    <div className="home-task-copy"><button className="widget-task" onClick={() => props.onOpen(t.id)}>{t.title}</button><span className="home-task-meta">{t.dueDate && t.dueDate < today ? 'Overdue' : t.dueTime ?? 'Anytime'}{(t.blockedBy ?? []).some(id => props.tasks.some(b => b.id === id && b.status === 'active')) ? ' · Blocked' : ''}{t.recurrence ? ' · Repeats' : ''}</span></div>
-                  </li>
-                ))}
-              </ul>
-              {todayTasks(props.tasks, today).length > next.length && <button className="home-more-tasks" onClick={() => props.onSelect('today')}>View all {todayTasks(props.tasks, today).length} open tasks <ArrowRight size={14} aria-hidden="true" /></button>}
-            </>
-          )}
-        </div>
-        )}
-
-        {!hidden.includes('today') && scheduled.length > 0 && <div className="widget home-schedule"><div className="widget-head"><h2>Scheduled today</h2><button className="widget-link" onClick={() => props.onSelect('planner')}>Planner <ArrowRight size={13} aria-hidden="true" /></button></div><ul className="widget-list">{scheduled.map(t => <li key={t.id}><time className="home-time num">{t.dueTime}</time><button className="widget-task" onClick={() => props.onOpen(t.id)}>{t.title}</button></li>)}</ul></div>}
-</div><div className="home-support">        {!hidden.includes('upnext') && sugRows.length > 0 && (
-        <div className="widget home-signals">
-          <div className="widget-head">
-            <h2>Up next</h2>
-          </div>
-          <ul className="widget-list">
-            {sugRows.map((r) => (
-              <li key={r.id}>
-                <button className="widget-task upnext-row" onClick={r.go}>
-                  <span className="num upnext-count">{r.count}</span>
-                  <span>{r.text}</span>
-                  <ArrowRight size={13} strokeWidth={2} aria-hidden="true" className="upnext-arrow" />
-                </button>
-              </li>
-            ))}
-          </ul>
-        </div>
-        )}
-
-        {!hidden.includes('habits') && (
+        {!hidden.includes('focus') && !running && !suggestion && <div className="widget home-focus"><h2>Next action</h2><p>No unblocked tasks due now.</p><button className="btn-secondary" onClick={() => props.onSelect('backlog')}>Choose a task</button></div>}
+        {!hidden.includes('today') && <div className="widget home-commitment" aria-label="Next commitment">
+          <div className="widget-head"><h2>Next commitment</h2><button className="widget-link" onClick={() => props.onSelect('planner')}>Day <ArrowRight size={13} aria-hidden="true" /></button></div>
+          {commitment ? <><p className="home-commitment-time">{friendlyDate(commitment.date, today)} · <time>{commitment.time}</time> · {commitment.kind}</p>
+            <button className="widget-task home-commitment-title" onClick={() => props.onOpen(commitment.task.id)}>{commitment.task.title}</button>
+            <p className="widget-meta">{commitment.kind === 'Planned work' && commitment.task.durationMinutes ? `${commitment.task.durationMinutes} min estimate · ` : ''}Local task, not a calendar event.</p>
+            <button className="btn-secondary" onClick={() => commitment.kind === 'Planned work' ? setEditingPlan(commitment.task.id) : props.onOpen(commitment.task.id)}>{commitment.kind === 'Planned work' ? 'Reschedule work' : 'Reschedule task'}</button>
+            </> : <p className="widget-empty">No later timed task commitments. Check Day for all-day tasks and optional calendar snapshots.</p>}
+          {editingPlan && props.tasks.find(task => task.id === editingPlan && task.status === 'active') && <PlanEditor key={editingPlan} task={props.tasks.find(task => task.id === editingPlan)!} date={today} suggestedTime={null} close={() => setEditingPlan(null)} />}
+          <p className="widget-meta">Full schedule and optional calendar snapshots are in Day.</p>
+          <button className="home-more-tasks" onClick={() => props.onSelect('today')}>View all {todayTasks(props.tasks, today).length} open tasks <ArrowRight size={14} aria-hidden="true" /></button>
+        </div>}
+</div><div className="home-support">        {!hidden.includes('habits') && (
         <div className="widget home-habits">
           <div className="widget-head">
             <h2>Habits</h2>
@@ -243,6 +214,31 @@ export default function HomeView(props: { tasks: Task[]; onSelect: (kind: string
         </div>
         )}
 
+        {!hidden.includes('upnext') && (
+        <div className="widget home-signals">
+          <div className="widget-head">
+            <h2>On your radar</h2>
+          </div>
+          {sugRows.length === 0 && <p className="widget-empty">No overdue, due-soon or stale-task signals.</p>}
+          <ul className="widget-list">
+            {sugRows.map((r) => (
+              <li key={r.id}>
+                <button className="widget-task upnext-row" onClick={r.go}>
+                  <span className="num upnext-count">{r.count}</span>
+                  <span>{r.text}</span>
+                  <ArrowRight size={13} strokeWidth={2} aria-hidden="true" className="upnext-arrow" />
+                </button>
+              </li>
+            ))}
+          </ul>
+          <p className="widget-meta">{noNextAction} active goal{noNextAction === 1 ? '' : 's'} without a next task.</p>
+          <button className="btn-secondary" onClick={() => setReviewOpen(true)}>Review this week</button>
+        </div>
+        )}
+
+</div></div>
+      <nav className="home-plan-views" aria-label="Planning views"><button className="mini" onClick={() => props.onSelect('today')}>Tasks</button><button className="mini" onClick={() => props.onSelect('planner')}>Day</button><button className="mini" onClick={() => props.onSelect('week')}>Week</button><button className="mini" onClick={() => props.onSelect('calendar')}>Month</button></nav>
+      <details className="home-extra-widgets"><summary>More insights · week, goals and upcoming</summary><p className="widget-meta">Optional detail, kept out of your next-action view. Show or hide each widget using Customize widgets.</p><div className="home-extra-grid">
         {!hidden.includes('week') && (
         <div className="widget home-week">
           <div className="widget-head">
@@ -337,8 +333,8 @@ export default function HomeView(props: { tasks: Task[]; onSelect: (kind: string
             </ul>
           )}
         </div>
-        )}</div>
-      </div>
+        )}</div></details>
+      {reviewOpen && <WeeklyReview tasks={props.tasks} onOpen={id => { setReviewOpen(false); props.onOpen(id); }} onNavigate={selection => { setReviewOpen(false); props.onNavigate(selection); }} onClose={() => setReviewOpen(false)} />}
     </section>
   );
 }

@@ -7,9 +7,10 @@ try {
   const page = await browser.newPage({ viewport: { width, height: 900 } });
   await page.goto(`${process.env.BASE_URL ?? 'http://127.0.0.1:5173'}/?sample`);
   await page.getByRole('button', { name: 'View all 6 open tasks' }).waitFor();
+  await page.locator('.home-extra-widgets > summary').click();
   assert.equal(await page.locator('.home-load-count').count(), 7);
   assert.equal(await page.locator('.home-load-count').first().textContent(), '6');
-  assert(await page.getByText('Due today or earlier', { exact: false }).count());
+  assert(await page.getByText('Open tasks · today and the next 6 days', { exact: false }).count());
   if (width < 500) {
     for (const control of await page.locator('.home-check').all()) {
       const box = await control.boundingBox();

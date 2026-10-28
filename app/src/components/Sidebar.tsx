@@ -31,14 +31,18 @@ function Mark() {
 }
 
 const NAV_GROUPS = [
-  { label: 'Plan', items: [
+  { label: 'Start', items: [
     { kind: 'home', label: 'Home', Icon: House },
+  ] },
+  { label: 'Planning views', items: [
     { kind: 'today', label: 'Today', Icon: Sun },
     { kind: 'upcoming', label: 'Upcoming', Icon: CalendarClock },
     { kind: 'planner', label: 'Planner', Icon: Clock },
     { kind: 'week', label: 'Week', Icon: CalendarRange },
     { kind: 'calendar', label: 'Calendar', Icon: CalendarDays },
     { kind: 'backlog', label: 'Backlog', Icon: Archive },
+  ] },
+  { label: 'History', items: [
     { kind: 'completed', label: 'Completed', Icon: CheckCircle2 },
   ] },
   { label: 'Track', items: [
