@@ -1,17 +1,20 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { useEditor, EditorContent } from '@tiptap/react';
 import { db } from '../db';
+import { editorDrafts as sessionDrafts, type EditorDraft } from '../editorDrafts';
 import StarterKit from '@tiptap/starter-kit';
 import TaskList from '@tiptap/extension-task-list';
 import TaskItem from '@tiptap/extension-task-item';
 import Link from '@tiptap/extension-link';
 import { Bold, Italic, List, ListOrdered, ListChecks, Link as LinkIcon } from 'lucide-react';
 
-type EditorDraft = { doc: unknown; text: string; revision: number; status: 'pending' | 'error' };
 // Session-only drafts survive internal navigation, without writing unconfirmed
 // data to the saved record or carrying sample drafts into the user's database.
-const sessionDrafts = new Map<string, EditorDraft>();
 const sessionQueues = new Map<string, Promise<unknown>>();
+// Drafts outlive the editor, so leave protection must outlive it too.
+window.addEventListener('beforeunload', (event) => {
+  if (sessionDrafts.size > 0) { event.preventDefault(); event.returnValue = ''; }
+});
 
 // Rich-text notes: ProseMirror JSON in noteDoc, plain-text mirror in note
 // (search reads `note`). Debounced saves so typing isn't a write storm.
@@ -31,7 +34,6 @@ export default function NoteEditor(props: {
   const [saveState, setSaveState] = useState<'idle' | 'waiting' | 'saving' | 'saved' | 'error'>(initialDraft.current ? (initialDraft.current.status === 'pending' ? 'saving' : 'error') : 'idle');
   const [recovered, setRecovered] = useState(Boolean(initialDraft.current));
   const revision = useRef(initialDraft.current?.revision ?? 0);
-  const savedRevision = useRef(0);
   const mounted = useRef(true);
   const latest = useRef<EditorDraft | null>(initialDraft.current ?? null);
 
@@ -42,7 +44,6 @@ export default function NoteEditor(props: {
     const write = (sessionQueues.get(draftKey) ?? Promise.resolve()).catch(() => undefined).then(async () => {
       try {
         await saveRef.current(snapshot.doc, snapshot.text);
-        savedRevision.current = snapshot.revision;
         if (sessionDrafts.get(draftKey) === snapshot) sessionDrafts.delete(draftKey);
         if (mounted.current) setRecovered(false);
         window.dispatchEvent(new CustomEvent('lifedash-editor-save', { detail: { key: draftKey, snapshot, state: 'saved' } }));
@@ -82,21 +83,16 @@ export default function NoteEditor(props: {
   // Keep the last snapshot when the editor closes before the debounce fires.
   useEffect(() => {
     mounted.current = true;
-    const warn = (event: BeforeUnloadEvent) => {
-      if (savedRevision.current < revision.current) { event.preventDefault(); event.returnValue = ''; }
-    };
     const reconcile = (event: Event) => {
       const { key, snapshot, state } = (event as CustomEvent<{ key: string; snapshot: EditorDraft; state: 'saving' | 'saved' | 'error' }>).detail;
       if (key !== draftKey || latest.current !== snapshot) return;
       setSaveState(state);
-      if (state === 'saved') { savedRevision.current = snapshot.revision; setRecovered(false); }
+      if (state === 'saved') setRecovered(false);
     };
     window.addEventListener('lifedash-editor-save', reconcile);
-    window.addEventListener('beforeunload', warn);
     return () => {
       mounted.current = false;
       window.removeEventListener('lifedash-editor-save', reconcile);
-      window.removeEventListener('beforeunload', warn);
       if (saveTimer.current) {
         clearTimeout(saveTimer.current);
         saveTimer.current = null;

@@ -1,3 +1,4 @@
+import { discardDeletedEditorDraft } from './editorDrafts';
 import { exportAutomation, restoreAutomation, loadRules, rolloverTargets, shouldCompleteParent, loadUserRules, saveUserRules, tagRulesFor, weeklyRulesDue, hasOpenTitle } from './automation';
 import { reconcileRunningSessions } from './focus';
 import { hasProjectCycle, wouldCycle } from './projects';
@@ -186,9 +187,11 @@ export async function togglePin(task: Task): Promise<void> {
 }
 
 export async function deleteTask(task: Task): Promise<void> {
+  let deletedIds: string[] = [];
   await db.transaction('rw', db.tasks, db.attachments, async () => {
     const childIds = (await db.tasks.where('parentId').equals(task.id).primaryKeys()) as string[];
     const gone = new Set([task.id, ...childIds]);
+    deletedIds = [...gone];
     await db.tasks.where('parentId').equals(task.id).delete();
     await db.tasks.delete(task.id);
     await db.attachments.where('taskId').anyOf([...gone]).delete();
@@ -199,6 +202,7 @@ export async function deleteTask(task: Task): Promise<void> {
         t.blockedBy = (t.blockedBy ?? []).filter((id) => !gone.has(id));
       });
   });
+  for (const id of deletedIds) discardDeletedEditorDraft(db.name, 'tasks', id);
 }
 
 export async function addProject(name: string, color: string, parentId: string | null = null): Promise<Project> {
@@ -231,9 +235,12 @@ export async function updateProject(
 }
 
 export async function deleteProject(project: Project): Promise<void> {
+  let deletedIds: string[] = [];
   await db.transaction('rw', db.tasks, db.projects, async () => {
     const ids = await db.tasks.where('projectId').equals(project.id).primaryKeys();
     const idSet = new Set(ids as string[]);
+    const childIds = await db.tasks.where('parentId').anyOf([...idSet]).primaryKeys();
+    deletedIds = [...new Set([...ids, ...childIds])] as string[];
     await db.tasks.where('parentId').anyOf([...idSet]).delete();
     await db.tasks.where('projectId').equals(project.id).delete();
     // Approved policy (John, Oct 27): subprojects move up one level
@@ -241,6 +248,7 @@ export async function deleteProject(project: Project): Promise<void> {
     await db.projects.filter((p) => (p.parentId ?? null) === project.id).modify({ parentId: project.parentId ?? null });
     await db.projects.delete(project.id);
   });
+  for (const id of deletedIds) discardDeletedEditorDraft(db.name, 'tasks', id);
 }
 
 export async function exportJson(): Promise<string> {
@@ -465,6 +473,7 @@ export async function deleteNote(id: string): Promise<void> {
     // Tasks created from this note keep their text; drop the dead link.
     await db.tasks.where('noteId').equals(id).modify({ noteId: null });
   });
+  discardDeletedEditorDraft(db.name, 'notes', id);
 }
 
 export async function getOrCreateJournalEntry(date: string): Promise<JournalEntry> {
