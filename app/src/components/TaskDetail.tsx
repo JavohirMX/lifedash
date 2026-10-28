@@ -9,6 +9,7 @@ import TaskTags from './TaskTags';
 import TaskBlockers from './TaskBlockers';
 import TaskDelete from './TaskDelete';
 import TaskPriority from './TaskPriority';
+import TaskPin from './TaskPin';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { runningSession, sessionSeconds, focusTotals, formatClock, formatDuration } from '../focus';
 import { startFocus, stopFocus } from '../repo';
@@ -221,14 +222,7 @@ export default function TaskDetail(props: { taskId: string; onClose: () => void;
       {(task.skippedDates?.length ?? 0) > 0 && (
         <p className="date-sub">Skipped: {(task.skippedDates ?? []).join(', ')}</p>
       )}
-      <label className="field row">
-        <input
-          type="checkbox"
-          checked={task.pinned}
-          onChange={(e) => void updateTask(task.id, { pinned: e.target.checked })}
-        />
-        <span>Pinned to top</span>
-      </label>
+      <TaskPin id={task.id} pinned={task.pinned} />
 
       <div className="subs">
         <h3>Blocked by</h3>
