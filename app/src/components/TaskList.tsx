@@ -16,13 +16,23 @@ export default function TaskList(props: {
   projectLabelFor?: (t: Task) => string | undefined;
   onOpen: (id: string) => void;
   onTag?: (tag: string) => void;
-  onReorder?: (dragId: string, targetId: string, after: boolean) => void;
+  onReorder?: (dragId: string, targetId: string, after: boolean) => void | Promise<void>;
 }) {
   const [over, setOver] = useState<{ id: string; after: boolean } | null>(null);
   const [touchDrag, setTouchDrag] = useState<{ id: string; startY: number; dy: number } | null>(null);
   const press = useRef<{ id: string; y: number; timer: number } | null>(null);
   const listRef = useRef<HTMLDivElement>(null);
-  const dnd = !!props.onReorder;
+  const writing = useRef(false);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
+  const dnd = !!props.onReorder && !busy;
+  async function reorder(dragId: string, targetId: string, after: boolean) {
+    if (writing.current || !props.onReorder) return;
+    writing.current = true; setBusy(true); setError('');
+    try { await props.onReorder(dragId, targetId, after); }
+    catch { setError("Couldn't save the task order. Check the current order, then drag the task again."); }
+    finally { writing.current = false; setBusy(false); }
+  }
 
   const cancelPress = () => {
     if (press.current) window.clearTimeout(press.current.timer);
@@ -80,7 +90,7 @@ export default function TaskList(props: {
           setTouchDrag(null);
           setOver(null);
           cancelPress();
-          if (target) props.onReorder!(dragId, target.id, target.after);
+          if (target) void reorder(dragId, target.id, target.after);
         },
         onPointerCancel: () => {
           cancelPress();
@@ -90,7 +100,8 @@ export default function TaskList(props: {
       };
 
   return (
-    <div ref={listRef} onDragEnd={() => setOver(null)} style={touchDrag ? { touchAction: 'none' } : undefined} {...listTouchProps}>
+    <div aria-busy={busy} ref={listRef} onDragEnd={() => setOver(null)} style={touchDrag ? { touchAction: 'none' } : undefined} {...listTouchProps}>
+      {error && <p role="alert" className="task-feedback">{error}</p>}
       {props.tasks.map((t) => (
         <div
           key={t.id}
@@ -132,7 +143,7 @@ export default function TaskList(props: {
                   e.preventDefault();
                   const after = over?.id === t.id ? over.after : false;
                   setOver(null);
-                  props.onReorder!(id, t.id, after);
+                  void reorder(id, t.id, after);
                 }
               : undefined
           }

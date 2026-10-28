@@ -231,7 +231,7 @@ export default function App() {
         )}
         {list.length === 0 && <p className="empty">Nothing due today. Enjoy, or pull something in from Backlog.</p>}
         <TaskList tasks={list} allTasks={tasks} showDate onOpen={setOpenId} onTag={openTag}
-          onReorder={(dragId, targetId, after) => void moveTask(dragId, targetId, after, list)} />
+          onReorder={(dragId, targetId, after) => moveTask(dragId, targetId, after, list)} />
       </section>
     );
   } else if (selection.kind === 'upcoming') {
@@ -384,7 +384,7 @@ export default function App() {
         {list.length === 0 && <p className="empty">No active tasks in this project or its subprojects.</p>}
         <TaskList tasks={list} allTasks={tasks} showDate onOpen={setOpenId} onTag={openTag}
           projectLabelFor={(t) => (t.projectId !== selection.id ? projNameById.get(t.projectId) : undefined)}
-          onReorder={(dragId, targetId, after) => void moveTask(dragId, targetId, after, list)} />
+          onReorder={(dragId, targetId, after) => moveTask(dragId, targetId, after, list)} />
       </section>
     );
   }
