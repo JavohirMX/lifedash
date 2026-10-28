@@ -28,8 +28,8 @@ function downloadAttachment(a: Attachment): void {
   const link = document.createElement('a');
   link.href = url;
   link.download = a.name;
-  link.click();
-  setTimeout(() => URL.revokeObjectURL(url), 10_000);
+  try { link.click(); }
+  finally { setTimeout(() => URL.revokeObjectURL(url), 10_000); }
 }
 
 export default function Attachments(props: { taskId: string }) {
@@ -65,6 +65,16 @@ function TaskAttachments(props: { taskId: string }) {
     finally { writing.current = false; setBusy(false); }
   }
 
+  function download(a: Attachment) {
+    setError(''); setStatus('');
+    try {
+      downloadAttachment(a);
+      setStatus(`Download requested for ${a.name}. Check your browser's downloads.`);
+    } catch {
+      setError(`Couldn't start downloading ${a.name}. The attachment is still saved; try Download again.`);
+    }
+  }
+
   return (
     <div className="subs task-attachments" aria-busy={busy}>
       <h3>Attachments</h3>
@@ -74,7 +84,7 @@ function TaskAttachments(props: { taskId: string }) {
       {(atts ?? []).map((a) => (
         <div key={a.id} className="att-row">
           <Thumb att={a} />
-          <button className="att-name att-open" title={`Download ${a.name}`} aria-label={`Download ${a.name}`} onClick={() => downloadAttachment(a)}>{a.name}</button>
+          <button className="att-name att-open" title={`Download ${a.name}`} aria-label={`Download ${a.name}`} onClick={() => download(a)}>{a.name}</button>
           <span className="att-size">{fmtSize(a.byteSize)}</span>
           <button className="mini" title="Remove" aria-label={`Remove ${a.name}`} disabled={busy} onClick={() => void remove(a.id, a.name)}><X size={13} strokeWidth={2} /></button>
         </div>
