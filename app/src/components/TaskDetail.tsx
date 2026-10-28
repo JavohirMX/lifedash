@@ -11,6 +11,7 @@ import TaskDelete from './TaskDelete';
 import TaskPriority from './TaskPriority';
 import TaskPin from './TaskPin';
 import TaskLinkField from './TaskLinkField';
+import TaskDateField from './TaskDateField';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { runningSession, sessionSeconds, focusTotals, formatClock, formatDuration } from '../focus';
 import { startFocus, stopFocus } from '../repo';
@@ -128,24 +129,8 @@ export default function TaskDetail(props: { taskId: string; onClose: () => void;
           From note: {sourceNote.title || 'Untitled'}
         </button>
       )}
-      <label className="field">
-        <span>Due date</span>
-        <input
-          type="date"
-          value={task.dueDate ?? ''}
-          onChange={(e) => void updateTask(task.id, { dueDate: e.target.value || null })}
-        />
-      </label>
-      {task.dueDate && (
-        <label className="field">
-          <span>Time (optional - shows in Planner)</span>
-          <input
-            type="time"
-            value={task.dueTime ?? ''}
-            onChange={(e) => void updateTask(task.id, { dueTime: e.target.value || null })}
-          />
-        </label>
-      )}
+      <TaskDateField id={task.id} field="dueDate" value={task.dueDate ?? ''} label="Due date" type="date" />
+      {task.dueDate && <TaskDateField id={task.id} field="dueTime" value={task.dueTime ?? ''} label="Time (optional - shows in Planner)" type="time" />}
       <TaskLinkField id={task.id} field="projectId" value={task.projectId} label="Project">
           {projectTree(projects).map(({ project: p, depth }) => (
             <option key={p.id} value={p.id}>{' '.repeat(depth)}{depth > 0 ? '– ' : ''}{p.name}</option>
