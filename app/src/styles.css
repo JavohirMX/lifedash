@@ -1842,3 +1842,5 @@ main.tv-grid { max-width: none; width: 100%; }
 .task-tag-add { display: flex; gap: 8px; margin-top: 8px; align-items: center; }
 .task-tag-add .chip-input { min-width: 0; flex: 1; }
 .task-tag-add .mini { flex-shrink: 0; min-height: 44px; }
+
+.task-delete-feedback > .danger { width: 100%; }
