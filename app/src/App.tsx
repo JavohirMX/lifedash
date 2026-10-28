@@ -472,7 +472,7 @@ export default function App() {
           onOpenNote={(nid) => { setOpenId(null); setSelection({ kind: 'notes', openId: nid }); }}
         />
       )}
-      {importPreset !== false && <ImportDialog projects={projects} initialSource={importPreset} onClose={() => setImportPreset(false)} />}
+      {importPreset !== false && <ImportDialog projects={projects} initialSource={importPreset} onRestoreSettled={() => { setRules(loadRules()); setUserRules(loadUserRules()); }} onClose={() => setImportPreset(false)} />}
       {automationOpen && <AutomationDialog weeklyFailed={weeklyFailed} onDismissWeekly={() => setWeeklyFailed(false)} rolloverFailed={rolloverFailed} onDismissRollover={() => setRolloverFailed(false)} rules={rules} onChange={changeRules} userRules={userRules} onUserRulesChange={changeUserRules} onClose={() => setAutomationOpen(false)} />}
       {aiOpen && <AssistantDialog tasks={tasks} onClose={() => setAiOpen(false)} />}
       {syncOpen && <SyncDialog onClose={() => setSyncOpen(false)} onBack={settingsChild === 'sync' ? () => { setSyncOpen(false); setSettingsOpen(true); } : undefined} />}

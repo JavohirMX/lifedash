@@ -13,7 +13,7 @@ const SOURCES: { id: ImportSource; label: string }[] = [
   { id: 'lifedash-json', label: 'Lifedash JSON export' },
 ];
 
-export default function ImportDialog(props: { projects: Project[]; initialSource?: ImportSource | null; onClose: () => void }) {
+export default function ImportDialog(props: { projects: Project[]; initialSource?: ImportSource | null; onClose: () => void; onRestoreSettled?: () => void }) {
   const [text, setText] = useState('');
   const [filename, setFilename] = useState('');
   const [source, setSource] = useState<ImportSource | null>(props.initialSource ?? null);
@@ -86,7 +86,7 @@ export default function ImportDialog(props: { projects: Project[]; initialSource
     setRestoreError('');
     try { setRestored((await importBackup(text)).restored); }
     catch (e) { setRestoreError(e instanceof Error ? e.message : 'Restore failed. Nothing was restored.'); }
-    finally { writing.current = false; setBusy(false); }
+    finally { writing.current = false; setBusy(false); props.onRestoreSettled?.(); }
   }
 
   async function run() {
