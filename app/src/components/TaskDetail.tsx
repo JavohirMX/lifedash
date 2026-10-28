@@ -8,6 +8,7 @@ import TaskTitle from './TaskTitle';
 import TaskTags from './TaskTags';
 import TaskBlockers from './TaskBlockers';
 import TaskDelete from './TaskDelete';
+import TaskPriority from './TaskPriority';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { runningSession, sessionSeconds, focusTotals, formatClock, formatDuration } from '../focus';
 import { startFocus, stopFocus } from '../repo';
@@ -154,19 +155,7 @@ export default function TaskDetail(props: { taskId: string; onClose: () => void;
           ))}
         </select>
       </label>
-      <label className="field">
-        <span>Priority</span>
-        <select
-          aria-label="Priority"
-          value={task.priority}
-          onChange={(e) => void updateTask(task.id, { priority: Number(e.target.value) })}
-        >
-          <option value={0}>None</option>
-          <option value={1}>P1 - high</option>
-          <option value={2}>P2 - medium</option>
-          <option value={3}>P3 - low</option>
-        </select>
-      </label>
+      <TaskPriority id={task.id} priority={task.priority} />
       <label className="field">
         <span>Goal</span>
         <select
