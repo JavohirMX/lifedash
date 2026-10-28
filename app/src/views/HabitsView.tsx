@@ -66,6 +66,19 @@ export default function HabitsView() {
     finally { writing.current = false; setSaving(null); }
   }
 
+  const checking = useRef(new Set<string>());
+  const [checkPending, setCheckPending] = useState<Set<string>>(new Set());
+  const [checkErrors, setCheckErrors] = useState<Record<string, string>>({});
+  async function toggleCheck(habitId: string, date: string) {
+    const key = `${habitId}:${date}`;
+    if (checking.current.has(key)) return;
+    checking.current.add(key); setCheckPending(new Set(checking.current));
+    setCheckErrors(current => { const next = { ...current }; delete next[key]; return next; });
+    try { await toggleHabitForDate(habitId, date); }
+    catch { setCheckErrors(current => ({ ...current, [key]: `Couldn't save the check-in for ${date}. Try that day again.` })); }
+    finally { checking.current.delete(key); setCheckPending(new Set(checking.current)); }
+  }
+
   function toggleWd(d: number) {
     const cur = weekdays ?? [0, 1, 2, 3, 4, 5, 6];
     const next = cur.includes(d) ? cur.filter((x) => x !== d) : [...cur, d].sort();
@@ -201,8 +214,8 @@ export default function HabitsView() {
                         title={`${c.date}${c.scheduled ? (c.done ? ' - tap to undo' : ' - tap to mark done') : ' (not scheduled)'}`}
                         aria-label={`${c.done ? 'Unmark' : 'Mark'} ${h.name} for ${c.date}`}
                         aria-pressed={c.done}
-                        disabled={!c.scheduled}
-                        onClick={() => void toggleHabitForDate(h.id, c.date)}
+                        disabled={!c.scheduled || checkPending.has(`${h.id}:${c.date}`)}
+                        onClick={() => void toggleCheck(h.id, c.date)}
                       />
                       <span className="cell-label">{c.date === grid[0].date || c.date.endsWith('-01')
                         ? parseLocalDate(c.date).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
@@ -213,11 +226,14 @@ export default function HabitsView() {
                 {scheduledToday && (
                   <button
                     className={`habit-toggle ${doneToday ? 'done' : ''}`}
-                    onClick={() => void toggleHabitForDate(h.id, today)}
+                    disabled={checkPending.has(`${h.id}:${today}`)}
+                    onClick={() => void toggleCheck(h.id, today)}
                   >
                     {doneToday ? 'Done today' : 'Mark done'}
                   </button>
                 )}
+                {[...checkPending].some(key => key.startsWith(`${h.id}:`)) && <p className="workflow-hint" role="status">Saving check-in…</p>}
+                {Object.entries(checkErrors).filter(([key]) => key.startsWith(`${h.id}:`)).map(([key, error]) => <p key={key} className="form-save-error" role="alert">{error}</p>)}
                 {!scheduledToday && <span className="att-size">not scheduled today</span>}
               </div>
             </div>
