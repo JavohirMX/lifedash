@@ -1817,3 +1817,13 @@ main.tv-grid { max-width: none; width: 100%; }
 
 .project-save-feedback { font-size: var(--fs-small); line-height: 1.5; overflow-wrap: anywhere; margin: 4px 0; }
 @media(max-width:700px) { .project-add > .mini { min-height: 44px; } }
+
+.note-title-field { flex: 1; min-width: 0; }
+.note-title-field .note-title-input { width: 100%; }
+.note-title-status, .note-title-error { display: block; font-size: var(--fs-small); line-height: 1.5; font-weight: 400; color: var(--muted); }
+.note-title-status:empty { display: none; }
+.note-title-error p { margin: 6px 0; }
+@media (max-width: 700px) {
+  .note-title-field { flex: 1 1 100%; }
+  .note-title-error .mini { min-height: 44px; }
+}

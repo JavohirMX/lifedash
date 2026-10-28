@@ -8,6 +8,7 @@ import { addNote, updateNote, deleteNote, addTasksFromNoteChecklist } from '../r
 import { extractChecklistItems, searchNotes } from '../logic';
 import { db } from '../db';
 import NoteEditor from '../components/NoteEditor';
+import NoteTitle, { discardDeletedNoteTitle } from '../components/NoteTitle';
 
 function excerpt(text: string, n = 90): string {
   const t = text.replace(/\s+/g, ' ').trim();
@@ -118,13 +119,7 @@ export default function NotesView(props: { initialOpenId?: string }) {
             <div ref={editorPane} className="note-editor-pane">
               <button className="mini note-back-list" onClick={() => { setOpenId(null); requestAnimationFrame(() => noteList.current?.scrollIntoView({ block: 'start' })); }}>Back to notes</button>
               <div className="note-editor-head">
-                <input
-                  className="note-title-input"
-                  value={open.title}
-                  placeholder="Note title"
-                  aria-label="Note title"
-                  onChange={(e) => void updateNote(open.id, { title: e.target.value })}
-                />
+                <NoteTitle id={open.id} title={open.title} />
                 {extractChecklistItems(open.noteDoc).length > 0 && (
                   <button
                     className="icon-btn"
@@ -161,7 +156,7 @@ export default function NotesView(props: { initialOpenId?: string }) {
                   title="Delete"
                   onClick={() => {
                     if (!window.confirm(`Delete note ${open.title || 'Untitled'}? This cannot be undone.`)) return;
-                    void deleteNote(open.id);
+                    void deleteNote(open.id).then(() => discardDeletedNoteTitle(open.id), () => undefined);
                     setOpenId(null);
                   }}
                 >
