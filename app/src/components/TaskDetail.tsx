@@ -13,11 +13,12 @@ import TaskPin from './TaskPin';
 import TaskLinkField from './TaskLinkField';
 import TaskDateField from './TaskDateField';
 import TaskRecurrence from './TaskRecurrence';
+import TaskSkip from './TaskSkip';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { runningSession, sessionSeconds, focusTotals, formatClock, formatDuration } from '../focus';
 import { startFocus, stopFocus } from '../repo';
 import { db, INBOX_ID } from '../db';
-import { addTask, skipTask, updateTask } from '../repo';
+import { addTask, updateTask } from '../repo';
 import { todayStr } from '../dates';
 import { projectTree } from '../projects';
 
@@ -122,13 +123,7 @@ export default function TaskDetail(props: { taskId: string; onClose: () => void;
           )}
       </TaskLinkField>
       <TaskRecurrence task={task} />
-      {task.recurrence && task.dueDate && task.status !== 'done' && (
-        <div className="field row">
-          <button className="btn-secondary" onClick={() => void skipTask(task)}>
-            Skip this occurrence
-          </button>
-        </div>
-      )}
+      {task.recurrence && task.dueDate && task.status !== 'done' && <TaskSkip task={task} />}
       {(task.skippedDates?.length ?? 0) > 0 && (
         <p className="date-sub">Skipped: {(task.skippedDates ?? []).join(', ')}</p>
       )}
