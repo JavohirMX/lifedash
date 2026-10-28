@@ -1832,3 +1832,9 @@ main.tv-grid { max-width: none; width: 100%; }
 .highlight-save-error .mini { min-height: 44px; }
 
 .mood-save-error .mini { min-height: 44px; margin-bottom: 12px; }
+
+.task-title-field { min-width: 0; }
+.task-title-status, .task-title-error { display: block; font-size: var(--fs-small); line-height: 1.5; font-weight: 400; color: var(--muted); }
+.task-title-status:empty { display: none; }
+.task-title-error p { margin: 6px 0; }
+.task-title-error .mini { min-height: 44px; margin-bottom: 12px; }

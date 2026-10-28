@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import NoteEditor from './NoteEditor';
 import Attachments from './Attachments';
 import SubtaskAdd from './SubtaskAdd';
+import TaskTitle from './TaskTitle';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { runningSession, sessionSeconds, focusTotals, formatClock, formatDuration } from '../focus';
 import { startFocus, stopFocus } from '../repo';
@@ -99,12 +100,7 @@ export default function TaskDetail(props: { taskId: string; onClose: () => void;
       <div className="detail-head">
         <button className="close" aria-label="Close task details" onClick={props.onClose}><X size={16} strokeWidth={2} /></button>
       </div>
-      <input
-        className="detail-title"
-        aria-label="Task title"
-        value={task.title}
-        onChange={(e) => void updateTask(task.id, { title: e.target.value })}
-      />
+      <TaskTitle id={task.id} title={task.title} />
       <div className="focus-section" aria-label="Focus timer">
         {runningHere && running ? (
           <>
