@@ -1,0 +1,3 @@
+# Shared dialog composing keys
+
+Reproduced Import dropping unsaved source when synthetic composing Escape reached shared dialog hook. Early isComposing return leaves Escape and Tab to input method. Normal Escape and Tab trap unchanged. Six viewport/theme groups preserve source, leave synthetic composing Tab uncancelled and verify normal Tab/Escape. Existing Settings/Appearance/Import/Automation focus tests pass at desktop/phone.315tests/build pass.390light/320dark screenshots inspected readable source and preview. Synthetic Chromium events only; native OS IME not verified. Does not address other nested-dialog shortcuts or keyCode229 fallbacks.

@@ -25,6 +25,8 @@ export function useDialogFocus<T extends HTMLElement = HTMLDivElement>(
     target?.focus();
 
     const onKey = (e: KeyboardEvent) => {
+      // Candidate selection/cancellation belongs to the input method.
+      if (e.isComposing) return;
       if (e.key === 'Escape') {
         onClose();
         return;
