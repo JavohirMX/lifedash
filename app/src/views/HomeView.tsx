@@ -1,5 +1,5 @@
 import './home.css';
-import { requestComplete } from '../completionPrompt';
+import CompletionButton from '../components/CompletionButton';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { useEffect, useState } from 'react';
 import { Check, ArrowRight, Target, SlidersHorizontal, Zap } from 'lucide-react';
@@ -140,11 +140,7 @@ export default function HomeView(props: { tasks: Task[]; onSelect: (kind: string
             <span className="focus-reason">{suggestion.reason}</span>
           </div>
           <div className="focus-task">
-            <button
-              className="checkbox home-check"
-              aria-label={`Mark ${suggestion.task.title} done`}
-              onClick={() => void requestComplete(suggestion.task)}
-            />
+            <CompletionButton task={suggestion.task} className="checkbox home-check" label={`Mark ${suggestion.task.title} done`} />
             <button className="focus-title" onClick={() => props.onOpen(suggestion.task.id)}>
               {suggestion.task.title}
             </button>
@@ -177,7 +173,7 @@ export default function HomeView(props: { tasks: Task[]; onSelect: (kind: string
               <ul className="widget-list">
                 {next.map((t) => (
                   <li key={t.id}>
-                    <button className="checkbox home-check" aria-label={`Complete ${t.title}`} onClick={() => void requestComplete(t)} />
+                    <CompletionButton task={t} className="checkbox home-check" label={`Complete ${t.title}`} />
                     <div className="home-task-copy"><button className="widget-task" onClick={() => props.onOpen(t.id)}>{t.title}</button><span className="home-task-meta">{t.dueDate && t.dueDate < today ? 'Overdue' : t.dueTime ?? 'Anytime'}{(t.blockedBy ?? []).some(id => props.tasks.some(b => b.id === id && b.status === 'active')) ? ' · Blocked' : ''}{t.recurrence ? ' · Repeats' : ''}</span></div>
                   </li>
                 ))}
@@ -269,9 +265,9 @@ export default function HomeView(props: { tasks: Task[]; onSelect: (kind: string
                 <ul className="widget-list">
                   {dayTasks(drillDate).map((t) => (
                     <li key={t.id}>
-                      <button className={`checkbox home-check ${t.status === 'done' ? 'checked' : ''}`} aria-label={t.status === 'done' ? 'Mark not done' : 'Mark done'} onClick={() => void requestComplete(t)}>
+                      <CompletionButton task={t} className={`checkbox home-check ${t.status === 'done' ? 'checked' : ''}`} label={t.status === 'done' ? 'Mark not done' : 'Mark done'}>
                         {t.status === 'done' ? <Check size={13} strokeWidth={2.5} aria-hidden="true" /> : null}
-                      </button>
+                      </CompletionButton>
                       <button className={`widget-task ${t.status === 'done' ? 'done' : ''}`} onClick={() => props.onOpen(t.id)}>{t.title}</button>
                     </li>
                   ))}
