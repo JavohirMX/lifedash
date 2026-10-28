@@ -1,5 +1,5 @@
 import './workflow.css';
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { Check, ChevronDown, ChevronRight, Pencil, Plus, Target, X } from 'lucide-react';
 import { db } from '../db';
@@ -16,6 +16,12 @@ function goalProgress(tasks: Task[], goalId: string): { done: number; total: num
 export default function GoalsView(props: { tasks: Task[]; onOpen: (id: string) => void }) {
   const goals = useLiveQuery(() => db.goals.orderBy('order').toArray(), []);
   const [adding, setAdding] = useState(false);
+  const writing = useRef(false);
+  const [saving, setSaving] = useState<'create' | 'edit' | null>(null);
+  const [createError, setCreateError] = useState('');
+  const [editError, setEditError] = useState('');
+  const [saveStatus, setSaveStatus] = useState('');
+
   const [title, setTitle] = useState('');
   const [target, setTarget] = useState('');
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -24,40 +30,52 @@ export default function GoalsView(props: { tasks: Task[]; onOpen: (id: string) =
   const [editTarget, setEditTarget] = useState('');
 
   function startEdit(g: Goal) {
+    if (writing.current) return;
+    setEditError(''); setSaveStatus('');
     setEditingId(g.id);
     setEditTitle(g.title);
     setEditTarget(g.targetDate ?? '');
   }
 
-  function saveEdit() {
-    if (!editingId || !editTitle.trim()) return;
-    void updateGoal(editingId, { title: editTitle.trim(), targetDate: editTarget || null });
-    setEditingId(null);
+  async function saveEdit() {
+    if (writing.current || !editingId || !editTitle.trim()) return;
+    writing.current = true; setSaving('edit'); setEditError(''); setSaveStatus('');
+    try {
+      await updateGoal(editingId, { title: editTitle.trim(), targetDate: editTarget || null });
+      setEditingId(null);
+      setSaveStatus('Saved goal on this device.');
+    } catch { setEditError("Couldn't save this goal. Your changes are still here. Try Save again."); }
+    finally { writing.current = false; setSaving(null); }
   }
   const today = todayStr();
 
   const active = (goals ?? []).filter((g) => g.status === 'active');
   const done = (goals ?? []).filter((g) => g.status === 'done');
 
-  function submit() {
-    if (!title.trim()) return;
-    void addGoal(title, target || null);
-    setTitle('');
-    setTarget('');
-    setAdding(false);
+  async function submit() {
+    if (writing.current || !title.trim()) return;
+    writing.current = true; setSaving('create'); setCreateError(''); setSaveStatus('');
+    try {
+      await addGoal(title, target || null);
+      setTitle(''); setTarget('');
+      setAdding(false);
+      setSaveStatus('Added goal on this device.');
+    } catch { setCreateError("Couldn't add this goal. Your entries are still here. Try Add goal again."); }
+    finally { writing.current = false; setSaving(null); }
   }
 
   return (
     <section>
       <h1>
         Goals <span className="date-sub">{active.length} active</span>
-        <button className="mini" style={{ marginLeft: 'auto' }} onClick={() => setAdding(!adding)} aria-label="New goal">
+        <button className="mini" style={{ marginLeft: 'auto' }} disabled={saving !== null} onClick={() => { setAdding(!adding); setCreateError(''); setSaveStatus(''); }} aria-label="New goal">
           <Plus size={14} strokeWidth={2} aria-hidden="true" /> Goal
         </button>
       </h1>
       <p className="workflow-hint">Link a task to a goal from Task details → Goal. Progress follows those linked tasks; marking a goal done is separate.</p>
+      <p className="form-save-status" role="status">{saving ? 'Saving…' : saveStatus}</p>
       {adding && (
-        <div className="goal-add">
+        <fieldset className="goal-add save-form" disabled={saving !== null} aria-busy={saving === 'create'}>
           <input
             autoFocus
             value={title}
@@ -65,14 +83,15 @@ export default function GoalsView(props: { tasks: Task[]; onOpen: (id: string) =
             aria-label="New goal title"
             onChange={(e) => setTitle(e.target.value)}
             onKeyDown={(e) => {
-              if (e.key === 'Enter') submit();
+              if (e.key === 'Enter' && !e.nativeEvent.isComposing) void submit();
               if (e.key === 'Escape') setAdding(false);
             }}
           />
           <input type="date" value={target} aria-label="Target date (optional)" onChange={(e) => setTarget(e.target.value)} />
           <button className="btn-primary" onClick={submit} disabled={!title.trim()}>Add goal</button>
           <button className="mini" onClick={() => setAdding(false)}>Cancel</button>
-        </div>
+        {createError && <p className="form-save-error" role="alert">{createError}</p>}
+        </fieldset>
       )}
       {active.length === 0 && !adding && (
         <div className="empty goals-empty">
@@ -90,33 +109,34 @@ export default function GoalsView(props: { tasks: Task[]; onOpen: (id: string) =
               <div className="goal-top">
                 <strong>{g.title}</strong>
                 <div className="goal-actions">
-                  <button className="icon-btn" aria-label={`Edit ${g.title}`} title="Edit"
+                  <button className="icon-btn" aria-label={`Edit ${g.title}`} title="Edit" disabled={saving !== null}
                     onClick={() => (editingId === g.id ? setEditingId(null) : startEdit(g))}>
                     <Pencil size={15} strokeWidth={2} />
                   </button>
-                  <button className="icon-btn" aria-label={`Mark ${g.title} done`} title="Mark done"
+                  <button className="icon-btn" aria-label={`Mark ${g.title} done`} title="Mark done" disabled={saving !== null}
                     onClick={() => void updateGoal(g.id, { status: 'done' })}>
                     <Check size={15} strokeWidth={2} />
                   </button>
-                  <button className="icon-btn" aria-label={`Archive ${g.title}`} title="Archive"
+                  <button className="icon-btn" aria-label={`Archive ${g.title}`} title="Archive" disabled={saving !== null}
                     onClick={() => void updateGoal(g.id, { status: 'archived' })}>
                     <X size={15} strokeWidth={2} />
                   </button>
                 </div>
               </div>
               {editingId === g.id ? (
-                <div className="goal-add goal-edit">
+                <fieldset className="goal-add goal-edit save-form" disabled={saving !== null} aria-busy={saving === 'edit'}>
                   <input
                     autoFocus
                     value={editTitle}
                     aria-label="Goal title"
                     onChange={(e) => setEditTitle(e.target.value)}
-                    onKeyDown={(e) => { if (e.key === 'Enter') saveEdit(); if (e.key === 'Escape') setEditingId(null); }}
+                    onKeyDown={(e) => { if (e.key === 'Enter' && !e.nativeEvent.isComposing) void saveEdit(); if (e.key === 'Escape') setEditingId(null); }}
                   />
                   <input type="date" value={editTarget} aria-label="Target date (optional)" onChange={(e) => setEditTarget(e.target.value)} />
                   <button className="btn-primary" onClick={saveEdit} disabled={!editTitle.trim()}>Save</button>
                   <button className="mini" onClick={() => setEditingId(null)}>Cancel</button>
-                </div>
+                {editError && <p className="form-save-error" role="alert">{editError}</p>}
+                </fieldset>
               ) : (
                 <>
                   <div className="progress"><div className="progress-fill" style={{ width: `${pct}%` }} /></div>

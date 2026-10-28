@@ -1,5 +1,5 @@
 import './workflow.css';
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { ChevronDown, ChevronRight, Flame, Plus } from 'lucide-react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db } from '../db';
@@ -15,6 +15,12 @@ export default function HabitsView() {
   const habits = useLiveQuery(() => db.habits.orderBy('order').toArray(), []);
   const logs = useLiveQuery(() => db.habitLogs.toArray(), []);
   const [adding, setAdding] = useState(false);
+  const writing = useRef(false);
+  const [saving, setSaving] = useState<'create' | 'edit' | null>(null);
+  const [createError, setCreateError] = useState('');
+  const [editError, setEditError] = useState('');
+  const [saveStatus, setSaveStatus] = useState('');
+
   const [name, setName] = useState('');
   const [weekdays, setWeekdays] = useState<number[] | null>(null); // null = daily
 
@@ -27,6 +33,8 @@ export default function HabitsView() {
   const [editWeekdays, setEditWeekdays] = useState<number[] | null>(null);
 
   function startEdit(h: { id: string; name: string; weekdays: number[] | null }) {
+    if (writing.current) return;
+    setEditError(''); setSaveStatus('');
     setEditingId(h.id);
     setEditName(h.name);
     setEditWeekdays(h.weekdays);
@@ -38,10 +46,15 @@ export default function HabitsView() {
     setEditWeekdays(next.length === 7 ? null : next);
   }
 
-  function saveEdit() {
-    if (!editingId || !editName.trim()) return;
-    void updateHabit(editingId, { name: editName, weekdays: editWeekdays });
-    setEditingId(null);
+  async function saveEdit() {
+    if (writing.current || !editingId || !editName.trim()) return;
+    writing.current = true; setSaving('edit'); setEditError(''); setSaveStatus('');
+    try {
+      await updateHabit(editingId, { name: editName, weekdays: editWeekdays });
+      setEditingId(null);
+      setSaveStatus('Saved habit on this device.');
+    } catch { setEditError("Couldn't save this habit. Your changes are still here. Try Save again."); }
+    finally { writing.current = false; setSaving(null); }
   }
 
   function toggleWd(d: number) {
@@ -50,23 +63,30 @@ export default function HabitsView() {
     setWeekdays(next.length === 7 ? null : next);
   }
 
-  function submitHabit() {
-    if (!name.trim()) return;
-    void addHabit(name, COLORS[active.length % COLORS.length], weekdays);
-    setName(''); setWeekdays(null); setAdding(false);
+  async function submitHabit() {
+    if (writing.current || !name.trim()) return;
+    writing.current = true; setSaving('create'); setCreateError(''); setSaveStatus('');
+    try {
+      await addHabit(name, COLORS[active.length % COLORS.length], weekdays);
+      setName(''); setWeekdays(null);
+      setAdding(false);
+      setSaveStatus('Added habit on this device.');
+    } catch { setCreateError("Couldn't add this habit. Your entries are still here. Try Add habit again."); }
+    finally { writing.current = false; setSaving(null); }
   }
 
   return (
     <section>
       <h1>
         Habits
-        <button className="mini" style={{ marginLeft: 'auto' }} onClick={() => setAdding(!adding)}>
+        <button className="mini" style={{ marginLeft: 'auto' }} disabled={saving !== null} onClick={() => { setAdding(!adding); setCreateError(''); setSaveStatus(''); }}>
           {adding ? 'Cancel' : <><Plus size={14} strokeWidth={2} aria-hidden="true" /> New habit</>}
         </button>
       </h1>
 
+      <p className="form-save-status" role="status">{saving ? 'Saving…' : saveStatus}</p>
       {adding && (
-        <div className="habit-add">
+        <fieldset className="habit-add save-form" disabled={saving !== null} aria-busy={saving === 'create'}>
           <input
             autoFocus
             value={name}
@@ -74,7 +94,7 @@ export default function HabitsView() {
             aria-label="New habit name"
             onChange={(e) => setName(e.target.value)}
             onKeyDown={(e) => {
-              if (e.key === 'Enter') submitHabit();
+              if (e.key === 'Enter' && !e.nativeEvent.isComposing) void submitHabit();
               if (e.key === 'Escape') setAdding(false);
             }}
           />
@@ -93,7 +113,8 @@ export default function HabitsView() {
             <button className="btn-primary" disabled={!name.trim()} onClick={submitHabit}>Add habit</button>
             <button className="mini" onClick={() => setAdding(false)}>Cancel</button>
           </div>
-        </div>
+        {createError && <p className="form-save-error" role="alert">{createError}</p>}
+        </fieldset>
       )}
 
       {active.length === 0 && !adding && (
@@ -127,21 +148,21 @@ export default function HabitsView() {
                   </span>
                 )}
                 </div><div className="habit-actions">
-                <button className="mini" title="Edit habit" onClick={() => (editingId === h.id ? setEditingId(null) : startEdit(h))}>
+                <button className="mini" title="Edit habit" disabled={saving !== null} onClick={() => (editingId === h.id ? setEditingId(null) : startEdit(h))}>
                   {editingId === h.id ? 'Close' : 'Edit'}
                 </button>
-                <button className="mini" title="Archive habit" onClick={() => void archiveHabit(h.id)}>
+                <button className="mini" title="Archive habit" disabled={saving !== null} onClick={() => void archiveHabit(h.id)}>
                   Archive
                 </button></div>
               </div>
               {editingId === h.id && (
-                <div className="habit-add habit-edit">
+                <fieldset className="habit-add habit-edit save-form" disabled={saving !== null} aria-busy={saving === 'edit'}>
                   <input
                     autoFocus
                     value={editName}
                     aria-label="Habit name"
                     onChange={(e) => setEditName(e.target.value)}
-                    onKeyDown={(e) => { if (e.key === 'Enter') saveEdit(); if (e.key === 'Escape') setEditingId(null); }}
+                    onKeyDown={(e) => { if (e.key === 'Enter' && !e.nativeEvent.isComposing) void saveEdit(); if (e.key === 'Escape') setEditingId(null); }}
                   />
                   <div className="wd-picker">
                     {DAY_LETTERS.map((l, i) => {
@@ -158,7 +179,8 @@ export default function HabitsView() {
                     <button className="mini" onClick={saveEdit} disabled={!editName.trim()}>Save</button>
                     <button className="mini" onClick={() => setEditingId(null)}>Cancel</button>
                   </div>
-                </div>
+                {editError && <p className="form-save-error" role="alert">{editError}</p>}
+                </fieldset>
               )}
               <div className="habit-body">
                 <div className="grid7">

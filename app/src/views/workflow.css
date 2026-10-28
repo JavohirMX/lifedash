@@ -18,3 +18,10 @@
  .note-editor-pane > .note-back-list { display: inline-flex; min-height: 44px; align-items: center; margin-bottom: 10px; }
  .goal-add > button { min-height: 44px; }
 }
+
+/* Write forms stay visible until their local save finishes. */
+fieldset.goal-add.save-form { padding: 0; }
+fieldset.save-form { min-width: 0; border: 0; margin-inline: 0; }
+.form-save-status { color: var(--muted); font-size: var(--fs-small); line-height: 1.5; }
+.form-save-status:empty { display: none; }
+.form-save-error { flex-basis: 100%; color: var(--text); font-size: var(--fs-small); line-height: 1.5; margin: 6px 0; }
