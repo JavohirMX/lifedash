@@ -89,7 +89,7 @@ export default function QuickAdd(props: { projectId: string; dueDate?: string | 
             id={fieldId}
             ref={inputRef}
             value={title}
-            placeholder={props.placeholder ?? 'Add a task, press Enter'}
+            placeholder={props.placeholder ?? 'Add a task'}
             aria-describedby={`${fieldId}-hint${error ? ` ${fieldId}-error` : ''}`}
             aria-invalid={error ? true : undefined}
             onChange={(e) => { setTitle(e.target.value); setError(''); setStatus(''); }}
@@ -102,7 +102,7 @@ export default function QuickAdd(props: { projectId: string; dueDate?: string | 
         <button type="submit" className="mini quick-add-submit" disabled={!title.trim()}>Add</button>
       </form>
       <div id={`${fieldId}-hint`} className="quick-add-hint" aria-live="polite">
-        {hint ?? 'Use dates, times and #tags. Enter or Add to save.'}
+        {hint ?? 'Dates, times and #tags supported'}
       </div>
       {error && <p id={`${fieldId}-error`} className="quick-add-error" role="alert">{error}</p>}
       <div className="quick-add-status" role="status">{pending ? `Saving ${pending} ${pending === 1 ? 'task' : 'tasks'}…` : status}</div>

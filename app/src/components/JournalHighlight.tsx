@@ -42,7 +42,7 @@ function HighlightInput(props: { date: string; value: string }) {
   }
   return <div className="highlight-save-field">
     <label className="highlight-field">
-      <span className="highlight-label">Today's highlight (optional one-liner, shows on the TV)</span>
+      <span className="highlight-label">Today's highlight (also shown on TV)</span>
       <input type="text" value={value} placeholder="One line about today"
         onChange={event => { const next = event.target.value; setValue(next); drafts.set(key, { value: next, state: 'editing' }); setState('editing'); }}
         onKeyDown={event => { if (event.key === 'Enter' && !event.nativeEvent.isComposing) save(); }}

@@ -1,0 +1,3 @@
+# Clean capture and highlight labels pass3
+
+Remove duplicate Enter/save instruction from QuickAdd placeholder/helper; keep task label/Add button and dates/times/tags affordance. Parsed schedule preview unchanged. Highlight label removes redundant optional one-liner explanation but retains TV visibility fact beside field. No features/ARIA/persistence behavior changed.4surface+6capture+6highlightgroups/317tests/build PASS. Updated390light capture/390dark journal screenshots inspected readable. Desktop/mobilelight/dark surface captures generated. First/second passes accepted independently; this patch only QuickAdd+highlight text, not overlap. No fullUI completion claim.
