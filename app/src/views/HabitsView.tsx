@@ -16,7 +16,7 @@ export default function HabitsView() {
   const logs = useLiveQuery(() => db.habitLogs.toArray(), []);
   const [adding, setAdding] = useState(false);
   const writing = useRef(false);
-  const [saving, setSaving] = useState<'create' | 'edit' | null>(null);
+  const [saving, setSaving] = useState<'create' | 'edit' | 'archive' | null>(null);
   const [createError, setCreateError] = useState('');
   const [editError, setEditError] = useState('');
   const [saveStatus, setSaveStatus] = useState('');
@@ -57,6 +57,15 @@ export default function HabitsView() {
     finally { writing.current = false; setSaving(null); }
   }
 
+  const [archiveError, setArchiveError] = useState('');
+  async function changeArchived(habit: { id: string; name: string }, archived: boolean) {
+    if (writing.current) return;
+    writing.current = true; setSaving('archive'); setArchiveError(''); setSaveStatus('');
+    try { if (archived) await archiveHabit(habit.id); else await restoreHabit(habit.id); }
+    catch { setArchiveError(`Couldn't ${archived ? 'archive' : 'restore'} "${habit.name}". Try the same button again.`); }
+    finally { writing.current = false; setSaving(null); }
+  }
+
   function toggleWd(d: number) {
     const cur = weekdays ?? [0, 1, 2, 3, 4, 5, 6];
     const next = cur.includes(d) ? cur.filter((x) => x !== d) : [...cur, d].sort();
@@ -85,6 +94,7 @@ export default function HabitsView() {
       </h1>
 
       <p className="form-save-status" role="status">{saving ? 'Saving…' : saveStatus}</p>
+      {archiveError && <p className="form-save-error" role="alert">{archiveError}</p>}
       {adding && (
         <fieldset className="habit-add save-form" disabled={saving !== null} aria-busy={saving === 'create'}>
           <input
@@ -151,7 +161,7 @@ export default function HabitsView() {
                 <button className="mini" title="Edit habit" disabled={saving !== null} onClick={() => (editingId === h.id ? setEditingId(null) : startEdit(h))}>
                   {editingId === h.id ? 'Close' : 'Edit'}
                 </button>
-                <button className="mini" title="Archive habit" disabled={saving !== null} onClick={() => void archiveHabit(h.id)}>
+                <button className="mini" title="Archive habit" disabled={saving !== null} onClick={() => void changeArchived(h, true)}>
                   Archive
                 </button></div>
               </div>
@@ -224,7 +234,7 @@ export default function HabitsView() {
                 <div key={h.id} className="archived-row">
                   <span className="dot" style={{ background: h.color }} />
                   <span className="habit-name">{h.name}</span>
-                  <button className="mini" onClick={() => void restoreHabit(h.id)}>Restore</button>
+                  <button className="mini" disabled={saving !== null} onClick={() => void changeArchived(h, false)}>Restore</button>
                 </div>
               ))}
             </div>
