@@ -14,9 +14,9 @@ import TaskLinkField from './TaskLinkField';
 import TaskDateField from './TaskDateField';
 import TaskRecurrence from './TaskRecurrence';
 import TaskSkip from './TaskSkip';
+import TaskFocus from './TaskFocus';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { runningSession, sessionSeconds, focusTotals, formatClock, formatDuration } from '../focus';
-import { startFocus, stopFocus } from '../repo';
 import { db, INBOX_ID } from '../db';
 import { addTask, updateTask } from '../repo';
 import { todayStr } from '../dates';
@@ -79,23 +79,13 @@ export default function TaskDetail(props: { taskId: string; onClose: () => void;
         <button className="close" aria-label="Close task details" onClick={props.onClose}><X size={16} strokeWidth={2} /></button>
       </div>
       <TaskTitle id={task.id} title={task.title} />
-      <div className="focus-section" aria-label="Focus timer">
-        {runningHere && running ? (
-          <>
-            <span className="focus-clock num">{formatClock(sessionSeconds(running, focusNow))}</span>
-            <button className="btn-secondary" onClick={() => void stopFocus()}>Stop</button>
-          </>
-        ) : (
-          <button className="btn-secondary" onClick={() => void startFocus(task.id)}>
-            {running ? 'Switch focus here' : 'Start focus'}
-          </button>
-        )}
+      <TaskFocus id={task.id} runningHere={Boolean(runningHere)} running={Boolean(running)} clock={runningHere && running && <span className="focus-clock num">{formatClock(sessionSeconds(running, focusNow))}</span>}>
         {focusSessions && focusTotals(focusSessions, todayStr(), focusNow).perTask.get(task.id) ? (
           <span className="focus-total num">
             {formatDuration(focusTotals(focusSessions, todayStr(), focusNow).perTask.get(task.id) ?? 0)} total
           </span>
         ) : null}
-      </div>
+      </TaskFocus>
       <NoteEditor collection="tasks" key={task.id} docKey={task.id} note={task.note} noteDoc={task.noteDoc} onSave={(doc, text) => updateTask(task.id, { noteDoc: doc, note: text })} />
       {task.noteId && sourceNote && (
         <button className="note-source" onClick={() => props.onOpenNote(task.noteId!)}>
