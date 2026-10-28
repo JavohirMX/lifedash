@@ -265,7 +265,7 @@ export default function App() {
     const list = todayTasks(tasks, today);
     body = (
       <section>
-        <h1>Today <span className="date-sub">{friendlyDate(today, today)} · {weekdayLabel(today)}</span></h1>
+        <h1>Today <span className="date-sub">{weekdayLabel(today)}</span></h1>
         <p className="workflow-hint">Due today and overdue</p>
         {counts.backlog > 0 && (
           <button className="nudge" onClick={() => setSelection({ kind: 'backlog' })}>
