@@ -3,9 +3,9 @@ import { reconcileRunningSessions } from './focus';
 import { hasProjectCycle, wouldCycle } from './projects';
 import type { FocusSession } from './types';
 import { parseLocalDate } from './dates';
-import { db, newId } from './db';
+import { db, newId, INBOX_ID } from './db';
 import type { Task, Project, Goal, Note, JournalEntry } from './types';
-import { completeTask, skipOccurrence, subtasksOf, wouldCreateCycle, normalizeTag, normalizeTask, reorderedPosition, renamedTags } from './logic';
+import { completeTask, skipOccurrence, subtasksOf, wouldCreateCycle, normalizeTag, normalizeTask, reorderedPosition, renamedTags, extractChecklistItems, filterNewChecklistItems } from './logic';
 import { todayStr } from './dates';
 
 async function nextOrder(projectId: string): Promise<number> {
@@ -433,6 +433,19 @@ export async function addGoal(title: string, targetDate: string | null): Promise
 
 export async function updateGoal(id: string, patch: Partial<Goal>): Promise<void> {
   await db.goals.update(id, { ...patch, updatedAt: Date.now() });
+}
+
+// Keep conversion atomic and deduplicate inside the same write transaction.
+// A retry or another tab must not create a partial or duplicate task set.
+export async function addTasksFromNoteChecklist(noteId: string): Promise<number> {
+  return db.transaction('rw', db.tasks, db.notes, async () => {
+    const note = await db.notes.get(noteId);
+    if (!note) throw new Error('Note no longer exists.');
+    const existing = (await db.tasks.where('noteId').equals(noteId).toArray()).map((task) => task.title);
+    const items = filterNewChecklistItems(extractChecklistItems(note.noteDoc), existing);
+    for (const title of items) await addTask({ title, projectId: INBOX_ID, noteId });
+    return items.length;
+  });
 }
 
 export async function addNote(): Promise<Note> {

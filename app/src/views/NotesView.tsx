@@ -4,9 +4,9 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { Check, ListPlus, Pin, PinOff, Plus, Search, StickyNote, Trash2 } from 'lucide-react';
 
-import { addNote, updateNote, deleteNote, addTask } from '../repo';
-import { extractChecklistItems, filterNewChecklistItems, searchNotes } from '../logic';
-import { db, INBOX_ID } from '../db';
+import { addNote, updateNote, deleteNote, addTasksFromNoteChecklist } from '../repo';
+import { extractChecklistItems, searchNotes } from '../logic';
+import { db } from '../db';
 import NoteEditor from '../components/NoteEditor';
 
 function excerpt(text: string, n = 90): string {
@@ -29,7 +29,10 @@ function relTime(ts: number): string {
 export default function NotesView(props: { initialOpenId?: string }) {
   const notes = useLiveQuery(() => db.notes.toArray(), []);
   const [openId, setOpenId] = useState<string | null>(props.initialOpenId ?? null);
-  const [extracted, setExtracted] = useState<number | null>(null);
+  const converting = useRef(false);
+  const [convertingId, setConvertingId] = useState<string | null>(null);
+  const [convertError, setConvertError] = useState<{ id: string; text: string } | null>(null);
+  const [extracted, setExtracted] = useState<{ id: string; count: number } | null>(null);
   const [q, setQ] = useState('');
   const editorPane = useRef<HTMLDivElement>(null);
   const noteList = useRef<HTMLDivElement>(null);
@@ -127,26 +130,23 @@ export default function NotesView(props: { initialOpenId?: string }) {
                     className="icon-btn"
                     aria-label="Turn checklist into tasks"
                     title="Turn checklist into tasks"
+                    disabled={convertingId !== null}
                     onClick={() => void (async () => {
-                      const existing = (await db.tasks.where('noteId').equals(open.id).toArray()).map((t) => t.title);
-                      const items = filterNewChecklistItems(extractChecklistItems(open.noteDoc), existing);
-                      if (items.length === 0) {
-                        setExtracted(0);
+                      if (converting.current) return;
+                      converting.current = true; setConvertingId(open.id); setConvertError(null); setExtracted(null);
+                      try {
+                        const count = await addTasksFromNoteChecklist(open.id);
+                        setExtracted({ id: open.id, count });
                         setTimeout(() => setExtracted(null), 3000);
-                        return;
-                      }
-                      await items.reduce(
-                        (chain, title) => chain.then(() => addTask({ title, projectId: INBOX_ID, noteId: open.id })),
-                        Promise.resolve<unknown>(null),
-                      );
-                      setExtracted(items.length);
-                      setTimeout(() => setExtracted(null), 3000);
+                      } catch {
+                        setConvertError({ id: open.id, text: "Couldn't create tasks. No new tasks were added. Try Turn checklist into tasks again." });
+                      } finally { converting.current = false; setConvertingId(null); }
                     })()}
                   >
                     <ListPlus size={15} strokeWidth={2} />
                   </button>
                 )}
-                {extracted !== null && <span className="extracted-note num">{extracted === 0 ? 'Already added' : `${extracted} task${extracted === 1 ? '' : 's'} added`}</span>}
+                {extracted?.id === open.id && <span className="extracted-note num" role="status">{extracted.count === 0 ? 'Already added' : `${extracted.count} task${extracted.count === 1 ? '' : 's'} added`}</span>}
                 <button
                   className="icon-btn"
                   aria-label={open.pinned ? 'Unpin note' : 'Pin note'}
@@ -168,6 +168,8 @@ export default function NotesView(props: { initialOpenId?: string }) {
                   <Trash2 size={15} strokeWidth={2} />
                 </button>
               </div>
+              {convertingId === open.id && <p className="workflow-hint" role="status">Creating checklist tasks…</p>}
+              {convertError?.id === open.id && <p className="workflow-hint" role="alert">{convertError.text}</p>}
               <NoteEditor collection="notes"
                 key={open.id}
                 docKey={open.id}
