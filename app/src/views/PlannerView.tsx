@@ -52,6 +52,9 @@ export default function PlannerView(props: { tasks: Task[]; onOpen: (id: string)
     byHour.get(h)!.push(t);
   }
 
+  // Timeline order follows time, without changing the saved task order.
+  for (const tasks of byHour.values()) tasks.sort((a, b) => a.dueTime!.localeCompare(b.dueTime!));
+
   // Keep the usual compact day, extending earlier only when a task needs it.
   const startHour = Math.min(START_HOUR, ...byHour.keys());
   const hours: number[] = [];
