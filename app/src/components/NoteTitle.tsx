@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { updateNote } from '../repo';
 import { db } from '../db';
+import { liveQuery } from 'dexie';
 
 type Draft = { title: string; state: 'saving' | 'error' };
 // Keep unsaved titles and serialize writes across internal navigation, per database/note.
@@ -11,6 +12,18 @@ const changed = 'lifedash-note-title-save';
 window.addEventListener('beforeunload', (event) => {
   if (drafts.size > 0) { event.preventDefault(); event.returnValue = ''; }
 });
+// Only confirmed absence clears a draft; a read failure keeps leave protection.
+const missingNotes = liveQuery(() => db.notes.toCollection().primaryKeys()).subscribe({
+  next(ids) {
+    const existing = new Set(ids);
+    for (const key of drafts.keys()) {
+      const [database, id] = JSON.parse(key) as [string, string];
+      if (database === db.name && !existing.has(id)) drafts.delete(key);
+    }
+  },
+  error() {},
+});
+void missingNotes;
 export function discardDeletedNoteTitle(id: string) {
   drafts.delete(JSON.stringify([db.name, id]));
 }
