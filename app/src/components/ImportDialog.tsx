@@ -29,10 +29,15 @@ export default function ImportDialog(props: { projects: Project[]; initialSource
 
   const panel = useDialogFocus<HTMLDivElement>(props.onClose, 'textarea');
 
+  const fileRead = useRef(0);
+  useEffect(() => () => { fileRead.current++; }, []);
+
   async function loadFile(f: File) {
+    const generation = ++fileRead.current;
     let t: string;
     try { t = await f.text(); }
-    catch { setImportError("Couldn't read this file. Choose it again or paste the text below."); return; }
+    catch { if (generation === fileRead.current) setImportError("Couldn't read this file. Choose it again or paste the text below."); return; }
+    if (generation !== fileRead.current) return;
     setImportError('');
     setFilename(f.name);
     setText(t);
@@ -43,6 +48,7 @@ export default function ImportDialog(props: { projects: Project[]; initialSource
   }
 
   function reparse(s: ImportSource) {
+    fileRead.current++;
     setSource(s);
     if (text) setResult(parse(s, text));
   }
@@ -146,6 +152,8 @@ export default function ImportDialog(props: { projects: Project[]; initialSource
                 value={text}
                 placeholder={source === 'lifedash-json' ? '{"version": 2, "tasks": [ ... ], ...}' : '- [ ] A task\n- [x] A finished one'}
                 onChange={(e) => {
+                  fileRead.current++;
+                  setImportError('');
                   setText(e.target.value);
                   setFilename('');
                   const s = source ?? detectSource('', e.target.value);
