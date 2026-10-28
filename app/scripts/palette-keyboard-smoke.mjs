@@ -90,6 +90,9 @@ try {
     await page.getByRole('radio', { name: 'Rough', exact: true }).focus();
     await page.keyboard.press('End');
     await page.waitForFunction(() => document.querySelector('[role=radio][aria-checked=true]')?.textContent?.trim() === 'Great');
+    // Selection can paint before the async write guard releases. Wait for the
+    // existing busy state before sending the next independent key action.
+    await page.waitForFunction(() => document.querySelector('[role=radio][aria-checked=true]')?.getAttribute('aria-disabled') === 'false');
     await page.keyboard.press('ArrowRight');
     await page.waitForFunction(() => document.querySelector('[role=radio][aria-checked=true]')?.textContent?.trim() === 'Rough');
     if (width < 500) await page.getByRole('button', { name: 'More', exact: true }).click();
