@@ -251,31 +251,24 @@ export default function Sidebar(props: {
     URL.revokeObjectURL(a.href);
   };
 
-  const doExportJson = () => {
-    closeExport();
-    void Promise.all([exportJson(), countAttachments()]).then(([json, files]) => {
-      downloadFile(json, 'application/json', `lifedash-export-${new Date().toISOString().slice(0, 10)}.json`);
-      if (files > 0) {
-        window.alert(
-          `Exported. Note: ${files} attachment file${files === 1 ? ' stays' : 's stay'} on this device - the export keeps only their names and metadata.`,
-        );
+  const exporting = useRef(false);
+  const [exportBusy, setExportBusy] = useState(false), [exportError, setExportError] = useState('');
+  async function exportData(format: 'JSON' | 'Markdown' | 'Calendar') {
+    if (exporting.current) return;
+    exporting.current = true; setExportBusy(true); setExportError(''); closeExport();
+    try {
+      if (format === 'JSON') {
+        const [json, files] = await Promise.all([exportJson(), countAttachments()]);
+        downloadFile(json, 'application/json', `lifedash-export-${new Date().toISOString().slice(0, 10)}.json`);
+        if (files > 0) window.alert(`Exported. Note: ${files} attachment file${files === 1 ? ' stays' : 's stay'} on this device - the export keeps only their names and metadata.`);
+      } else {
+        const [tasks, projects] = await Promise.all([db.tasks.toArray(), db.projects.toArray()]);
+        if (format === 'Markdown') downloadFile(tasksToMarkdown(tasks, projects), 'text/markdown', `lifedash-tasks-${todayStr()}.md`);
+        else downloadFile(tasksToIcs(tasks, projects), 'text/calendar', `lifedash-tasks-${todayStr()}.ics`);
       }
-    });
-  };
-
-  const doExportMd = () => {
-    closeExport();
-    void Promise.all([db.tasks.toArray(), db.projects.toArray()]).then(([tasks, projects]) => {
-      downloadFile(tasksToMarkdown(tasks, projects), 'text/markdown', `lifedash-tasks-${todayStr()}.md`);
-    });
-  };
-
-  const doExportIcs = () => {
-    closeExport();
-    void Promise.all([db.tasks.toArray(), db.projects.toArray()]).then(([tasks, projects]) => {
-      downloadFile(tasksToIcs(tasks, projects), 'text/calendar', `lifedash-tasks-${todayStr()}.ics`);
-    });
-  };
+    } catch { setExportError(`Couldn't prepare the ${format} export. Open Export and choose ${format} again.`); }
+    finally { exporting.current = false; setExportBusy(false); }
+  }
 
   const exportBtn = (
     <div ref={exportWrap} className="export-wrap" onBlur={e => { if (!e.currentTarget.contains(e.relatedTarget as Node)) setExportMenu(false); }} onKeyDown={e => {
@@ -287,6 +280,7 @@ export default function Sidebar(props: {
       if (next !== null) { e.preventDefault(); e.stopPropagation(); items[next].focus(); }
     }}>
       <button
+        disabled={exportBusy}
         ref={exportTrigger}
         className="nav foot-action"
         aria-haspopup="menu"
@@ -297,17 +291,19 @@ export default function Sidebar(props: {
         <Download size={16} strokeWidth={1.75} aria-hidden="true" />
         <span>Export</span>
       </button>
+      {exportBusy && <p className="sub-add-feedback" role="status">Preparing export…</p>}
+      {exportError && <p className="sub-add-feedback" role="alert">{exportError}</p>}
       {exportMenu && (
         <div className="export-menu" role="menu" aria-label="Export format">
-          <button type="button" role="menuitem" className="export-item" onClick={doExportJson}>
+          <button type="button" role="menuitem" className="export-item" onClick={() => void exportData('JSON')}>
             <strong>JSON backup</strong>
             <span>App data and attachment metadata; files stay on this device</span>
           </button>
-          <button type="button" role="menuitem" className="export-item" onClick={doExportMd}>
+          <button type="button" role="menuitem" className="export-item" onClick={() => void exportData('Markdown')}>
             <strong>Markdown</strong>
             <span>Tasks only, readable anywhere</span>
           </button>
-          <button type="button" role="menuitem" className="export-item" onClick={doExportIcs}>
+          <button type="button" role="menuitem" className="export-item" onClick={() => void exportData('Calendar')}>
             <strong>Calendar (.ics)</strong>
             <span>Open dated tasks; calendar import file, not live sync</span>
           </button>
