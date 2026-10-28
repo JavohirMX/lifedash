@@ -35,6 +35,16 @@ export default function NotesView(props: { initialOpenId?: string }) {
   const [convertError, setConvertError] = useState<{ id: string; text: string } | null>(null);
   const [extracted, setExtracted] = useState<{ id: string; count: number } | null>(null);
   const [q, setQ] = useState('');
+  const creating = useRef(false);
+  const [isCreating, setIsCreating] = useState(false);
+  const [createError, setCreateError] = useState('');
+  async function createNote() {
+    if (creating.current) return;
+    creating.current = true; setIsCreating(true); setCreateError('');
+    try { const note = await addNote(); setOpenId(note.id); }
+    catch { setCreateError("Couldn't create a note. No note was added. Try New note again."); }
+    finally { creating.current = false; setIsCreating(false); }
+  }
   const editorPane = useRef<HTMLDivElement>(null);
   const noteList = useRef<HTMLDivElement>(null);
   useEffect(() => {
@@ -68,11 +78,14 @@ export default function NotesView(props: { initialOpenId?: string }) {
           className="mini"
           style={{ marginLeft: 'auto' }}
           aria-label="New note"
-          onClick={() => void addNote().then((n) => setOpenId(n.id))}
+          disabled={isCreating}
+          onClick={() => void createNote()}
         >
           <Plus size={14} strokeWidth={2} aria-hidden="true" /> Note
         </button>
       </h1>
+      {isCreating && <p className="workflow-hint" role="status">Creating note…</p>}
+      {createError && <p className="workflow-hint" role="alert">{createError}</p>}
       <p className="workflow-hint">Notes save as you type. Choose a note to edit; pin it to keep it at the top.</p>
       {sorted.length > 4 && (
         <div className="search-wrap notes-filter">
