@@ -41,6 +41,11 @@ export default function CalendarView(props: { tasks: Task[]; onOpen: (id: string
   const [month, setMonth] = useState(monthKey(today));
   const [day, setDay] = useState<string | null>(null);
 
+  function navigateMonth(nextMonth: string) {
+    setMonth(nextMonth);
+    setDay(null);
+  }
+
   const dayDetails = useRef<HTMLDivElement>(null);
   useEffect(() => {
     if (day !== null) dayDetails.current?.scrollIntoView({ block: 'nearest' });
@@ -64,15 +69,15 @@ export default function CalendarView(props: { tasks: Task[]; onOpen: (id: string
       <h1>
         Calendar
         <span className="date-sub">
-          <button className="icon-btn" aria-label="Previous month" onClick={() => setMonth(shiftMonth(month, -1))}>
+          <button className="icon-btn" aria-label="Previous month" onClick={() => navigateMonth(shiftMonth(month, -1))}>
             <ChevronLeft size={15} strokeWidth={2} />
           </button>
           <strong className="cal-month">{monthLabel(month)}</strong>
-          <button className="icon-btn" aria-label="Next month" onClick={() => setMonth(shiftMonth(month, 1))}>
+          <button className="icon-btn" aria-label="Next month" onClick={() => navigateMonth(shiftMonth(month, 1))}>
             <ChevronRight size={15} strokeWidth={2} />
           </button>
           {month !== monthKey(today) && (
-            <button className="mini" onClick={() => setMonth(monthKey(today))}>Today</button>
+            <button className="mini" onClick={() => navigateMonth(monthKey(today))}>Today</button>
           )}
         </span>
       </h1>

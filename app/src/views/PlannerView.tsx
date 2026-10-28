@@ -45,14 +45,17 @@ export default function PlannerView(props: { tasks: Task[]; onOpen: (id: string)
   const anytime = dueToday.filter((t) => !t.dueTime);
   const byHour = new Map<number, Task[]>();
   for (const t of dueToday) {
-    if (!t.dueTime) continue;
-    const h = Math.min(END_HOUR, Math.max(START_HOUR, Number(t.dueTime.slice(0, 2))));
+    // Imported malformed times must not invalidate the whole timeline.
+    if (!t.dueTime || !/^([01]\d|2[0-3]):[0-5]\d$/.test(t.dueTime)) continue;
+    const h = Number(t.dueTime.slice(0, 2));
     if (!byHour.has(h)) byHour.set(h, []);
     byHour.get(h)!.push(t);
   }
 
+  // Keep the usual compact day, extending earlier only when a task needs it.
+  const startHour = Math.min(START_HOUR, ...byHour.keys());
   const hours: number[] = [];
-  for (let h = START_HOUR; h <= END_HOUR; h++) hours.push(h);
+  for (let h = startHour; h <= END_HOUR; h++) hours.push(h);
 
   function dropProps(hour: number | 'anytime') {
     return {
