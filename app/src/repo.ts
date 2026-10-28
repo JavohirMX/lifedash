@@ -536,6 +536,7 @@ export async function importBackup(json: string): Promise<{ restored: Record<str
       }
     }
   });
-  restoreAutomation(data.automation);
+  try { restoreAutomation(data.automation); }
+  catch { throw new Error('Backup records were restored, but automation settings could not be fully restored. Check your records and Automation before restoring again.'); }
   return { restored };
 }
