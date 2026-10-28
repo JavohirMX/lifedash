@@ -1,10 +1,11 @@
 import './home.css';
 import CompletionButton from '../components/CompletionButton';
 import { useLiveQuery } from 'dexie-react-hooks';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Check, ArrowRight, Target, SlidersHorizontal, Zap } from 'lucide-react';
 import QuickAdd from '../components/QuickAdd';
 import { db } from '../db';
+import { saveWidgetVisibility } from '../widgetPreferences';
 import HomeHabitCheck from '../components/HomeHabitCheck';
 import HomeFocusStop from '../components/HomeFocusStop';
 import { runningSession, sessionSeconds, focusTotals, formatClock, formatDuration } from '../focus';
@@ -26,9 +27,16 @@ export default function HomeView(props: { tasks: Task[]; onSelect: (kind: string
   const hidden: string[] = (widgetPref?.value as string[] | undefined) ?? [];
   const [customizing, setCustomizing] = useState(false);
   const [drillDate, setDrillDate] = useState<string | null>(null);
-  const toggleWidget = (id: string) => {
-    const next = hidden.includes(id) ? hidden.filter((w) => w !== id) : [...hidden, id];
-    void db.syncmeta.put({ key: 'home.widgets', value: next });
+  const widgetSavingRef = useRef(false);
+  const [widgetSaving, setWidgetSaving] = useState(false);
+  const [widgetSaveFailed, setWidgetSaveFailed] = useState(false);
+  const toggleWidget = async (id: string) => {
+    if (widgetSavingRef.current) return;
+    widgetSavingRef.current = true; setWidgetSaving(true); setWidgetSaveFailed(false);
+    const visible = hidden.includes(id);
+    try { await saveWidgetVisibility(id, visible); }
+    catch { setWidgetSaveFailed(true); }
+    finally { widgetSavingRef.current = false; setWidgetSaving(false); }
   };
   const logs = useLiveQuery(() => db.habitLogs.toArray(), []);
   const goals = useLiveQuery(() => db.goals.orderBy('order').toArray(), []);
@@ -99,7 +107,7 @@ export default function HomeView(props: { tasks: Task[]; onSelect: (kind: string
         </button>
       </header>
       {customizing && (
-        <div className="widget-settings" role="group" aria-label="Show or hide widgets">
+        <div className="widget-settings" role="group" aria-label="Show or hide widgets" aria-busy={widgetSaving}>
           {[
             ['focus', 'Focus'],
             ['upnext', 'Up next'],
@@ -110,13 +118,14 @@ export default function HomeView(props: { tasks: Task[]; onSelect: (kind: string
             ['upcoming', 'Upcoming'],
           ].map(([id, label]) => (
             <label key={id} className="widget-toggle">
-              <input type="checkbox" checked={!hidden.includes(id)} onChange={() => toggleWidget(id)} />
+              <input type="checkbox" checked={!hidden.includes(id)} disabled={widgetSaving} onChange={() => void toggleWidget(id)} />
               {label}
             </label>
           ))}
         </div>
       )}
 
+      {widgetSaveFailed && <p className="form-save-error" role="alert">Could not save widget visibility. Your previous choices are unchanged. Try the checkbox again.</p>}
       <QuickAdd projectId="inbox" dueDate={null} placeholder="Capture a task..." />
       <div className="widget-grid home-cockpit">
 <div className="home-primary">        {!hidden.includes('focus') && running && (
