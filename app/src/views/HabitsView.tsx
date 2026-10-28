@@ -143,8 +143,8 @@ export default function HabitsView() {
       {active.length === 0 && !adding && (
         <p className="empty">
           {archived.length > 0
-            ? 'No active habits. Add a new one, or restore an archived one below.'
-            : 'No habits yet. Add one - daily, or pick the weekdays.'}
+            ? 'No active habits. Add one or restore an archived habit below.'
+            : 'No habits yet.'}
         </p>
       )}
 

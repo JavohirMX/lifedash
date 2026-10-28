@@ -80,7 +80,7 @@ export default function GoalsView(props: { tasks: Task[]; onOpen: (id: string) =
           <Plus size={14} strokeWidth={2} aria-hidden="true" /> Goal
         </button>
       </h1>
-      <p className="workflow-hint">Link a task to a goal from Task details → Goal. Progress follows those linked tasks; marking a goal done is separate.</p>
+      <p className="workflow-hint">Progress tracks linked tasks. Marking a goal done is separate.</p>
       <p className="form-save-status" role="status">{saving ? 'Saving…' : saveStatus}</p>
       {statusError && <p className="form-save-error" role="alert">{statusError}</p>}
       {adding && (
@@ -105,7 +105,7 @@ export default function GoalsView(props: { tasks: Task[]; onOpen: (id: string) =
       {active.length === 0 && !adding && (
         <div className="empty goals-empty">
           <Target size={28} strokeWidth={1.5} aria-hidden="true" />
-          <p>Goals tie your tasks to something bigger. Add one, then link tasks to it from their detail panel.</p>
+          <p>No active goals. Add a goal, then link tasks in Task details.</p>
         </div>
       )}
       <div className="goal-list">

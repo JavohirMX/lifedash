@@ -130,7 +130,7 @@ export default function NotesView(props: { initialOpenId?: string }) {
       ) : sorted.length === 0 ? (
         <div className="empty goals-empty">
           <StickyNote size={28} strokeWidth={1.5} aria-hidden="true" />
-          <p>Free-form notes with rich text - checklists, links, headings. Pin the ones you come back to.</p>
+          <p>No notes yet.</p>
         </div>
       ) : (
         <div className={`notes-layout${open ? ' note-is-open' : ''}`}>
