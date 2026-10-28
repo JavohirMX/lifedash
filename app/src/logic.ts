@@ -1,3 +1,4 @@
+import { normalizePlan } from './planning';
 import { RRule, Frequency } from 'rrule';
 import { projectWithDescendants } from './projects';
 import type { Project, Task, Note, JournalEntry, Goal } from './types';
@@ -137,6 +138,7 @@ export function skipOccurrence(task: Task, today: string, now: number): { update
   return {
     updates: {
       dueDate: nextDate,
+      plannedDate: null, plannedTime: null,
       skippedDates: [...(task.skippedDates ?? []), task.dueDate],
       updatedAt: now,
     },
@@ -163,6 +165,7 @@ export function completeTask(task: Task, today: string, now: number): Completion
       priority: task.priority,
       dueDate: nextDate,
       dueTime: task.dueTime ?? null,
+      plannedDate: null, plannedTime: null, durationMinutes: task.durationMinutes ?? null,
       recurrence: task.recurrence,
       skippedDates: [...(task.skippedDates ?? [])],
       blockedBy: [...(task.blockedBy ?? [])],
@@ -295,7 +298,7 @@ export function subtaskProgress(tasks: Task[], parentId: string): { done: number
 // --- Dependencies ---
 
 export function normalizeTask(t: Task): Task {
-  return { ...t, blockedBy: t.blockedBy ?? [], tags: t.tags ?? [], noteDoc: t.noteDoc ?? null };
+  return { ...t, ...normalizePlan(t), blockedBy: t.blockedBy ?? [], tags: t.tags ?? [], noteDoc: t.noteDoc ?? null };
 }
 
 export function blockersOf(tasks: Task[], t: Task): Task[] {

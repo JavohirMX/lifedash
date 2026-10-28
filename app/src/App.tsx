@@ -1,3 +1,4 @@
+import DataBackupDialog from './components/DataBackupDialog';
 import './views/workflow.css';
 import CompletionFailureNotice from './components/CompletionFailureNotice';
 import CompletionDialog from './components/CompletionDialog';
@@ -118,6 +119,7 @@ export default function App() {
   const [appearanceOpen, setAppearanceOpen] = useState(false);
   const [googleCalendarOpen,setGoogleCalendarOpen]=useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [dataBackupOpen, setDataBackupOpen] = useState(false);
   const [settingsChild, setSettingsChild] = useState<'appearance' | 'sync' | null>(null);
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
   const [rules, setRules] = useState<AutomationRules>(loadRules);
@@ -338,7 +340,7 @@ export default function App() {
   } else if (selection.kind === 'notes') {
     body = <NotesView key={selection.openId ?? ''} initialOpenId={selection.openId} />;
   } else if (selection.kind === 'goals') {
-    body = <GoalsView tasks={tasks} onOpen={setOpenId} />;
+    body = <GoalsView tasks={tasks} onOpen={setOpenId} onNavigate={setSelection} />;
   } else if (selection.kind === 'habits') {
     body = <HabitsView />;
   } else if (selection.kind === 'planner') {
@@ -477,7 +479,9 @@ export default function App() {
       {aiOpen && <AssistantDialog tasks={tasks} onClose={() => setAiOpen(false)} />}
       {syncOpen && <SyncDialog onClose={() => setSyncOpen(false)} onBack={settingsChild === 'sync' ? () => { setSyncOpen(false); setSettingsOpen(true); } : undefined} />}
       {googleCalendarOpen && <GoogleCalendarDialog onClose={()=>setGoogleCalendarOpen(false)} onBack={()=>{setGoogleCalendarOpen(false);setSettingsOpen(true);}}/>}
+      {dataBackupOpen && <DataBackupDialog onClose={() => { setDataBackupOpen(false); setSettingsOpen(true); }} />}
       {settingsOpen && <SettingsDialog
+        onDataBackup={() => { setSettingsOpen(false); setDataBackupOpen(true); }}
         onClose={() => setSettingsOpen(false)}
         onGoogleCalendar={()=>{setSettingsOpen(false);setGoogleCalendarOpen(true);}}
         onSync={() => { setSettingsChild('sync'); setSettingsOpen(false); setSyncOpen(true); }}

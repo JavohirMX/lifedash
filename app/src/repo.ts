@@ -1,3 +1,4 @@
+import { decodePortable, RECORD_TABLES } from './portableBackup';
 import { discardDeletedEditorDraft } from './editorDrafts';
 import { exportAutomation, restoreAutomation, loadRules, rolloverTargets, shouldCompleteParent, loadUserRules, saveUserRules, tagRulesFor, weeklyRulesDue, hasOpenTitle } from './automation';
 import { reconcileRunningSessions } from './focus';
@@ -501,14 +502,15 @@ export async function countAttachments(): Promise<number> {
 
 export async function importBackup(json: string): Promise<{ restored: Record<string, number> }> {
   const data = JSON.parse(json) as Record<string, unknown>;
-  if (data?.version !== 2) throw new Error('Not a Lifedash version 2 backup.');
-  const tables = ['projects', 'tasks', 'habits', 'habitLogs', 'goals', 'notes', 'journal', 'focusSessions'] as const;
+  if (data?.version !== 2 && data?.version !== 3) throw new Error('Not a supported Lifedash backup.');
+  const portable = data.version === 3 ? await decodePortable(data) : null;
+  const tables: string[] = portable ? [...RECORD_TABLES, 'attachments'] : [...RECORD_TABLES];
   // Validate every row before writing anything: one bad row aborts the
   // whole restore instead of leaving a half-import (Dexie also rolls the
   // transaction back on any write error).
   const valid: [string, Record<string, unknown>[]][] = [];
   for (const t of tables) {
-    const rows = data[t];
+    const rows = portable ? portable[t] : data[t];
     if (!Array.isArray(rows) || rows.length === 0) continue;
     for (const r of rows) {
       if (!r || typeof r !== 'object' || typeof (r as { id?: unknown }).id !== 'string') {

@@ -40,7 +40,7 @@ try {
     await select.fill('');
     await page.waitForFunction(async field => { const { db } = await import('/src/db.ts'); return (await db.tasks.get(window.originId))[field] === null; }, 'dueDate');
     assert.equal(await select.inputValue(), '');
-    assert.equal(await page.getByLabel('Time (optional - shows in Planner)', {exact:true}).count(),0);
+    assert.equal(await page.getByLabel('Deadline time (optional)', {exact:true}).count(),0);
     assert.deepEqual(errors, []); assert(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth));
     console.log(width, mode, 'date failure/retain/retry/duplicate/origin/reopen PASS'); await page.close();
   }

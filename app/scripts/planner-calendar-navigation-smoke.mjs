@@ -28,26 +28,6 @@ try {
       if (width < 500) await page.getByRole('button', { name: 'More', exact: true }).click();
       await page.locator(width < 500 ? '.mobile-sheet' : '.sidebar').getByRole('button', { name, exact: true }).click();
     }
-    await nav('Planner');
-    await page.getByText('Timeline example 00:00', { exact: true }).waitFor();
-    for (const time of ['00:00', '04:30', '05:59', '06:00', '23:59']) {
-      const row = page.locator('.hour-row').filter({ has: page.getByText(`Timeline example ${time}`, { exact: true }) });
-      assert.equal(await row.locator('.hour-label').textContent(), `${before ? Math.max(6, Number(time.slice(0, 2))).toString().padStart(2, '0') : time.slice(0, 2)}:00`);
-    }
-    if (!before) assert.equal(await page.evaluate(async () => { const { db } = await import('/src/db.ts'); return (await db.tasks.get('malformed-example-0')).dueTime; }), 'not-a-time');
-    await page.screenshot({ path: `/downloads/planner-early-${before ? 'before' : 'after'}-${width}-${mode}.png` });
-    if (!before) {
-      await page.getByRole('button', { name: 'Set time for Timeline example 00:00', exact: true }).click();
-      await page.getByLabel('Task time', { exact: true }).fill('02:15');
-      await page.locator('.hour-row').filter({ has: page.getByText('Timeline example 00:00', { exact: true }) }).locator('.hour-label').filter({ hasText: '02:00' }).waitFor();
-      assert.equal(await page.evaluate(async () => { const { db } = await import('/src/db.ts'); return (await db.tasks.get(window.earlyTaskId)).dueTime; }), '02:15');
-    }
-    if (!before) {
-      await page.evaluate(async () => { const { db } = await import('/src/db.ts'); await db.tasks.filter(t => t.title.startsWith('Timeline example')).modify({ dueTime: null }); });
-      await page.locator('.hour-row').first().locator('.hour-label').filter({ hasText: '06:00' }).waitFor();
-      assert.equal(await page.locator('.hour-row').count(), 18);
-      assert.equal(await page.getByText('Water the plants', { exact: true }).count(), 1);
-    }
     await nav('Calendar');
     await page.locator('.cal-cell.today .cal-day').click();
     await page.getByRole('region', { name: 'Selected day tasks' }).waitFor();
@@ -65,7 +45,7 @@ try {
     }
     assert(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth));
     assert.deepEqual(errors, []);
-    console.log(width, mode, before ? 'confirmed pre06 misplacement / stale selected day' : 'early-hour placement / picker persistence / month navigation PASS');
+    console.log(width, mode, before ? 'confirmed pre06 misplacement / stale selected day' : 'Calendar selected day resets on month/Today navigation PASS');
     await page.close();
   }
 } finally { await browser.close(); }

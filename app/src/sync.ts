@@ -16,6 +16,11 @@ export interface SyncStatus {
 }
 
 const STATUS_KEY = 'lifedash-sync-status';
+const SUCCESS_KEY = 'lifedash-sync-last-success';
+export function loadLastSuccessfulSync(): number | null {
+  if (SAMPLE_MODE) return null;
+  try { const at = Number(localStorage.getItem(SUCCESS_KEY)); return at > 0 && Number.isFinite(at) ? at : null; } catch { return null; }
+}
 let unsavedSyncStatus: SyncStatus | null = null;
 
 export function loadSyncStatus(): SyncStatus | null {
@@ -32,6 +37,7 @@ export function loadSyncStatus(): SyncStatus | null {
 function saveSyncStatus(s: SyncStatus): void {
   try {
     localStorage.setItem(STATUS_KEY, JSON.stringify(s));
+    if (s.ok) localStorage.setItem(SUCCESS_KEY, String(s.at));
     unsavedSyncStatus = null;
   } catch {
     unsavedSyncStatus = { ...s, persistenceFailed: true };

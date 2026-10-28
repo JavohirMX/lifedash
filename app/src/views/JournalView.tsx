@@ -54,6 +54,7 @@ export default function JournalView(props: { initialDate?: string }) {
       <h1>
         Journal {streak > 0 && <span className="date-sub num">{streak}-day streak</span>}
       </h1>
+      {entry?.weeklyReview && <details className="journal-weekly-review"><summary>Weekly review</summary><h3>Reflection</h3><p style={{ whiteSpace: 'pre-wrap' }}>{entry.weeklyReview.reflection || 'No reflection'}</p><h3>Next week's focus</h3><p style={{ whiteSpace: 'pre-wrap' }}>{entry.weeklyReview.focus || 'No focus chosen'}</p></details>}
       <div className="journal-nav">
         <button className="icon-btn" aria-label="Previous day" onClick={() => setDate(addDays(date, -1))}>
           <ChevronLeft size={16} strokeWidth={2} />

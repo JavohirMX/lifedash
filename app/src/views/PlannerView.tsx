@@ -1,175 +1,39 @@
 import './workflow.css';
-import { useRef, useState } from 'react';
-import { Clock } from 'lucide-react';
+import './planner.css';
+import { useEffect, useRef, useState } from 'react';
 import { updateTask } from '../repo';
 import TaskRow from '../components/TaskRow';
 import { TASK_DRAG_MIME } from '../components/TaskList';
-import { todayStr, friendlyDate, weekdayLabel } from '../dates';
+import { todayStr, friendlyDate, weekdayLabel, addDays } from '../dates';
 import type { Task } from '../types';
-
-type SchedulePatch = { dueDate?: string; dueTime: string | null };
-const START_HOUR = 6;
-const END_HOUR = 23;
-
-// Day planner: today's tasks on a timeline. Tasks with a dueTime sit in
-// their hour; the rest are "anytime". Drag an anytime task onto an hour
-// to schedule it; drag a scheduled task onto Anytime to unschedule.
-export default function PlannerView(props: { tasks: Task[]; onOpen: (id: string) => void; onTag?: (tag: string) => void }) {
-  const today = todayStr();
-  const nowHour = new Date().getHours();
-  const [overHour, setOverHour] = useState<number | 'anytime' | null>(null);
-  const [pickerId, setPickerId] = useState<string | null>(null);
-
-  const writing = useRef(new Set<string>());
-  const [pending, setPending] = useState<Set<string>>(new Set());
-  const [drafts, setDrafts] = useState<Record<string, string>>({});
-  const [errors, setErrors] = useState<Record<string, { patch: SchedulePatch; title: string }>>({});
-  async function schedule(id: string, patch: SchedulePatch) {
-    if (writing.current.has(id)) return;
-    writing.current.add(id); setPending(new Set(writing.current));
-    setErrors(current => { const next = { ...current }; delete next[id]; return next; });
-    const title = props.tasks.find(t => t.id === id)?.title || 'task';
-    try {
-      await updateTask(id, patch);
-      setPickerId(current => current === id ? null : current);
-      setDrafts(current => { const next = { ...current }; delete next[id]; return next; });
-    } catch { setErrors(current => ({ ...current, [id]: { patch, title } })); }
-    finally { writing.current.delete(id); setPending(new Set(writing.current)); }
-  }
-  const renderTask = (t: Task) => <PlanTask key={t.id} t={t} tasks={props.tasks} onOpen={props.onOpen} onTag={props.onTag}
-    open={pickerId === t.id} togglePicker={() => setPickerId(current => current === t.id ? null : t.id)}
-    closePicker={() => setPickerId(null)} busy={pending.has(t.id)} draft={drafts[t.id] ?? t.dueTime ?? ''}
-    setDraft={value => setDrafts(current => ({ ...current, [t.id]: value }))} save={patch => schedule(t.id, patch)} error={errors[t.id]} />;
-
-  const dueToday = props.tasks.filter((t) => t.status === 'active' && t.dueDate === today && t.parentId === null);
-  const anytime = dueToday.filter((t) => !t.dueTime);
-  const byHour = new Map<number, Task[]>();
-  for (const t of dueToday) {
-    // Imported malformed times must not invalidate the whole timeline.
-    if (!t.dueTime || !/^([01]\d|2[0-3]):[0-5]\d$/.test(t.dueTime)) continue;
-    const h = Number(t.dueTime.slice(0, 2));
-    if (!byHour.has(h)) byHour.set(h, []);
-    byHour.get(h)!.push(t);
-  }
-
-  // Timeline order follows time, without changing the saved task order.
-  for (const tasks of byHour.values()) tasks.sort((a, b) => a.dueTime!.localeCompare(b.dueTime!));
-
-  // Keep the usual compact day, extending earlier only when a task needs it.
-  const startHour = Math.min(START_HOUR, ...byHour.keys());
-  const hours: number[] = [];
-  for (let h = startHour; h <= END_HOUR; h++) hours.push(h);
-
-  function dropProps(hour: number | 'anytime') {
-    return {
-      onDragOver: (e: React.DragEvent) => {
-        if (e.dataTransfer.types.includes(TASK_DRAG_MIME)) {
-          e.preventDefault();
-          setOverHour(hour);
-        }
-      },
-      onDragLeave: () => setOverHour((cur) => (cur === hour ? null : cur)),
-      onDrop: (e: React.DragEvent) => {
-        const id = e.dataTransfer.getData(TASK_DRAG_MIME);
-        if (!id) return;
-        e.preventDefault();
-        setOverHour(null);
-        void schedule(id, {
-          dueDate: today,
-          dueTime: hour === 'anytime' ? null : `${String(hour).padStart(2, '0')}:00`,
-        });
-      },
-    };
-  }
-
-  return (
-    <section>
-      <h1>
-        Planner <span className="date-sub">{friendlyDate(today, today)} · {weekdayLabel(today)}</span>
-      </h1>
-
-      {pending.size > 0 && <p className="workflow-hint" role="status">Scheduling…</p>}
-      {Object.entries(errors).filter(([id]) => id !== pickerId).map(([id, error]) => <div key={id} className="sub-add-feedback">
-        <p role="alert">Time wasn't saved for "{error.title}". Retry the failed change or choose another time.</p>
-        <button className="btn-secondary" onClick={() => void schedule(id, error.patch)}>Retry time for {error.title}</button>
-      </div>)}
-      <div className={`anytime ${overHour === 'anytime' ? 'drop-hot' : ''}`} {...dropProps('anytime')}>
-        <h2>Anytime</h2>
-        {anytime.length === 0 && <p className="empty">No unscheduled tasks for today.</p>}
-        {anytime.map(renderTask)}
-      </div>
-      <div className="timeline">
-        {hours.map((h) => (
-          <div key={h} className={`hour-row ${overHour === h ? 'drop-hot' : ''} ${h === nowHour ? 'now' : ''}`} {...dropProps(h)}>
-            <span className="hour-label">{String(h).padStart(2, '0')}:00</span>
-            <div className="hour-body">
-              {(byHour.get(h) ?? []).map(renderTask)}
-            </div>
-          </div>
-        ))}
-      </div>
-    </section>
-  );
+import { loadSyncSettings } from '../sync';
+import { googleEvents, utcRangeForLocalDays, groupByDay, truncationNote, type GoogleEvent } from '../googleCalendar';
+import { dayCapacity, calendarBlocks, taskBlocks, validDate, minutes, plannerTasks, planError, type PlanPatch } from '../planning';
+const fmt=(n:number)=>`${Math.floor(n/60)}h${n%60 ? ` ${n%60}m` : ''}`;
+export default function PlannerView(props:{tasks:Task[];onOpen:(id:string)=>void;onTag?:(tag:string)=>void}){
+ const today=todayStr();const [date,setDate]=useState(today);const [mode,setMode]=useState<'agenda'|'timeline'>('agenda');const [compact,setCompact]=useState(true);
+ const [start,setStart]=useState(9),[end,setEnd]=useState(18);const [suggestion,setSuggestion]=useState<string|null>(null);const [editing,setEditing]=useState<string|null>(null);const [busy,setBusy]=useState(false);const [error,setError]=useState('');
+ const nextRef=useRef<HTMLDivElement>(null);
+ const [snapshot,setSnapshot]=useState<{date:string;events:GoogleEvent[];at:string;note:string|null}|null>(null);const generation=useRef(0);
+ useEffect(()=>()=>{generation.current++},[]);
+ function changeDate(value:string){if(!validDate(value))return;generation.current++;setBusy(false);setError('');setDate(value);setSuggestion(null);setEditing(null)}
+ async function loadCalendar(){const settings=loadSyncSettings();if(!settings){setError('Set up the optional Google Calendar connection in Settings first. No calendar was loaded.');return}setBusy(true);setError('');const request=++generation.current;try{const range=utcRangeForLocalDays(date,date);const r=await googleEvents(settings,range.start,range.end);if(request===generation.current)setSnapshot({date,events:r.events,at:new Date().toLocaleString(),note:truncationNote(r)});}catch(e){if(request===generation.current)setError(e instanceof Error?e.message:'Could not load calendar.')}finally{if(request===generation.current)setBusy(false)}}
+ const events=snapshot?.date===date?snapshot.events:[];const items=plannerTasks(props.tasks,date);const planned=items.filter(t=>t.plannedDate===date&&minutes(t.plannedTime)!==null).sort((a,b)=>a.plannedTime!.localeCompare(b.plannedTime!));const unplanned=items.filter(t=>!planned.includes(t));
+ const carryover=taskBlocks(props.tasks,date).filter(b=>!planned.some(t=>t.id===b.id));
+ const cap=dayCapacity(props.tasks,events,date,start,end);const dayEvents=groupByDay(events,date,date).get(date)??[];const nowHour=new Date().getHours();
+ const hours=Array.from({length:24},(_,i)=>i).filter(h=>!compact||date!==today||h>=nowHour||planned.some(t=>Number(t.plannedTime!.slice(0,2))===h)||dayEvents.some(e=>e.time&&Number(e.time.slice(0,2))===h));
+ const task=(t:Task)=><div className={`planner-card ${cap.overlaps.has(t.id)?'planner-overlap':''}`} key={t.id}><div draggable onDragStart={e=>{e.dataTransfer.setData(TASK_DRAG_MIME,t.id);e.dataTransfer.effectAllowed='move'}}><TaskRow task={t} allTasks={props.tasks} onOpen={props.onOpen} onTag={props.onTag}/></div><div className="planner-meta"><span>{t.plannedDate===date?`Work ${t.plannedTime||'time not set'}`:'Not planned'}{t.durationMinutes?` · ${t.durationMinutes}m`: ' · estimate not set'}</span>{t.dueDate&&<span>Deadline {t.dueDate}{t.dueTime?` ${t.dueTime}`:''}</span>}{cap.overlaps.has(t.id)&&<strong>Overlaps another planned item</strong>}<button className="btn-secondary planner-action" onClick={()=>{setSuggestion(null);setEditing(editing===t.id?null:t.id)}}>Plan {t.title}</button></div>{editing===t.id&&<PlanEditor key={`${t.id}:${date}:${suggestion??'manual'}`} task={t} date={date} suggestedTime={suggestion} close={()=>setEditing(null)}/>}</div>;
+ const calendar=(e:typeof dayEvents[number])=>{const block=calendarBlocks(events,date).find(b=>b.id===`calendar:${e.id}`);return <div className="planner-event" key={e.id}><span>{e.allDay?'All day':`${e.time??'Continues'}${block?` to ${new Date(block.end).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'})}`:''}`} · Google primary calendar</span><strong>{e.title}</strong>{cap.overlaps.has(`calendar:${e.id}`)&&<span>Overlaps another item</span>}</div>};
+ return <section className="day-planner"><h1>Planner <span className="date-sub">{friendlyDate(date,today)} · {weekdayLabel(date)}</span></h1><p className="workflow-hint">Work starts are separate from deadlines. Nothing moves until you save a plan.</p>
+ <div className="planner-toolbar"><button className="btn-secondary planner-action" onClick={()=>changeDate(addDays(date,-1))}>Previous day</button><label>Work date<input type="date" aria-label="Planner date" value={date} onChange={e=>changeDate(e.target.value)}/></label><button className="btn-secondary planner-action" onClick={()=>changeDate(addDays(date,1))}>Next day</button><button className="btn-secondary planner-action" onClick={()=>{changeDate(today);setCompact(true);setMode('agenda');setTimeout(()=>nextRef.current?.scrollIntoView({behavior:'smooth',block:'start'}),30)}}>Now / Next</button><button className="btn-secondary planner-action" aria-pressed={mode==='agenda'} onClick={()=>setMode('agenda')}>Agenda</button><button className="btn-secondary planner-action" aria-pressed={mode==='timeline'} onClick={()=>setMode('timeline')}>Timeline</button></div>
+ <div className="planner-capacity"><p className="planner-budget"><strong>{fmt(cap.planned)} planned</strong><span> / {fmt(cap.available)} window after loaded events</span></p><p className="rule-note">{fmt(Math.max(0,cap.available-cap.planned))} unallocated in {String(start).padStart(2,'0')}:00–{String(end).padStart(2,'0')}:00.{cap.planned>cap.available?' Plan exceeds the window.':''} {snapshot?.date===date?'Primary calendar snapshot only.':'Calendar not loaded.'} Not complete availability.{cap.unknown>0?` ${cap.unknown} plan(s) missing start/estimate.`:''}</p><details><summary>Capacity settings & limits</summary><div className="planner-toolbar"><label>Available from<select value={start} onChange={e=>setStart(Number(e.target.value))}>{Array.from({length:end},(_,i)=><option key={i} value={i}>{String(i).padStart(2,'0')}:00</option>)}</select></label><label>Until<select value={end} onChange={e=>setEnd(Number(e.target.value))}>{Array.from({length:24-start},(_,i)=>i+start+1).map(i=><option key={i} value={i}>{String(i).padStart(2,'0')}:00</option>)}</select></label></div><p className="rule-note">This view-only window is not a commitment. Timed subtasks count. All-day events and tasks without estimates do not consume timed capacity. Only loaded primary-calendar events are counted; other commitments may be missing. Planned time sums task estimates, so overlaps are not free time. Dragging onto an hour opens a draft; Save plan confirms it.</p></details></div>
+ <details className="planner-calendar"><summary>Calendar · {snapshot?.date===date?`snapshot ${snapshot.at}`:'not loaded'}</summary><p className="rule-note">Optional Google primary calendar, titles and times only. Device timezone: {Intl.DateTimeFormat().resolvedOptions().timeZone}. No writes, automatic fetches or background refresh.</p><button className="btn-secondary" disabled={busy} onClick={()=>void loadCalendar()}>{busy?'Loading…':'Load / refresh this day'}</button>{snapshot?.date===date?<p role="status">Snapshot loaded {snapshot.at}. Not live sync. {snapshot.note}</p>:<p>No calendar snapshot loaded for this date. Capacity does not include calendar commitments.</p>}{error&&<p role="alert">{error}</p>}</details>
+ {carryover.map(b=><div className="planner-event" key={`carry:${b.id}`}><strong>{b.title}</strong><span>Work continuing from the previous day · ends {new Date(b.end).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'})}</span></div>)}
+ {mode==='agenda'?<div><h2>Day agenda</h2><div ref={nextRef} className="planner-next"><strong>Next planned work</strong><p>{planned.find(t=>date!==today||minutes(t.plannedTime)!>=new Date().getHours()*60+new Date().getMinutes())?.title??'No later work starts. Check ongoing work and commitments below.'}</p></div>{[...planned.map(t=>({key:t.id,time:t.plannedTime!,node:task(t)})),...dayEvents.map(e=>({key:`event:${e.id}`,time:e.time??'',node:calendar(e)}))].sort((a,b)=>a.time.localeCompare(b.time)).map(x=><div key={x.key}>{x.node}</div>)}{!planned.length&&!dayEvents.length&&<p className="empty">No work start times or loaded events. Choose a task below to plan.</p>}</div>:<div><label className="planner-compact"><input type="checkbox" checked={compact} onChange={e=>setCompact(e.target.checked)}/> Compact empty past hours today</label>{dayEvents.filter(e=>e.allDay||!e.time).map(calendar)}<div className="timeline">{hours.map(h=><div className={`hour-row ${date===today&&h===nowHour?'now':''}`} key={h} onDragOver={e=>{if(e.dataTransfer.types.includes(TASK_DRAG_MIME))e.preventDefault()}} onDrop={e=>{const id=e.dataTransfer.getData(TASK_DRAG_MIME);if(!props.tasks.some(t=>t.id===id&&t.status==='active'))return;e.preventDefault();setSuggestion(`${String(h).padStart(2,'0')}:00`);setEditing(id)}}><span className="hour-label">{String(h).padStart(2,'0')}:00</span><div className="hour-body">{planned.filter(t=>Number(t.plannedTime!.slice(0,2))===h).map(task)}{dayEvents.filter(e=>e.time&&Number(e.time.slice(0,2))===h).map(calendar)}</div></div>)}</div></div>}
+ <h2>Due this day / work without a start</h2>{unplanned.map(task)}{!unplanned.length&&<p className="empty">Nothing waiting here.</p>}<details open={editing!==null&&!items.some(t=>t.id===editing)?true:undefined}><summary>Plan another active task</summary>{props.tasks.filter(t=>t.status==='active'&&t.parentId===null&&!items.includes(t)).map(task)}</details></section>
 }
-
-function PlanTask({ t, tasks, onOpen, onTag, open, togglePicker, closePicker, busy, draft, setDraft, save, error }: {
-  error?: { patch: SchedulePatch; title: string };
-  t: Task; tasks: Task[]; onOpen: (id: string) => void; onTag?: (tag: string) => void;
-  open: boolean; togglePicker: () => void; closePicker: () => void; busy: boolean;
-  draft: string; setDraft: (value: string) => void; save: (patch: SchedulePatch) => Promise<void>;
-}) {
-    return (
-      <div className="plan-item">
-        <div className="plan-row">
-          <div
-            className="plan-drag"
-            draggable
-            onDragStart={(e) => {
-              e.dataTransfer.setData(TASK_DRAG_MIME, t.id);
-              e.dataTransfer.effectAllowed = 'move';
-            }}
-          >
-            <TaskRow task={t} allTasks={tasks} onOpen={onOpen} onTag={onTag} />
-          </div>
-          <button
-            className="icon-btn"
-            aria-label={`Set time for ${t.title}`}
-            title="Set time"
-            onClick={togglePicker} disabled={busy}
-          >
-            <Clock size={14} strokeWidth={1.75} aria-hidden="true" />
-          </button>
-        </div>
-        {open && (
-          <div className="time-pop">
-            <input
-              type="time"
-              aria-label="Task time"
-              value={draft} readOnly={busy} aria-disabled={busy}
-              onChange={(e) => {
-                if (!e.target.value) return;
-                setDraft(e.target.value);
-                void save({ dueDate: todayStr(), dueTime: e.target.value });
-              }}
-            />
-            {t.dueTime && (
-              <button
-                className="mini" disabled={busy}
-                onClick={() => {
-                  void save({ dueTime: null });
-                }}
-              >
-                Anytime
-              </button>
-            )}
-            <button className="mini" onClick={closePicker} disabled={busy}>Close</button>
-          </div>
-        )}
-        {open && error && <div className="sub-add-feedback">
-          <p role="alert">Time wasn't saved. Your choice is kept here. Retry or choose another time.</p>
-          <button className="btn-secondary" onClick={() => void save(error.patch)}>Retry time for {t.title}</button>
-        </div>}
-      </div>
-    );
-  }
-
+function PlanEditor({task,date,suggestedTime,close}:{task:Task;date:string;suggestedTime:string|null;close:()=>void}){
+ const [workDate,setDate]=useState(suggestedTime!==null?date:task.plannedDate||date),[time,setTime]=useState(suggestedTime??task.plannedTime??''),[duration,setDuration]=useState(task.durationMinutes?String(task.durationMinutes):'');const [busy,setBusy]=useState(false),[error,setError]=useState('');const lock=useRef(false);const formRef=useRef<HTMLFormElement>(null);useEffect(()=>{formRef.current?.scrollIntoView({block:'nearest'});formRef.current?.querySelector('input')?.focus()},[]);
+ async function save(patch:PlanPatch){if(lock.current)return;lock.current=true;setBusy(true);setError('');try{await updateTask(task.id,patch);close()}catch{setError('Plan was not saved. Your choices are kept; retry.')}finally{lock.current=false;setBusy(false)}}
+ return <form ref={formRef} className="planner-editor" onSubmit={e=>{e.preventDefault();const invalid=planError(workDate,time,duration);if(invalid){setError(invalid);return}void save({plannedDate:workDate||null,plannedTime:time||null,durationMinutes:duration?Number(duration):null})}}><fieldset disabled={busy}><legend>Work plan for {task.title}</legend><p>Saving changes only the work plan and estimate, never the deadline or calendar.</p><label>Planned work date<input type="date" value={workDate} onChange={e=>setDate(e.target.value)}/></label><label>Planned start<input type="time" value={time} onChange={e=>setTime(e.target.value)}/></label><label>Estimate (minutes)<input type="number" min="1" max="1440" step="1" value={duration} onChange={e=>setDuration(e.target.value)}/></label><div className="planner-toolbar"><button type="submit" className="btn-primary">{busy?'Saving…':'Save plan'}</button><button type="button" className="btn-secondary planner-action" onClick={()=>void save({plannedDate:null,plannedTime:null,durationMinutes:task.durationMinutes??null})}>Remove work plan</button><button type="button" className="btn-secondary planner-action" onClick={close}>Cancel</button></div>{error&&<p role="alert">{error}</p>}</fieldset></form>
+}

@@ -1,3 +1,5 @@
+import './task-detail-flow.css';
+import { editorDrafts } from '../editorDrafts';
 import CompletionButton from './CompletionButton';
 import { X, Check, StickyNote } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
@@ -79,6 +81,14 @@ export default function TaskDetail(props: { taskId: string; onClose: () => void;
         <button className="close" aria-label="Close task details" onClick={props.onClose}><X size={16} strokeWidth={2} /></button>
       </div>
       <TaskTitle id={task.id} title={task.title} />
+      <TaskDateField id={task.id} field="dueDate" value={task.dueDate ?? ''} label="Due date" type="date" />
+      {task.dueDate && <TaskDateField id={task.id} field="dueTime" value={task.dueTime ?? ''} label="Deadline time (optional)" type="time" />}
+      <TaskLinkField id={task.id} field="projectId" value={task.projectId} label="Project">
+          {projectTree(projects).map(({ project: p, depth }) => (
+            <option key={p.id} value={p.id}>{' '.repeat(depth)}{depth > 0 ? '– ' : ''}{p.name}</option>
+          ))}
+      </TaskLinkField>
+      <TaskPriority id={task.id} priority={task.priority} />
       <TaskFocus id={task.id} runningHere={Boolean(runningHere)} running={Boolean(running)} clock={runningHere && running && <span className="focus-clock num">{formatClock(sessionSeconds(running, focusNow))}</span>}>
         {focusSessions && focusTotals(focusSessions, todayStr(), focusNow).perTask.get(task.id) ? (
           <span className="focus-total num">
@@ -86,6 +96,13 @@ export default function TaskDetail(props: { taskId: string; onClose: () => void;
           </span>
         ) : null}
       </TaskFocus>
+      <details key={`notes-${task.id}`} className="detail-notes" ref={node => {
+        if (node && !node.dataset.initialized) {
+          node.open = Boolean(task.note.trim() || task.noteId || editorDrafts.has(JSON.stringify([db.name, 'tasks', task.id])));
+          node.dataset.initialized = 'true';
+        }
+      }}>
+        <summary>Notes</summary>
       <NoteEditor collection="tasks" key={task.id} docKey={task.id} note={task.note} noteDoc={task.noteDoc} onSave={(doc, text) => updateTask(task.id, { noteDoc: doc, note: text })} />
       {task.noteId && sourceNote && (
         <button className="note-source" onClick={() => props.onOpenNote(task.noteId!)}>
@@ -93,14 +110,14 @@ export default function TaskDetail(props: { taskId: string; onClose: () => void;
           From note: {sourceNote.title || 'Untitled'}
         </button>
       )}
-      <TaskDateField id={task.id} field="dueDate" value={task.dueDate ?? ''} label="Due date" type="date" />
-      {task.dueDate && <TaskDateField id={task.id} field="dueTime" value={task.dueTime ?? ''} label="Time (optional - shows in Planner)" type="time" />}
-      <TaskLinkField id={task.id} field="projectId" value={task.projectId} label="Project">
-          {projectTree(projects).map(({ project: p, depth }) => (
-            <option key={p.id} value={p.id}>{' '.repeat(depth)}{depth > 0 ? '– ' : ''}{p.name}</option>
-          ))}
-      </TaskLinkField>
-      <TaskPriority id={task.id} priority={task.priority} />
+      </details>
+      <details key={`options-${task.id}`} className="detail-options" ref={node => {
+        if (node && !node.dataset.initialized) {
+          node.open = Boolean(task.goalId || task.recurrence || task.pinned || task.tags?.length || task.blockedBy?.length);
+          node.dataset.initialized = 'true';
+        }
+      }}>
+        <summary>More options <span className="detail-summary-hint">Goal, repeat, tags &amp; blockers</span></summary>
       <TaskLinkField id={task.id} field="goalId" value={task.goalId ?? ''} label="Goal">
           <option value="">No goal</option>
           {(goals ?? []).filter((g) => g.status === 'active').map((g) => (
@@ -128,6 +145,8 @@ export default function TaskDetail(props: { taskId: string; onClose: () => void;
         <h3>Tags</h3>
         <TaskTags taskId={task.id} tags={task.tags ?? []} />
       </div>
+
+      </details>
 
       <div className="subs">
         <h3>Subtasks</h3>

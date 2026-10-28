@@ -7,7 +7,7 @@ try {
     const errors = []; page.on('pageerror', e => errors.push(e.message));
     await page.goto(`${process.env.BASE_URL}/?sample`);
     await page.getByText('Set up the backup volume', { exact: true }).first().click();
-    const select = page.getByLabel('Time (optional - shows in Planner)', {exact:true}); await select.waitFor();
+    const select = page.getByLabel('Deadline time (optional)', {exact:true}); await select.waitFor();
     const before = await select.inputValue(), next = '15:30';
     await page.evaluate(async () => {
       const { db } = await import('/src/db.ts');

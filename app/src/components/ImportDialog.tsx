@@ -61,11 +61,14 @@ export default function ImportDialog(props: { projects: Project[]; initialSource
     if (source !== 'lifedash-json' || !text.trim()) return null;
     try {
       const d = JSON.parse(text) as Record<string, unknown>;
-      if (d?.version !== 2 || !Array.isArray(d.tasks)) return null;
+      if (![2, 3].includes(d?.version as number) || !Array.isArray(d.tasks)) return null;
       return d;
     } catch { return null; }
   }, [source, text]);
   const COLL_LABELS: [string, string, string][] = [
+    ['attachments', 'attachment file', 'attachment files'],
+    ['focusSessions', 'focus session', 'focus sessions'],
+    ['habitLogs', 'habit log', 'habit logs'],
     ['projects', 'project', 'projects'],
     ['tasks', 'task', 'tasks'],
     ['habits', 'habit', 'habits'],
@@ -178,7 +181,7 @@ export default function ImportDialog(props: { projects: Project[]; initialSource
             {fullBackup && (
               <div className="import-summary">
                 <p className="import-count">Backup data: {backupCounts.filter((c) => c.n > 0).map((c) => c.text).join(', ')}.</p>
-                <p className="import-warnings">Restoring merges by id: items in the backup overwrite matching existing items; nothing is deleted. Attachment files are not included in backups - only their names and metadata.</p>
+                <p className="import-warnings">Restoring merges by id: items in the backup overwrite matching existing items; nothing is deleted. {fullBackup.version === 3 ? 'Portable backup includes attachment files. File checks run before any records are restored.' : 'Legacy JSON has attachment metadata only; files are not restored.'}</p>
                 <button className="btn-primary" disabled={busy} onClick={() => void runFullRestore()}>
                   {busy ? 'Restoring...' : 'Restore backup data'}
                 </button>

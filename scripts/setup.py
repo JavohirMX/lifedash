@@ -87,7 +87,7 @@ def main(argv=None):
     print('2. Enter http://localhost:8787 on this host and create the FIRST account. There is no default login or email password reset.')
     print('3. Root Compose closes registration after the first account; server/ Compose differs. Do not leave extra registration open by accident.')
     print('4. Set up HTTPS for app and API before other devices; sign into the same account on each. localhost on a phone means the phone.')
-    print('5. Export device JSON and take a server backup. Both omit attachment binaries: keep original files separately. See /selfhost.html and server/SELFHOST.md.')
+    print('5. Use Settings > Data & backups for a portable backup with attachment files, and take a server backup. Legacy Export JSON omits files; sync omits attachments. See /selfhost.html and server/SELFHOST.md.')
     print('Keep data with docker compose down. Never add -v for a routine stop/upgrade: it deletes the volume.')
     return 0
 

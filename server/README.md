@@ -46,5 +46,5 @@ pytest
 - Entities are opaque JSON blobs; the server does not interpret task
   fields. Conflict handling is server-wins with the server's version
   returned to the client (see protocol doc).
-- Attachments (binary blobs) are not synced in v1 - metadata only.
+- Attachment metadata and binary files are not synced in v1. Device portable backups include both.
 - Secrets: bearer tokens and PBKDF2-hashed passwords, nothing else stored.

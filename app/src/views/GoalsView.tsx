@@ -1,3 +1,7 @@
+import GoalNextAction from '../components/GoalNextAction';
+import GoalConnections from '../components/GoalConnections';
+import WeeklyReview from '../components/WeeklyReview';
+import type { Selection } from '../components/Sidebar';
 import './workflow.css';
 import { useRef, useState } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
@@ -13,9 +17,10 @@ function goalProgress(tasks: Task[], goalId: string): { done: number; total: num
   return { done: linked.filter((t) => t.status === 'done').length, total: linked.length };
 }
 
-export default function GoalsView(props: { tasks: Task[]; onOpen: (id: string) => void }) {
+export default function GoalsView(props: { tasks: Task[]; onOpen: (id: string) => void; onNavigate: (s: Selection) => void }) {
   const goals = useLiveQuery(() => db.goals.orderBy('order').toArray(), []);
   const [adding, setAdding] = useState(false);
+  const [reviewOpen, setReviewOpen] = useState(false);
   const writing = useRef(false);
   const [saving, setSaving] = useState<'create' | 'edit' | 'status' | null>(null);
   const [createError, setCreateError] = useState('');
@@ -80,6 +85,8 @@ export default function GoalsView(props: { tasks: Task[]; onOpen: (id: string) =
           <Plus size={14} strokeWidth={2} aria-hidden="true" /> Goal
         </button>
       </h1>
+      {!reviewOpen && <button className="mini" onClick={() => setReviewOpen(true)}>Weekly review</button>}
+      {reviewOpen && <WeeklyReview tasks={props.tasks} onOpen={props.onOpen} onNavigate={props.onNavigate} onClose={() => setReviewOpen(false)} />}
       <p className="workflow-hint">Progress tracks linked tasks. Marking a goal done is separate.</p>
       <p className="form-save-status" role="status">{saving ? 'Saving…' : saveStatus}</p>
       {statusError && <p className="form-save-error" role="alert">{statusError}</p>}
@@ -105,7 +112,7 @@ export default function GoalsView(props: { tasks: Task[]; onOpen: (id: string) =
       {active.length === 0 && !adding && (
         <div className="empty goals-empty">
           <Target size={28} strokeWidth={1.5} aria-hidden="true" />
-          <p>No active goals. Add a goal, then link tasks in Task details.</p>
+          <p>No active goals. Add a goal, then choose its next action.</p>
         </div>
       )}
       <div className="goal-list">
@@ -168,6 +175,8 @@ export default function GoalsView(props: { tasks: Task[]; onOpen: (id: string) =
                       <span className={overdue ? 'goal-when overdue' : 'goal-when'}>{friendlyDate(g.targetDate, today)}</span>
                     )}
                   </div>
+                  <GoalNextAction goalId={g.id} />
+                  <GoalConnections goal={g} />
                   {expandedId === g.id && p.total > 0 && (
                     <div className="goal-tasks">
                       <TaskList

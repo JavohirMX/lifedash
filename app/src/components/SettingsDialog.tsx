@@ -6,6 +6,7 @@ import { STYLES, getStyle, getTheme } from '../theme';
 export default function SettingsDialog(props: {
   onClose: () => void;
   onSync: () => void;
+  onDataBackup?: () => void;
   onAppearance: () => void;
   onGoogleCalendar?: () => void;
   reminders: 'on' | 'off' | 'blocked' | 'unsupported';
@@ -25,6 +26,7 @@ export default function SettingsDialog(props: {
         <div className="import-head"><h2>Settings</h2><button className="icon-btn" aria-label="Close settings" onClick={props.onClose}><X size={18} /></button></div>
         <section className="settings-group" aria-labelledby="settings-device-heading">
         <h3 id="settings-device-heading">Connection &amp; display</h3>
+        {props.onDataBackup && <button className="settings-row" onClick={props.onDataBackup}><Cloud size={19}/><span><strong>Data &amp; backups</strong><small>Device status and complete portable backup</small></span><span aria-hidden="true">→</span></button>}
         <button className="settings-row" onClick={props.onSync}><Cloud size={19} /><span><strong>Sync</strong><small>Connect to your self-hosted server</small></span><span aria-hidden="true">→</span></button>
         <button className="settings-row" onClick={props.onAppearance}><Palette size={19} /><span><strong>Appearance</strong><small>Style, mode, fonts and wallpaper</small><small className="settings-current-appearance" aria-hidden="true">{STYLES.find(s => s.id === getStyle())?.name} · {getTheme() === 'system' ? 'System mode' : `${getTheme()} mode`}</small></span><span aria-hidden="true">→</span></button>
         {props.onGoogleCalendar && <button className="settings-row" onClick={props.onGoogleCalendar}><Cloud size={19}/><span><strong>Google Calendar</strong><small>Optional read-only events, using your self-hosted server</small></span><span aria-hidden="true">→</span></button>}
