@@ -6,12 +6,13 @@ import Attachments from './Attachments';
 import SubtaskAdd from './SubtaskAdd';
 import TaskTitle from './TaskTitle';
 import TaskTags from './TaskTags';
+import TaskBlockers from './TaskBlockers';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { runningSession, sessionSeconds, focusTotals, formatClock, formatDuration } from '../focus';
 import { startFocus, stopFocus } from '../repo';
 import { db, INBOX_ID } from '../db';
-import { addTask, deleteTask, skipTask, updateTask, addBlocker, removeBlocker } from '../repo';
-import { makeRecurrence, describeRecurrence, isRecurrenceValid, blockersOf, blockerCandidates, normalizeTask } from '../logic';
+import { addTask, deleteTask, skipTask, updateTask } from '../repo';
+import { makeRecurrence, describeRecurrence, isRecurrenceValid } from '../logic';
 import { todayStr } from '../dates';
 import { projectTree } from '../projects';
 import type { Task } from '../types';
@@ -57,8 +58,6 @@ export default function TaskDetail(props: { taskId: string; onClose: () => void;
     [task?.noteId],
   );
   const [nDays, setNDays] = useState(3);
-  const [blockerPick, setBlockerPick] = useState('');
-  const [blockerError, setBlockerError] = useState('');
 
   useEffect(() => {
     if (task) panel.current?.querySelector<HTMLInputElement>('.detail-title')?.focus();
@@ -243,36 +242,7 @@ export default function TaskDetail(props: { taskId: string; onClose: () => void;
 
       <div className="subs">
         <h3>Blocked by</h3>
-        {blockersOf((allTasks ?? []).map(normalizeTask), normalizeTask(task)).map((b) => (
-          <div key={b.id} className={`sub-row ${b.status === 'done' ? 'done' : ''}`}>
-            <span className={`dep-dot ${b.status}`} />
-            <span style={{ flex: 1 }}>{b.title}</span>
-            <button className="mini" aria-label={`Remove blocker ${b.title}`} onClick={() => void removeBlocker(task.id, b.id)}><X size={13} strokeWidth={2} /></button>
-          </div>
-        ))}
-        <div className="dep-add">
-          <select aria-label="Add a blocker" value={blockerPick} onChange={(e) => setBlockerPick(e.target.value)}>
-            <option value="">Add a blocker...</option>
-            {blockerCandidates(allTasks ?? [], task)
-              .slice(0, 200)
-              .map((t) => (
-                <option key={t.id} value={t.id}>{t.title}</option>
-              ))}
-          </select>
-          <button
-            className="mini"
-            disabled={!blockerPick}
-            onClick={() => {
-              void addBlocker(task.id, blockerPick).then((r) => {
-                setBlockerError(r.ok ? '' : (r.reason ?? 'Could not add blocker.'));
-                if (r.ok) setBlockerPick('');
-              });
-            }}
-          >
-            Add
-          </button>
-        </div>
-        {blockerError && <p className="dep-error">{blockerError}</p>}
+        <TaskBlockers task={task} tasks={allTasks ?? []} />
       </div>
 
       <div className="subs">
