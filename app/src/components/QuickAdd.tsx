@@ -18,6 +18,7 @@ let captureId = 0;
 
 export default function QuickAdd(props: { projectId: string; dueDate?: string | null; placeholder?: string }) {
   const [title, setTitle] = useState('');
+  const currentTitle = useRef('');
   const fieldId = useId();
   const chain = useRef<Promise<unknown>>(Promise.resolve());
   const inputRef = useRef<HTMLInputElement>(null);
@@ -52,7 +53,7 @@ export default function QuickAdd(props: { projectId: string; dueDate?: string | 
   }
 
   function submit() {
-    const raw = title.trim();
+    const raw = currentTitle.current.trim();
     if (!raw) return;
     const parsed = parseQuickAdd(raw);
     const nat = parseNatural(parsed.title);
@@ -66,6 +67,7 @@ export default function QuickAdd(props: { projectId: string; dueDate?: string | 
       dueDate: nat.dueDate ?? props.dueDate ?? null,
       dueTime: nat.dueTime, recurrence: nat.recurrence, priority: nat.priority,
     } });
+    currentTitle.current = '';
     setTitle('');
     inputRef.current?.focus();
   }
@@ -94,7 +96,7 @@ export default function QuickAdd(props: { projectId: string; dueDate?: string | 
             placeholder={props.placeholder ?? 'Add a task'}
             aria-describedby={`${fieldId}-hint${error ? ` ${fieldId}-error` : ''}`}
             aria-invalid={error ? true : undefined}
-            onChange={(e) => { setTitle(e.target.value); setError(''); setStatus(''); }}
+            onChange={(e) => { currentTitle.current = e.target.value; setTitle(e.target.value); setError(''); setStatus(''); }}
             onKeyDown={(e) => {
               if (e.key === 'Enter' && e.nativeEvent.isComposing) e.preventDefault();
               if (e.key === 'Escape' && !e.nativeEvent.isComposing) (e.target as HTMLInputElement).blur();
