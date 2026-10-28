@@ -113,6 +113,7 @@ export default function QuickAdd(props: { projectId: string; dueDate?: string | 
           <p role="alert">Couldn't save this task. Your text is kept here:</p>
           <p className="quick-add-draft">{job.raw}</p>
           <button type="button" className="mini" onClick={() => {
+            if (retryingCaptures.has(job)) return;
             retryingCaptures.add(job);
             rememberFailed((failedCaptures.get(db.name) ?? []).filter((item) => item.id !== job.id));
             enqueue(job);
