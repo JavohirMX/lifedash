@@ -78,7 +78,7 @@ export default function HomeView(props: { tasks: Task[]; onSelect: (kind: string
 
   const sug = upNextGroups(props.tasks, today, now.getTime());
   const sugRows = [
-    { id: 'overdue', count: sug.overdue.length, text: 'overdue', go: () => props.onSelect('upcoming') },
+    { id: 'overdue', count: sug.overdue.length, text: 'overdue', go: () => props.onSelect('today') },
     { id: 'dueSoon', count: sug.dueSoon.length, text: 'due in the next 2 days', go: () => props.onSelect('upcoming') },
     { id: 'stale', count: sug.staleBacklog.length, text: 'untouched 14+ days in Backlog', go: () => props.onSelect('backlog') },
     { id: 'broken', count: sug.brokenRules.length, text: sug.brokenRules.length === 1 ? 'broken repeat rule' : 'broken repeat rules', go: () => props.onOpen(sug.brokenRules[0].id) },
