@@ -110,6 +110,7 @@ export default function CommandPalette(props: {
             placeholder="Type a command or search tasks, notes, journal"
             onChange={(e) => setQuery(e.target.value)}
             onKeyDown={(e) => {
+              if (e.nativeEvent.isComposing) return;
               if (e.key === 'ArrowDown') { e.preventDefault(); setIndex((i) => Math.min(i + 1, actions.length - 1)); }
               if (e.key === 'ArrowUp') { e.preventDefault(); setIndex((i) => Math.max(i - 1, 0)); }
               if (e.key === 'Enter' && actions[index]) actions[index].run();
