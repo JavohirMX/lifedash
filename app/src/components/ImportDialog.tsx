@@ -24,6 +24,7 @@ export default function ImportDialog(props: { projects: Project[]; initialSource
   const [restoreError, setRestoreError] = useState('');
   const [importError, setImportError] = useState('');
   const [busy, setBusy] = useState(false);
+  const writing = useRef(false);
   const fileRef = useRef<HTMLInputElement>(null);
   const areaRef = useRef<HTMLTextAreaElement>(null);
 
@@ -78,16 +79,17 @@ export default function ImportDialog(props: { projects: Project[]; initialSource
     : [];
 
   async function runFullRestore() {
-    setBusy(true);
+    if (writing.current) return;
+    writing.current = true; setBusy(true);
     setRestoreError('');
     try { setRestored((await importBackup(text)).restored); }
     catch (e) { setRestoreError(e instanceof Error ? e.message : 'Restore failed. Nothing was restored.'); }
-    finally { setBusy(false); }
+    finally { writing.current = false; setBusy(false); }
   }
 
   async function run() {
-    if (!result || result.tasks.length === 0) return;
-    setBusy(true);
+    if (writing.current || !result || result.tasks.length === 0) return;
+    writing.current = true; setBusy(true);
     setImportError('');
     try {
       const n = await db.transaction('rw', db.projects, db.tasks, async () => {
@@ -112,7 +114,7 @@ export default function ImportDialog(props: { projects: Project[]; initialSource
     } catch {
       setImportError("Couldn't import tasks. No tasks or projects were added. Your source text is still here; try again.");
     } finally {
-      setBusy(false);
+      writing.current = false; setBusy(false);
     }
   }
 
