@@ -1,3 +1,4 @@
+import { reportCompletionFailure } from './completionFeedback';
 import type { Task } from './types';
 import { db } from './db';
 import { completionGate } from './completionGate';
@@ -33,5 +34,8 @@ export async function requestComplete(task: Task): Promise<void> {
       if (choice === 'cancel') return;
       await completeWithSubtasks(current, choice === 'confirm');
     } else await toggleComplete(current);
+  } catch (error) {
+    reportCompletionFailure(task.title);
+    throw error;
   } finally { active = false; }
 }

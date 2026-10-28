@@ -34,14 +34,23 @@ export default function TaskRow(props: {
     finally { pinning.current = false; setPinBusy(false); }
   }
 
-  function onCheck() { void requestComplete(task); }
+  const completing = useRef(false);
+  const [completeBusy, setCompleteBusy] = useState(false), [completeError, setCompleteError] = useState('');
+  async function onCheck() {
+    if (completing.current) return;
+    completing.current = true; setCompleteBusy(true); setCompleteError('');
+    try { await requestComplete(task); }
+    catch { setCompleteError("Couldn't finish this change. Check the task's current state before trying its checkbox again."); }
+    finally { completing.current = false; setCompleteBusy(false); }
+  }
 
   return (
     <div className={`task-row task-row-pin-state ${done ? 'done' : ''} ${task.pinned ? 'pinned' : ''} ${blocked ? 'blocked' : ''}`}>
       <button
         className={`checkbox ${done ? 'checked' : ''}`}
         aria-label={done ? 'Mark not done' : 'Mark done'}
-        onClick={onCheck}
+        disabled={completeBusy}
+        onClick={() => void onCheck()}
       >
         {done ? <Check size={13} strokeWidth={2.5} aria-hidden="true" /> : null}
       </button>
@@ -101,6 +110,8 @@ export default function TaskRow(props: {
           <path d="M9 3h6l-1 7 3 3v2H7v-2l3-3-1-7z" />
         </svg>
       </button>
+      {completeBusy && <p className="sub-add-feedback task-row-pin-feedback" role="status">Updating task…</p>}
+      {completeError && <p className="sub-add-feedback task-row-pin-feedback" role="alert">{completeError}</p>}
       {pinBusy && <p className="sub-add-feedback task-row-pin-feedback" role="status">Saving pin…</p>}
       {pinError && <p className="sub-add-feedback task-row-pin-feedback" role="alert">{pinError}</p>}
     </div>

@@ -1,4 +1,5 @@
 import './views/workflow.css';
+import CompletionFailureNotice from './components/CompletionFailureNotice';
 import CompletionDialog from './components/CompletionDialog';
 import { setCompletionHandler, type CompletionPrompt } from './completionPrompt';
 import { SAMPLE_MODE } from './dev/sampleMode';
@@ -414,6 +415,7 @@ export default function App() {
       <main className={selection.kind === 'home' ? 'home-main' : ['week', 'calendar'].includes(selection.kind) ? 'schedule-main' : undefined}>
         {SAMPLE_MODE && <div className="sample-banner" role="status">Sample-data sandbox · Fictional data · <a href="/">Exit to your real data</a></div>}
         <SyncConflictBanner />
+        <CompletionFailureNotice />
         {showQuickAdd && (
           <QuickAdd
             projectId={quickAddContext.projectId}

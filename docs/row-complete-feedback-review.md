@@ -1,0 +1,11 @@
+# Task row completion feedback
+
+October28,2026. Isolated ordinary row completion write rejection leaves task unchanged with no alert and uncaught rejection. TaskRow now awaits existing requestComplete, guards duplicate checkbox actions and shows pending/error below same row. Error explicitly asks to check current task state, not claiming rollback, since existing completion can commit then fail during parent/user automation.
+
+Six1440/390/320light/dark ordinary complete/undo rejection, unchanged status, retry, held duplicate, blocked cancellation and subtask cancellation pass.390light/320dark error pixels inspected: readable below checkbox/title/pin, no horizontal overflow.314tests/checked-exit build pass. No requestComplete/gate/automation/recurrence/repository changes.
+
+Row-mounted guard only, existing requestComplete global guard unchanged. Pending write continues on navigation. If completion commits before a later automation failure, existing list filtering may unmount row and lose local error. This candidate does not guarantee notice for post-commit/partial-completion failures or cross-entrypoint UI isolation. No new all-or-nothing guarantee. Other completion controls remain separate scope.
+
+Limited row-only snapshot parked before landing. Extended candidate adds completionFeedback in-memory notices reported by requestComplete catch and rendered globally by App. Named notices persist across row removal and view navigation until explicitly dismissed or page reload; no automatic retry or rollback. RequestComplete still rethrows original failure, existing gates and final global lock release unchanged. Row caller catches it as before candidate.
+
+Six browser groups additionally prove injected tag-automation add failure after base completion: saved task done, row removed, persistent named partial-save warning shown, retained after Home navigation, then dismissible.390light/320dark partial-failure pixels inspected readable. Feedback unit test checks multiple notices, unique IDs, independent dismissal and unsubscribe. Other completion callers also get global notice but their existing rejection handling remains unchanged; this patch does not claim all completion entrypoints are guarded.
