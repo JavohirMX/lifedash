@@ -79,6 +79,19 @@ export default function Sidebar(props: {
   const [adding, setAdding] = useState(false);
   const [addParent, setAddParent] = useState<string | null>(null);
   const [name, setName] = useState('');
+  const projectWriting = useRef(false);
+  const [projectBusy, setProjectBusy] = useState(false);
+  const [projectError, setProjectError] = useState('');
+  async function createProject() {
+    if (projectWriting.current || !name.trim()) return;
+    projectWriting.current = true; setProjectBusy(true); setProjectError('');
+    try {
+      await addProject(name, COLORS[props.projects.length % COLORS.length], addParent);
+      setName(''); setAddParent(null); setAdding(false);
+    } catch { setProjectError("Couldn't add this project. Your entries are still here. Try Add project again."); }
+    finally { projectWriting.current = false; setProjectBusy(false); }
+  }
+
   const [query, setQuery] = useState('');
   // Keep the box in step with external query changes (filter chips, Esc).
   useEffect(() => {
@@ -161,7 +174,7 @@ export default function Sidebar(props: {
     <>
       <div className="nav-section">
         <span>Projects</span>
-        <button className="icon-btn" title="New project" aria-label="New project" onClick={() => setAdding(true)}>
+        <button className="icon-btn" title="New project" aria-label="New project" disabled={projectBusy} onClick={() => { setAdding(true); setProjectError(''); }}>
           <Plus size={14} strokeWidth={1.75} />
         </button>
       </div>
@@ -188,19 +201,15 @@ export default function Sidebar(props: {
             autoFocus
             value={name}
             placeholder="Project name"
+            aria-label="New project name" disabled={projectBusy}
             onChange={(e) => setName(e.target.value)}
             onKeyDown={(e) => {
-              if (e.key === 'Enter' && name.trim()) {
-                void addProject(name, COLORS[props.projects.length % COLORS.length], addParent);
-                setName('');
-                setAddParent(null);
-                setAdding(false);
-              }
+              if (e.key === 'Enter' && !e.nativeEvent.isComposing) void createProject();
               if (e.key === 'Escape') setAdding(false);
             }}
           />
           <select
-            className="project-add-parent"
+            className="project-add-parent" disabled={projectBusy}
             value={addParent ?? ''}
             onChange={(e) => setAddParent(e.target.value || null)}
             aria-label="Parent project"
@@ -210,6 +219,10 @@ export default function Sidebar(props: {
               <option key={p.id} value={p.id}>{' '.repeat(depth)}{p.name}</option>
             ))}
           </select>
+          <button className="mini" disabled={projectBusy || !name.trim()} onClick={() => void createProject()}>Add project</button>
+          <button className="mini" disabled={projectBusy} onClick={() => setAdding(false)}>Cancel</button>
+          {projectBusy && <p className="project-save-feedback" role="status">Saving project…</p>}
+          {projectError && <p className="project-save-feedback" role="alert">{projectError}</p>}
         </div>
       )}
     </>

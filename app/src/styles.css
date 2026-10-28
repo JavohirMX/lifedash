@@ -434,8 +434,10 @@ h2 { font-family: var(--font-display); font-size: var(--fs-section); font-weight
 .dep-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--control); flex-shrink: 0; }
 .dep-dot.done { background: var(--positive); }
 .dep-add { display: flex; gap: 6px; margin-top: 6px; }
+.dep-add > button { flex-shrink: 0; }
 .dep-add select {
   flex: 1;
+  min-width: 0;
   height: 34px;
   background: var(--surface);
   border: 1px solid var(--control);
@@ -1812,3 +1814,6 @@ main.tv-grid { max-width: none; width: 100%; }
 .sub-add-feedback { font-size: var(--fs-small); line-height: 1.5; margin: 8px 0; }
 .sub-add-feedback:empty { display: none; }
 @media(max-width:700px) { .sub-add-form .mini { min-height: 44px; } }
+
+.project-save-feedback { font-size: var(--fs-small); line-height: 1.5; overflow-wrap: anywhere; margin: 4px 0; }
+@media(max-width:700px) { .project-add > .mini { min-height: 44px; } }
