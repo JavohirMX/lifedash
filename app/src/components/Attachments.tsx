@@ -13,14 +13,18 @@ function fmtSize(n: number): string {
 
 function Thumb(props: { att: Attachment }) {
   const [url, setUrl] = useState<string | null>(null);
+  const [previewFailed, setPreviewFailed] = useState(false);
   useEffect(() => {
     if (!props.att.mime.startsWith('image/')) return;
-    const u = URL.createObjectURL(props.att.blob);
-    setUrl(u);
-    return () => URL.revokeObjectURL(u);
+    setUrl(null); setPreviewFailed(false);
+    try {
+      const u = URL.createObjectURL(props.att.blob);
+      setUrl(u);
+      return () => URL.revokeObjectURL(u);
+    } catch { setPreviewFailed(true); }
   }, [props.att]);
-  if (!url) return <Paperclip size={16} strokeWidth={1.75} className="att-icon" aria-label="File attachment" />;
-  return <img src={url} alt={props.att.name} className="att-thumb" />;
+  if (!url || previewFailed) return <Paperclip size={16} strokeWidth={1.75} className="att-icon" aria-label={previewFailed ? "Image preview unavailable" : "File attachment"} />;
+  return <img src={url} alt={props.att.name} className="att-thumb" onError={() => setPreviewFailed(true)} />;
 }
 
 function downloadAttachment(a: Attachment): void {
