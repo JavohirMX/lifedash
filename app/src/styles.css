@@ -1844,3 +1844,6 @@ main.tv-grid { max-width: none; width: 100%; }
 .task-tag-add .mini { flex-shrink: 0; min-height: 44px; }
 
 .task-delete-feedback > .danger { width: 100%; }
+
+.task-row-pin-state { flex-wrap: wrap; }
+.task-row-pin-feedback { flex-basis: 100%; margin: 0; }

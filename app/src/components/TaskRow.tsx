@@ -1,3 +1,4 @@
+import { useRef, useState } from 'react';
 import { Flag, Check, Repeat } from 'lucide-react';
 import type { Task } from '../types';
 import { togglePin } from '../repo';
@@ -23,10 +24,20 @@ export default function TaskRow(props: {
   const blocked = !done && blockers.length > 0;
   const tags = task.tags ?? [];
 
+  const pinning = useRef(false);
+  const [pinBusy, setPinBusy] = useState(false), [pinError, setPinError] = useState('');
+  async function onPin() {
+    if (pinning.current) return;
+    pinning.current = true; setPinBusy(true); setPinError('');
+    try { await togglePin(task); }
+    catch { setPinError("Couldn't change this task's pin. Try the pin button again."); }
+    finally { pinning.current = false; setPinBusy(false); }
+  }
+
   function onCheck() { void requestComplete(task); }
 
   return (
-    <div className={`task-row ${done ? 'done' : ''} ${task.pinned ? 'pinned' : ''} ${blocked ? 'blocked' : ''}`}>
+    <div className={`task-row task-row-pin-state ${done ? 'done' : ''} ${task.pinned ? 'pinned' : ''} ${blocked ? 'blocked' : ''}`}>
       <button
         className={`checkbox ${done ? 'checked' : ''}`}
         aria-label={done ? 'Mark not done' : 'Mark done'}
@@ -81,7 +92,8 @@ export default function TaskRow(props: {
         className={`pin ${task.pinned ? 'on' : ''}`}
         title={task.pinned ? 'Unpin' : 'Pin'}
         aria-label={task.pinned ? 'Unpin task' : 'Pin task'}
-        onClick={() => void togglePin(task)}
+        disabled={pinBusy}
+        onClick={() => void onPin()}
       >
         <svg width="15" height="15" viewBox="0 0 24 24" fill={task.pinned ? 'currentColor' : 'none'}
              stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -89,6 +101,8 @@ export default function TaskRow(props: {
           <path d="M9 3h6l-1 7 3 3v2H7v-2l3-3-1-7z" />
         </svg>
       </button>
+      {pinBusy && <p className="sub-add-feedback task-row-pin-feedback" role="status">Saving pin…</p>}
+      {pinError && <p className="sub-add-feedback task-row-pin-feedback" role="alert">{pinError}</p>}
     </div>
   );
 }
