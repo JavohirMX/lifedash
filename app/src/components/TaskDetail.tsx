@@ -10,6 +10,7 @@ import TaskBlockers from './TaskBlockers';
 import TaskDelete from './TaskDelete';
 import TaskPriority from './TaskPriority';
 import TaskPin from './TaskPin';
+import TaskLinkField from './TaskLinkField';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { runningSession, sessionSeconds, focusTotals, formatClock, formatDuration } from '../focus';
 import { startFocus, stopFocus } from '../repo';
@@ -145,25 +146,13 @@ export default function TaskDetail(props: { taskId: string; onClose: () => void;
           />
         </label>
       )}
-      <label className="field">
-        <span>Project</span>
-        <select
-          value={task.projectId}
-          onChange={(e) => void updateTask(task.id, { projectId: e.target.value })}
-        >
+      <TaskLinkField id={task.id} field="projectId" value={task.projectId} label="Project">
           {projectTree(projects).map(({ project: p, depth }) => (
             <option key={p.id} value={p.id}>{' '.repeat(depth)}{depth > 0 ? '– ' : ''}{p.name}</option>
           ))}
-        </select>
-      </label>
+      </TaskLinkField>
       <TaskPriority id={task.id} priority={task.priority} />
-      <label className="field">
-        <span>Goal</span>
-        <select
-          aria-label="Goal"
-          value={task.goalId ?? ''}
-          onChange={(e) => void updateTask(task.id, { goalId: e.target.value || null })}
-        >
+      <TaskLinkField id={task.id} field="goalId" value={task.goalId ?? ''} label="Goal">
           <option value="">No goal</option>
           {(goals ?? []).filter((g) => g.status === 'active').map((g) => (
             <option key={g.id} value={g.id}>{g.title}</option>
@@ -173,8 +162,7 @@ export default function TaskDetail(props: { taskId: string; onClose: () => void;
               {(goals ?? []).find((g) => g.id === task.goalId)?.title ?? 'Linked goal'} (archived)
             </option>
           )}
-        </select>
-      </label>
+      </TaskLinkField>
       <label className="field">
         <span>Repeats</span>
         <select value={choice} onChange={(e) => void setRecurrence(e.target.value as Exclude<RecChoice, 'invalid'>)}>
