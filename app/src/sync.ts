@@ -73,6 +73,8 @@ export function saveSyncSettings(s: SyncSettings | null): void {
   if (SAMPLE_MODE) return;
   if (s) localStorage.setItem(SETTINGS_KEY, JSON.stringify(s));
   else localStorage.removeItem(SETTINGS_KEY);
+  // A new or removed sync account makes old upload-failure tallies stale.
+  void resetAllAttachmentUploadFailures();
 }
 
 export async function register(url: string, username: string, password: string): Promise<string> {
@@ -195,6 +197,8 @@ export function startAutoSync(): void {
   if (SAMPLE_MODE) return;
   if (autoSyncStarted) return;
   autoSyncStarted = true;
+  // A fresh launch is a natural retry point for stranded uploads.
+  void resetAllAttachmentUploadFailures();
   installSyncHooks();
   window.addEventListener('focus', () => void runAutoSync());
   window.addEventListener('online', () => void runAutoSync());
@@ -219,7 +223,12 @@ export function installSyncHooks(): void {
       }, 0);
     };
     table.hook('creating', (_pk, obj) => mark((obj as { id: string }).id));
-    table.hook('updating', (_mods, pk) => mark(String(pk)));
+    table.hook('updating', (mods, pk) => {
+      // uploadAttachmentBlob's blobOnServer:true write is bookkeeping; the
+      // server already knows. Marking it dirty would push a redundant row.
+      if (col === 'attachments' && Object.keys(mods as object).every((k) => k === 'blobOnServer')) return;
+      mark(String(pk));
+    });
     table.hook('deleting', (pk) => mark(String(pk), true));
   }
 }
@@ -234,13 +243,13 @@ export async function dirtyCount(): Promise<number> {
  * answers an identical re-upload idempotently. Returns false offline or on
  * refusal; the row stays local and the next sync's backfill retries.
  */
-export type BlobUploadOutcome = 'ok' | 'transient' | 'permanent';
+export type BlobUploadOutcome = 'ok' | 'transient' | 'permanent' | 'unconfigured';
 
 export async function uploadAttachmentBlob(att: Pick<Attachment, 'id' | 'taskId' | 'name'> & { blob: Blob }): Promise<BlobUploadOutcome> {
-  if (SAMPLE_MODE) return 'permanent';
+  if (SAMPLE_MODE) return 'unconfigured';
   try {
     const settings = loadSyncSettings();
-    if (!settings) return 'permanent';
+    if (!settings) return 'unconfigured';
     const base = settings.url.replace(/\/$/, '');
     const q = `task_id=${encodeURIComponent(att.taskId)}&filename=${encodeURIComponent(att.name)}&id=${encodeURIComponent(att.id)}`;
     const res = await fetch(`${base}/api/attachments?${q}`, {
@@ -266,6 +275,7 @@ export async function uploadAttachmentBlob(att: Pick<Attachment, 'id' | 'taskId'
 }
 
 interface BlobFailState { count: number; lastAt: number; permanent?: boolean }
+const PERMANENT_RETRY_AFTER_MS = 24 * 60 * 60 * 1000;
 const BLOB_FAIL_KEY = (id: string) => `blobfail:${id}`;
 /** Transient failures back off exponentially up to this gap between tries. */
 const BLOB_BACKOFF_MAX_MS = 6 * 60 * 60 * 1000;
@@ -277,6 +287,20 @@ async function blobFailState(id: string): Promise<BlobFailState> {
 /** Explicit retry path: a fresh local edit of the row clears its failure tally. */
 export async function resetAttachmentUploadFailure(id: string): Promise<void> {
   await db.syncmeta.delete(BLOB_FAIL_KEY(id));
+}
+
+/** User-initiated retry: manual Sync now clears every upload-failure tally. */
+export async function resetAllAttachmentUploadFailures(): Promise<void> {
+  const rows = await db.syncmeta.where('key').startsWith('blobfail:').toArray();
+  for (const r of rows) await db.syncmeta.delete(r.key);
+}
+
+/** Per-attachment upload state for honest UI (never trusted to the server). */
+export async function attachmentUploadFailures(): Promise<Record<string, { permanent?: boolean }>> {
+  const rows = await db.syncmeta.where('key').startsWith('blobfail:').toArray();
+  const out: Record<string, { permanent?: boolean }> = {};
+  for (const r of rows) out[r.key.slice('blobfail:'.length)] = (r.value as { permanent?: boolean }) ?? {};
+  return out;
 }
 
 /** Blobs never ride the JSON sync protocol; metadata only. */
@@ -305,9 +329,10 @@ export interface SyncResult {
   cursor: number;
 }
 
-export async function syncNow(settings: SyncSettings): Promise<SyncResult> {
+export async function syncNow(settings: SyncSettings, opts?: { retryFailedUploads?: boolean }): Promise<SyncResult> {
   if (SAMPLE_MODE) throw new Error('Sync is disabled in the sample-data sandbox.');
   installSyncHooks();
+  if (opts?.retryFailedUploads) await resetAllAttachmentUploadFailures();
   if (syncing) return { pushed: 0, conflicts: 0, pulled: 0, cursor: await getCursor() };
   syncing = true;
   try {
@@ -397,7 +422,7 @@ async function syncNowInner(settings: SyncSettings): Promise<SyncResult> {
     const eligible: (Attachment & { blob: Blob })[] = [];
     for (const a of pending) {
       const st = await blobFailState(a.id);
-      if (st.permanent) continue;
+      if (st.permanent && Date.now() - st.lastAt < PERMANENT_RETRY_AFTER_MS) continue;
       const wait = Math.min(2 ** st.count * 60 * 1000, BLOB_BACKOFF_MAX_MS);
       if (st.count > 0 && Date.now() - st.lastAt < wait) continue;
       eligible.push(a as Attachment & { blob: Blob });
@@ -407,7 +432,7 @@ async function syncNowInner(settings: SyncSettings): Promise<SyncResult> {
       const outcome = await uploadAttachmentBlob(a);
       if (outcome === 'ok') {
         await db.syncmeta.delete(BLOB_FAIL_KEY(a.id));
-      } else {
+      } else if (outcome !== 'unconfigured') {
         const st = await blobFailState(a.id);
         await setMeta(BLOB_FAIL_KEY(a.id), {
           count: st.count + 1, lastAt: Date.now(), permanent: outcome === 'permanent' || undefined,

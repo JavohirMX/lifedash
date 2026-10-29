@@ -16,10 +16,11 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 // In-memory stand-in for the Dexie db. sync.ts only uses:
 // syncmeta.get/put/delete/where('key').startsWith(...).toArray()/count(),
 // and table(col).get/put/delete/hook.
-const { meta, tables } = vi.hoisted(() => {
+const { meta, tables, hooks } = vi.hoisted(() => {
   const meta = new Map<string, unknown>();
   const tables = new Map<string, Map<string, unknown>>();
-  return { meta, tables };
+  const hooks = {} as Record<string, (...args: unknown[]) => void>;
+  return { meta, tables, hooks };
 });
 
 vi.mock('./db', () => ({
@@ -42,7 +43,7 @@ vi.mock('./db', () => ({
         get: async (id: string) => t.get(id),
         put: async (obj: { id: string }) => { t.set(obj.id, obj); return obj.id; },
         delete: async (id: string) => { t.delete(id); },
-        hook: () => {},
+        hook: (name: string, cb: (...args: unknown[]) => void) => { hooks[`${col}:${name}`] = cb; },
       };
     },
     attachments: {
@@ -58,7 +59,7 @@ vi.mock('./db', () => ({
   },
 }));
 
-import { acknowledgeConflictNotice, getConflictNotice, loadSyncStatus, logout, syncNow } from './sync';
+import { acknowledgeConflictNotice, getConflictNotice, loadSyncStatus, logout, saveSyncSettings, syncNow, uploadAttachmentBlob } from './sync';
 
 const settings = { url: 'http://test', username: 'u', token: 'tok' };
 
@@ -316,6 +317,78 @@ describe('sync edit-edit conflicts', () => {
     mockFetch({ changesResponses: [{ changes: [], rev: 0 }, { changes: [], rev: 1 }] });
     await syncNow(settings);
     expect(blobUploads.map((u) => u.id)).toEqual(['OK1']); // BAD skipped, OK1 delivered
+  });
+
+  it('a permanent refusal expires after a day and the blob is retried', async () => {
+    tables.get('attachments') ?? tables.set('attachments', new Map());
+    tables.get('attachments')!.set('OLD', {
+      id: 'OLD', taskId: 't1', name: 'old.txt', mime: 'text/plain', byteSize: 2,
+      blob: { size: 2, type: 'text/plain' }, createdAt: 1,
+    });
+    // Recent permanent refusal: still skipped.
+    meta.set('blobfail:OLD', { count: 1, lastAt: Date.now(), permanent: true });
+    mockFetch({ changesResponses: [{ changes: [], rev: 0 }, { changes: [], rev: 1 }] });
+    await syncNow(settings);
+    expect(blobUploads).toEqual([]);
+    // Same refusal, older than a day: retried (task may exist now, proxy healed).
+    meta.set('blobfail:OLD', { count: 1, lastAt: Date.now() - 25 * 60 * 60 * 1000, permanent: true });
+    mockFetch({ changesResponses: [{ changes: [], rev: 0 }, { changes: [], rev: 1 }] });
+    await syncNow(settings);
+    expect(blobUploads.map((u) => u.id)).toEqual(['OLD']);
+    expect(meta.get('blobfail:OLD')).toBeUndefined();
+  });
+
+  it('manual sync with retryFailedUploads clears tallies and retries in the same pass', async () => {
+    tables.get('attachments') ?? tables.set('attachments', new Map());
+    tables.get('attachments')!.set('STUCK', {
+      id: 'STUCK', taskId: 't1', name: 's.txt', mime: 'text/plain', byteSize: 2,
+      blob: { size: 2, type: 'text/plain' }, createdAt: 1,
+    });
+    meta.set('blobfail:STUCK', { count: 3, lastAt: Date.now(), permanent: true });
+    mockFetch({ changesResponses: [{ changes: [], rev: 0 }, { changes: [], rev: 1 }] });
+    await syncNow(settings, { retryFailedUploads: true });
+    expect(blobUploads.map((u) => u.id)).toEqual(['STUCK']);
+    expect(meta.get('blobfail:STUCK')).toBeUndefined();
+  });
+
+  it('saving sync settings clears stale upload-failure tallies', async () => {
+    meta.set('blobfail:X1', { count: 2, lastAt: Date.now(), permanent: true });
+    saveSyncSettings(settings);
+    await new Promise((r) => setTimeout(r, 5));
+    expect(meta.get('blobfail:X1')).toBeUndefined();
+  });
+
+  it('no sync account is unconfigured, never a failure', async () => {
+    lsStore.clear();
+    const fetchSpy = vi.fn();
+    vi.stubGlobal('fetch', fetchSpy);
+    const outcome = await uploadAttachmentBlob({ id: 'A1', taskId: 't1', name: 'f.txt', blob: new Blob(['x']) });
+    expect(outcome).toBe('unconfigured');
+    expect(fetchSpy).not.toHaveBeenCalled();
+    expect(meta.get('blobfail:A1')).toBeUndefined();
+  });
+
+  it('a blobOnServer-only write does not mark the attachment dirty again', async () => {
+    const updating = hooks['attachments:updating'];
+    expect(updating).toBeTypeOf('function');
+    mockFetch({ changesResponses: [{ changes: [], rev: 0 }] });
+    // A real edit schedules the auto-sync debounce; the node env has no
+    // window timers, so stub them (the debounce itself is not under test).
+    const realWindow = (globalThis as { window?: unknown }).window;
+    (globalThis as { window?: unknown }).window = { dispatchEvent: () => true, setTimeout: () => 0, clearTimeout: () => {} };
+    try {
+      updating({ blobOnServer: true }, 'A1');
+      await new Promise((r) => setTimeout(r, 5));
+      expect(meta.get('dirty:attachments:A1')).toBeUndefined();
+      // A real edit still marks and still clears the failure tally.
+      meta.set('blobfail:A1', { count: 1, lastAt: Date.now(), permanent: true });
+      updating({ name: 'renamed.txt' }, 'A1');
+      await new Promise((r) => setTimeout(r, 5));
+      expect(meta.get('dirty:attachments:A1')).toEqual({ deleted: false });
+      expect(meta.get('blobfail:A1')).toBeUndefined();
+    } finally {
+      (globalThis as { window?: unknown }).window = realWindow;
+    }
   });
 
   it('transient failures back off, then retry after the backoff elapses', async () => {
