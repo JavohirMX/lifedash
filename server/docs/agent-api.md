@@ -70,12 +70,12 @@ tombstones; nothing is permanently removed.
   with rich-text content refuse `note` patches (409).
 - `PUT /api/agent/journal/{date}` `{note?, mood?, highlight?}` -> one entry
   per date: creates or updates. `mood` is 1-5.
-- `DELETE /api/agent/entities/{collection}/{id}` -> soft delete with the
-  app's cascades: deleting a task removes its subtasks and strips dead
-  dependency references; deleting a project removes its own tasks and moves
-  subprojects up one level (they stay intact); deleting a note unlinks its
-  extracted tasks. The Inbox project cannot be deleted. Tombstoned rows
-  keep their full payload on the server.
+- `DELETE /api/agent/entities/{collection}/{id}` -> soft delete with
+  cascades: deleting a task removes its subtasks at every depth and strips
+  dead dependency references; deleting a project removes its own tasks and
+  moves subprojects up one level (they stay intact); deleting a note
+  unlinks its extracted tasks. The Inbox project cannot be deleted.
+  Tombstoned rows keep their full payload on the server.
 - `POST /api/agent/entities/{collection}/{id}/restore` -> undelete.
   Entities removed by the same delete cascade come back with it.
   Reference rewrites done during the delete (stripped `blockedBy`, dropped
@@ -91,18 +91,20 @@ tombstones; nothing is permanently removed.
 A key can be confined to one project (`projectId` at creation; shown in
 the key list). The boundary:
 
-- **In scope:** tasks and focus sessions in the project AND its
-  subprojects, recursively. Out-of-scope tasks are invisible (404).
-- **Read-only:** the project tree itself (needed for context). Scoped keys
-  cannot create, patch or delete projects.
+- **In scope:** tasks, focus sessions and attachments in the project AND
+  its subprojects, recursively. Out-of-scope entities are invisible (404).
+- **Read-only, subtree only:** the key sees its own project subtree, never
+  other projects' names. It cannot create, patch or delete projects.
 - **Out of reach (403):** habits, goals, notes and journal - they are
   account-wide, not owned by any one project, so a scoped key cannot read
-  or write them at all.
+  or write them at all, nor link tasks to them (`goalId`/`noteId`).
+- Task references (`parentId`, `blockedBy`) must point inside the subtree;
+  out-of-scope targets look like they do not exist (404).
 - Scoped keys cannot create tasks in the Inbox (it is outside every
   project) or move a task out of the subtree.
-- Delete and restore inside the scope work as usual, including cascades;
-  a cascade never crosses the boundary because cascades only flow
-  downward (project -> its tasks, task -> its subtasks).
+- Deletes are refused whole (409) when their cascade or reference cleanup
+  would touch anything outside the subtree. Restores skip out-of-scope
+  cascade members and report them in `skippedOutOfScope`.
 - `read` vs `read-write` still applies on top: a read+scoped key gets 403
   on every write, even inside its project.
 - `POST /api/agent/focus-sessions` `{taskId, startedAt, endedAt, seconds}`
@@ -123,9 +125,7 @@ the key list). The boundary:
 Deleting a goal leaves `goalId` on its tasks, and deleting a habit leaves
 it in goals' `habitIds`, exactly like the app. This is deliberate: the
 referenced rows still exist as recoverable tombstones, and stripping the
-references would destroy information a restore needs. Deleting a task
-tombstones only its direct subtasks (client parity); deeper descendants
-stay live under the tombstoned parent.
+references would destroy information a restore needs.
 
 ## What the API deliberately does not do
 

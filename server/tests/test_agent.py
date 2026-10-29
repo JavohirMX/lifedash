@@ -638,3 +638,95 @@ def test_restore_integrity_rules(client):
         {"collection": "tasks", "id": ghost, "base_rev": 0, "deleted": True, "data": {}}]})
     assert r.json()["results"][0]["status"] == "ok"
     assert client.post(f"/api/agent/entities/tasks/{ghost}/restore", headers=h).status_code == 409
+
+
+def test_attachments_upload_download_delete_restore(client, monkeypatch, tmp_path):
+    monkeypatch.setenv("SYNC_ATTACHMENT_MAX_FILE_MB", "1")
+    session = register(client)
+    seed_inbox(client, session)
+    key = make_key(client, session)
+    h = auth(key["token"])
+    t = client.post("/api/agent/tasks", json={"title": "att task"}, headers=h).json()
+    payload = b"hello attachment " * 100
+    # Session token (the app) can upload; agent key can too.
+    r = client.post(f"/api/attachments?task_id={t['id']}&filename=note.txt",
+                    content=payload, headers={**auth(session), "Content-Type": "text/plain"})
+    assert r.status_code == 201, r.text
+    att = r.json()
+    assert att["byteSize"] == len(payload) and att["name"] == "note.txt"
+    assert len(att["sha256"]) == 64
+    # Metadata syncs like any entity; bytes come from the content route.
+    pull = client.get("/api/changes?since=0", headers=auth(session)).json()
+    assert any(c["collection"] == "attachments" and c["id"] == att["id"] for c in pull["changes"])
+    dl = client.get(f"/api/attachments/{att['id']}/content", headers=h)
+    assert dl.status_code == 200 and dl.content == payload
+    # Unknown task / oversized / empty are refused.
+    assert client.post("/api/attachments?task_id=ghost&filename=x", content=b"x", headers=h).status_code == 422
+    big = b"x" * (1024 * 1024 + 1)
+    assert client.post(f"/api/attachments?task_id={t['id']}&filename=big", content=big, headers=h).status_code == 413
+    assert client.post(f"/api/attachments?task_id={t['id']}&filename=e", content=b"", headers=h).status_code == 422
+    # Delete tombstones the metadata, keeps the blob; restore recovers both.
+    client.delete(f"/api/attachments/{att['id']}", headers=h)
+    assert client.get(f"/api/attachments/{att['id']}/content", headers=h).status_code == 404
+    ent = client.get(f"/api/agent/entities/attachments/{att['id']}", headers=h).json()
+    assert ent["deleted"] is True and ent["data"]["sha256"] == att["sha256"]
+    rr = client.post(f"/api/agent/entities/attachments/{att['id']}/restore", headers=h)
+    assert rr.status_code == 200, rr.text
+    dl2 = client.get(f"/api/attachments/{att['id']}/content", headers=h)
+    assert dl2.status_code == 200 and dl2.content == payload
+
+
+def test_attachments_scope_and_readonly(client):
+    session, full, p1, s1, p2, t1, t1s, t2 = _setup_scoped(client)
+    rkey = make_key(client, session, name="reader", scope="read")
+    assert client.post(f"/api/attachments?task_id={t1['id']}&filename=x", content=b"x",
+                       headers=auth(rkey["token"])).status_code == 403
+    scoped = client.post("/api/agent-tokens", json={"name": "sp", "scope": "read-write", "projectId": p1["id"]},
+                         headers=auth(session)).json()["token"]
+    h = auth(scoped)
+    ok = client.post(f"/api/attachments?task_id={t1s['id']}&filename=x", content=b"x", headers=h)
+    assert ok.status_code == 201, ok.text
+    assert client.post(f"/api/attachments?task_id={t2['id']}&filename=x", content=b"x", headers=h).status_code == 404
+    assert client.get(f"/api/attachments/{ok.json()['id']}/content", headers=h).status_code == 200
+    # Cross-user isolation: another account's key cannot see the attachment.
+    session2 = register(client, username="someone-else")
+    seed_inbox(client, session2)
+    other = make_key(client, session2)
+    assert client.get(f"/api/attachments/{ok.json()['id']}/content", headers=auth(other["token"])).status_code == 404
+
+
+def test_scope_leaks_closed(client):
+    session, full, p1, s1, p2, t1, t1s, t2 = _setup_scoped(client)
+    fh = auth(full["token"])
+    scoped = client.post("/api/agent-tokens", json={"name": "sp", "scope": "read-write", "projectId": p1["id"]},
+                         headers=auth(session)).json()["token"]
+    h = auth(scoped)
+    # References across the boundary are refused, not leaked.
+    assert client.post("/api/agent/tasks", json={"title": "x", "projectId": p1["id"], "parentId": t2["id"]}, headers=h).status_code == 404
+    scoped_task = client.post("/api/agent/tasks", json={"title": "x", "projectId": p1["id"]}, headers=h).json()
+    assert client.patch(f"/api/agent/tasks/{scoped_task['id']}", json={"blockedBy": [t2["id"]]}, headers=h).status_code == 404
+    goal = client.post("/api/agent/goals", json={"title": "G"}, headers=fh).json()
+    note = client.post("/api/agent/notes", json={"title": "N"}, headers=fh).json()
+    assert client.post("/api/agent/tasks", json={"title": "x", "projectId": p1["id"], "goalId": goal["id"]}, headers=h).status_code == 403
+    assert client.post("/api/agent/tasks", json={"title": "x", "projectId": p1["id"], "noteId": note["id"]}, headers=h).status_code == 403
+    # Project visibility is the subtree only.
+    names = {e["data"]["name"] for e in client.get("/api/agent/entities/projects", headers=h).json()["entities"]}
+    assert names == {"P1", "S1"}
+    assert client.get(f"/api/agent/entities/projects/{p2['id']}", headers=h).status_code == 404
+    counts = client.get("/api/agent/collections", headers=h).json()["collections"]
+    assert counts["projects"] == 2 and "habits" not in counts
+    # Cross-boundary cascade delete is refused whole; nothing in B is touched.
+    cross = client.post("/api/agent/tasks", json={"title": "cross child", "projectId": p2["id"], "parentId": t1["id"]}, headers=fh).json()
+    dep = client.post("/api/agent/tasks", json={"title": "dep", "projectId": p2["id"]}, headers=fh).json()
+    assert client.patch(f"/api/agent/tasks/{dep['id']}", json={"blockedBy": [t1["id"]]}, headers=fh).status_code == 200
+    r = client.request("DELETE", f"/api/agent/entities/tasks/{t1['id']}", headers=h)
+    assert r.status_code == 409, r.text
+    assert client.get(f"/api/agent/entities/tasks/{cross['id']}", headers=fh).json()["deleted"] is False
+    assert client.get(f"/api/agent/entities/tasks/{dep['id']}", headers=fh).json()["data"]["blockedBy"] == [t1["id"]]
+    # Full-access delete is recursive now; restore brings the whole subtree back.
+    mid = client.post("/api/agent/tasks", json={"title": "mid", "projectId": p2["id"], "parentId": t2["id"]}, headers=fh).json()
+    leaf = client.post("/api/agent/tasks", json={"title": "leaf", "projectId": p2["id"], "parentId": mid["id"]}, headers=fh).json()
+    r = client.request("DELETE", f"/api/agent/entities/tasks/{t2['id']}", headers=fh)
+    assert set(r.json()["tombstoned"]) == {t2["id"], mid["id"], leaf["id"]}
+    r = client.post(f"/api/agent/entities/tasks/{t2['id']}/restore", headers=fh)
+    assert set(r.json()["ids"]) == {f"tasks:{t2['id']}", f"tasks:{mid['id']}", f"tasks:{leaf['id']}"}

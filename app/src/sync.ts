@@ -52,7 +52,7 @@ export interface SyncSettings {
 }
 
 const SETTINGS_KEY = 'lifedash-sync';
-const COLLECTIONS = ['tasks', 'projects', 'habits', 'habitLogs', 'goals', 'notes', 'journal', 'focusSessions'] as const;
+const COLLECTIONS = ['tasks', 'projects', 'habits', 'habitLogs', 'goals', 'notes', 'journal', 'focusSessions', 'attachments'] as const;
 type Collection = (typeof COLLECTIONS)[number];
 
 export function loadSyncSettings(): SyncSettings | null {
@@ -358,7 +358,16 @@ async function applyRemote(col: Collection, e: ServerEntity): Promise<void> {
   try {
     const table = db.table(col);
     if (e.deleted) await table.delete(e.id);
-    else await table.put(e.data as never);
+    else {
+      // Attachment metadata syncs without its blob; never let a pulled row
+      // wipe the blob this device already holds.
+      let data = e.data as Record<string, unknown>;
+      if (col === 'attachments' && data.blob === undefined) {
+        const existing = (await table.get(e.id)) as { blob?: unknown } | undefined;
+        if (existing?.blob !== undefined) data = { ...data, blob: existing.blob };
+      }
+      await table.put(data as never);
+    }
     await setMeta(revKey(col, e.id), e.rev);
     await db.syncmeta.delete(dirtyKey(col, e.id));
   } finally {

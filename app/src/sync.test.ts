@@ -302,6 +302,25 @@ describe('sync edit-edit conflicts', () => {
     expect(pushes2[0][0]).toMatchObject({ collection: 'focusSessions', id: 'fs1', deleted: true, data: {} });
   });
 
+describe('attachment metadata sync', () => {
+  it('pulled attachment metadata preserves the local blob', async () => {
+    const blob = new Blob(['bytes']);
+    tables.set('attachments', new Map([['a1', { id: 'a1', taskId: 't1', name: 'f.txt', mime: 'text/plain', byteSize: 5, blob }]]));
+    meta.set('cursor', 0);
+    mockFetch({
+      changesResponses: [
+        { changes: [{ collection: 'attachments', id: 'a1', rev: 1, deleted: false, data: { id: 'a1', taskId: 't1', name: 'f.txt', mime: 'text/plain', byteSize: 5, sha256: 'abc' } }], rev: 1 },
+        { changes: [], rev: 1 },
+      ],
+    });
+    const r = await syncNow(settings);
+    expect(r.pulled).toBe(1);
+    const row = tables.get('attachments')!.get('a1') as { sha256?: string; blob?: Blob };
+    expect(row.sha256).toBe('abc');
+    expect(row.blob).toBe(blob);
+  });
+});
+
 describe('logout', () => {
   const s = { url: 'https://sync.example.com/', username: 'u', token: 'tok123' };
 

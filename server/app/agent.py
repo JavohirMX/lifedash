@@ -13,6 +13,7 @@ session token; agent calls authenticate with the agent token itself.
 """
 
 import hashlib
+import os
 import json
 import re
 import secrets
@@ -21,11 +22,11 @@ import uuid
 from datetime import date, datetime, timedelta, timezone
 
 from dateutil import rrule
-from fastapi import APIRouter, Depends, Header, HTTPException
+from fastapi import APIRouter, Depends, Header, HTTPException, Request, Response
 from pydantic import BaseModel, Field, StrictInt
 
 from .auth import current_user
-from .db import get_conn
+from .db import DB_PATH, get_conn
 
 router = APIRouter(prefix="/api")
 
@@ -55,7 +56,7 @@ CREATE TABLE IF NOT EXISTS agent_audit (
 );
 """
 
-AGENT_COLLECTIONS = {"tasks", "projects", "habits", "habitLogs", "goals", "notes", "journal", "focusSessions"}
+AGENT_COLLECTIONS = {"tasks", "projects", "habits", "habitLogs", "goals", "notes", "journal", "focusSessions", "attachments"}
 
 
 def init_agent_db() -> None:
@@ -449,12 +450,29 @@ def _scope_check_task(conn, ctx: AgentCtx, task: dict) -> None:
         raise HTTPException(status_code=404, detail="task not found")
 
 
+def _scoped_ref_task(conn, ctx: AgentCtx, task_id: str | None, field: str) -> None:
+    """A scoped key may only reference tasks inside its subtree; out-of-scope
+    tasks stay invisible (404, same as reads)."""
+    if task_id is None or ctx.project_id is None:
+        return
+    task = _get(conn, ctx.user_id, "tasks", task_id)
+    if task is not None:
+        _scope_check_task(conn, ctx, task["data"])
+
+
+def _scoped_ref_global(ctx: AgentCtx, value, field: str) -> None:
+    """goalId/noteId link account-wide collections a scoped key cannot see;
+    setting them through a scoped key is refused, not just hidden."""
+    if value is not None and ctx.project_id is not None:
+        raise HTTPException(status_code=403, detail=f"{field}: account-wide collections are outside a project-scoped key")
+
+
 def _scope_check_collection(ctx: AgentCtx, collection: str, read: bool = False) -> None:
     """Global collections are out of reach for project-scoped keys; the project
     tree itself is readable (agents need it for context) but not writable."""
     if ctx.project_id is None:
         return
-    if collection in ("tasks", "focusSessions"):
+    if collection in ("tasks", "focusSessions", "attachments"):
         return
     if collection == "projects" and read:
         return
@@ -475,7 +493,7 @@ def agent_collections(ctx: AgentCtx = Depends(agent_auth)):
         task_proj = {t["id"]: t.get("projectId") for t in _all(conn, ctx.user_id, "tasks")}
         sessions = [s for s in _all(conn, ctx.user_id, "focusSessions")
                     if task_proj.get(s.get("taskId")) in tree]
-        return {"collections": {"tasks": len(tasks), "projects": len(_all(conn, ctx.user_id, "projects")),
+        return {"collections": {"tasks": len(tasks), "projects": len(tree),
                                 "focusSessions": len(sessions)}}
     out = {}
     for col in sorted(AGENT_COLLECTIONS):
@@ -501,10 +519,13 @@ def agent_list(collection: str, limit: int = 1000, offset: int = 0, include_dele
         "ORDER BY id",
         (ctx.user_id, collection),
     ).fetchall()
-    if ctx.project_id is not None and collection in ("tasks", "focusSessions"):
+    if ctx.project_id is not None and collection in ("tasks", "focusSessions", "attachments", "projects"):
         tree = _project_subtree(conn, ctx.user_id, ctx.project_id)
         if collection == "tasks":
             rows = [r for r in rows if json.loads(r["data"]).get("projectId") in tree]
+        elif collection == "projects":
+            # A scoped key sees only its own subtree, never other project names.
+            rows = [r for r in rows if r["id"] in tree]
         else:
             task_proj = {t["id"]: t.get("projectId") for t in _all(conn, ctx.user_id, "tasks")}
             rows = [r for r in rows if task_proj.get(json.loads(r["data"]).get("taskId")) in tree]
@@ -529,7 +550,10 @@ def agent_get(collection: str, entity_id: str, ctx: AgentCtx = Depends(agent_aut
     if ctx.project_id is not None:
         if collection == "tasks":
             _scope_check_task(conn, ctx, ent["data"])
-        elif collection == "focusSessions":
+        elif collection == "projects":
+            if ent["id"] not in _project_subtree(conn, ctx.user_id, ctx.project_id):
+                raise HTTPException(status_code=404, detail="not found")
+        elif collection in ("focusSessions", "attachments"):
             task = _get(conn, ctx.user_id, "tasks", ent["data"].get("taskId"))
             _scope_check_task(conn, ctx, task["data"] if task else {})
     return ent
@@ -575,6 +599,9 @@ def agent_create_task(body: TaskCreate, ctx: AgentCtx = Depends(agent_auth)):
         project_id = body.projectId or "inbox"
         if ctx.project_id is not None and project_id not in _project_subtree(conn, ctx.user_id, ctx.project_id):
             raise HTTPException(status_code=403, detail="outside this key's project scope")
+        _scoped_ref_task(conn, ctx, body.parentId, "parentId")
+        _scoped_ref_global(ctx, body.goalId, "goalId")
+        _scoped_ref_global(ctx, body.noteId, "noteId")
         if project_id == "inbox" and _get(conn, ctx.user_id, "projects", "inbox") is None:
             # The app seeds the Inbox locally on first run, but a fresh account
             # may not have pushed it yet. Seed the identical entity server-side
@@ -810,9 +837,11 @@ def agent_patch_task(task_id: str, body: TaskPatch, ctx: AgentCtx = Depends(agen
             if ctx.project_id is not None and body.projectId not in _project_subtree(conn, ctx.user_id, ctx.project_id):
                 raise HTTPException(status_code=403, detail="outside this key's project scope")
         if "goalId" in given:
+            _scoped_ref_global(ctx, body.goalId, "goalId")
             _require_entity(conn, ctx.user_id, "goals", body.goalId, "goalId")
         if "parentId" in given and body.parentId is not None:
             _require_entity(conn, ctx.user_id, "tasks", body.parentId, "parentId")
+            _scoped_ref_task(conn, ctx, body.parentId, "parentId")
             if body.parentId == task_id:
                 raise HTTPException(status_code=422, detail="a task cannot be its own parent")
             descendants = {task_id}
@@ -837,6 +866,7 @@ def agent_patch_task(task_id: str, body: TaskPatch, ctx: AgentCtx = Depends(agen
             tasks = _all(conn, ctx.user_id, "tasks")
             for b in wanted:
                 _require_entity(conn, ctx.user_id, "tasks", b, "blockedBy")
+                _scoped_ref_task(conn, ctx, b, "blockedBy")
                 if _would_create_cycle(tasks, task_id, b):
                     raise HTTPException(status_code=422, detail=f"blocker {b} would create a dependency cycle")
             patch["blockedBy"] = wanted
@@ -1266,6 +1296,139 @@ def agent_log_focus_session(body: FocusSessionCreate, ctx: AgentCtx = Depends(ag
     return _write(ctx, fn)
 
 
+# ---------- attachments (metadata entity + blob bytes) ----------
+
+# Metadata lives in the "attachments" collection so it syncs like everything
+# else; the blob bytes live on the server's disk and are fetched explicitly.
+# Blobs are retained on delete, like tombstone payloads: restore brings the
+# whole attachment back. Quotas are deliberate defaults, tunable by the
+# operator: SYNC_ATTACHMENT_QUOTA_MB (200 per account) and
+# SYNC_ATTACHMENT_MAX_FILE_MB (25 per file).
+
+_BLOB_DIR = os.environ.get("SYNC_BLOB_DIR") or os.path.join(os.path.dirname(DB_PATH), "blobs")
+_FILENAME_RE = re.compile(r"[^A-Za-z0-9._-]+")
+
+
+def _quota_bytes() -> tuple[int, int]:
+    quota_mb = int(os.environ.get("SYNC_ATTACHMENT_QUOTA_MB", "200"))
+    max_file_mb = int(os.environ.get("SYNC_ATTACHMENT_MAX_FILE_MB", "25"))
+    return quota_mb * 1024 * 1024, max_file_mb * 1024 * 1024
+
+
+def _blob_path(user_id: int, attachment_id: str) -> str:
+    return os.path.join(_BLOB_DIR, str(user_id), attachment_id)
+
+
+def attachment_auth(authorization: str = Header(default="")) -> tuple[int, AgentCtx | None]:
+    """Dual auth for blob routes: the app's session token, or an agent key."""
+    prefix = "Bearer "
+    if not authorization.startswith(prefix):
+        raise HTTPException(status_code=401, detail="missing bearer token")
+    token = authorization[len(prefix):].strip()
+    row = get_conn().execute("SELECT user_id FROM tokens WHERE token = ?", (token,)).fetchone()
+    if row is not None:
+        return row["user_id"], None
+    agent = agent_auth(authorization)
+    return agent.user_id, agent
+
+
+def _blob_write(user_id: int, ctx: AgentCtx | None, fn):
+    """_write equivalent for dual-auth routes: scope check only for agent keys."""
+    if ctx is not None:
+        require_write(ctx)
+    conn = get_conn()
+    try:
+        conn.execute("BEGIN IMMEDIATE")
+        result = fn(conn)
+        conn.commit()
+        return result
+    except HTTPException:
+        conn.rollback()
+        raise
+    except Exception:
+        conn.rollback()
+        raise
+
+
+@router.post("/attachments", status_code=201)
+async def upload_attachment(request: Request, task_id: str, filename: str,
+                            auth: tuple[int, AgentCtx | None] = Depends(attachment_auth)):
+    user_id, ctx = auth
+    if ctx is not None:
+        require_write(ctx)
+    filename = _FILENAME_RE.sub("_", os.path.basename(filename))[:200] or "file"
+    mime = (request.headers.get("content-type") or "application/octet-stream").split(";")[0][:100]
+    body = await request.body()
+    quota, max_file = _quota_bytes()
+    if not body:
+        raise HTTPException(status_code=422, detail="empty upload")
+    if len(body) > max_file:
+        raise HTTPException(status_code=413, detail=f"file exceeds the {max_file // (1024 * 1024)} MB per-file limit")
+
+    def fn(conn):
+        task = _require_entity(conn, user_id, "tasks", task_id, "task_id")
+        if ctx is not None:
+            _scope_check_task(conn, ctx, task["data"])
+        used = sum(a.get("byteSize", 0) for a in _all(conn, user_id, "attachments"))
+        if used + len(body) > quota:
+            raise HTTPException(status_code=413, detail=f"attachment quota ({quota // (1024 * 1024)} MB) exceeded")
+        att = {"id": _new_id(), "taskId": task_id, "name": filename, "mime": mime,
+               "byteSize": len(body), "sha256": hashlib.sha256(body).hexdigest(), "createdAt": _now_ms()}
+        _apply(conn, user_id, "attachments", att["id"], False, att)
+        if ctx is not None:
+            _audit(conn, ctx, "attachment.upload", "attachments", att["id"], f"{filename} {len(body)}B")
+        path = _blob_path(user_id, att["id"])
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        tmp = path + ".tmp"
+        with open(tmp, "wb") as f:
+            f.write(body)
+        os.replace(tmp, path)
+        return att
+
+    return _blob_write(user_id, ctx, fn)
+
+
+@router.get("/attachments/{attachment_id}/content")
+def download_attachment(attachment_id: str, auth: tuple[int, AgentCtx | None] = Depends(attachment_auth)):
+    user_id, ctx = auth
+    conn = get_conn()
+    ent = _get(conn, user_id, "attachments", attachment_id)
+    if ent is None:
+        raise HTTPException(status_code=404, detail="not found")
+    if ctx is not None:
+        task = _get(conn, ctx.user_id, "tasks", ent["data"].get("taskId"))
+        _scope_check_task(conn, ctx, task["data"] if task else {})
+    path = _blob_path(user_id, attachment_id)
+    if not os.path.exists(path):
+        raise HTTPException(status_code=404, detail="blob is missing on the server")
+    with open(path, "rb") as f:
+        content = f.read()
+    return Response(content=content, media_type=ent["data"].get("mime") or "application/octet-stream")
+
+
+@router.delete("/attachments/{attachment_id}", status_code=204)
+def delete_attachment(attachment_id: str, auth: tuple[int, AgentCtx | None] = Depends(attachment_auth)):
+    user_id, ctx = auth
+    if ctx is not None:
+        require_write(ctx)
+    conn = get_conn()
+    ent = _get(conn, user_id, "attachments", attachment_id)
+    if ent is None:
+        raise HTTPException(status_code=404, detail="not found")
+    if ctx is not None:
+        task = _get(conn, ctx.user_id, "tasks", ent["data"].get("taskId"))
+        _scope_check_task(conn, ctx, task["data"] if task else {})
+
+    def fn(conn):
+        _apply(conn, user_id, "attachments", attachment_id, True, ent["data"])
+        if ctx is not None:
+            _audit(conn, ctx, "attachment.delete", "attachments", attachment_id)
+        return None
+
+    # The blob file is retained so restore recovers the whole attachment.
+    return _blob_write(user_id, ctx, fn)
+
+
 # ---------- soft delete (tombstones only; cascades mirror the app) ----------
 
 @router.delete("/agent/entities/{collection}/{entity_id}", dependencies=WRITE)
@@ -1300,14 +1463,38 @@ def agent_delete(collection: str, entity_id: str, ctx: AgentCtx = Depends(agent_
                 )
 
         if collection == "tasks":
-            # Mirror deleteTask: direct subtasks go too; dead blockedBy refs are stripped.
+            # Subtasks go too, at every depth (deeper than the app's own
+            # direct-child delete: the server is the convergence point, and
+            # restoring the root brings the whole subtree back). Dead
+            # blockedBy refs are stripped. A project-scoped key may only run
+            # the delete when every row it would touch is inside its subtree;
+            # otherwise the whole delete is refused.
             tasks = _all(conn, ctx.user_id, "tasks")
-            children = [t for t in tasks if t.get("parentId") == entity_id]
-            gone = {entity_id, *[c["id"] for c in children]}
-            deleted_ids = list(gone)
+            by_id = {t["id"]: t for t in tasks}
+            descendants: list[str] = []
+            seen = {entity_id}
+            frontier = [entity_id]
+            while frontier:
+                cur = frontier.pop()
+                for t in tasks:
+                    if t.get("parentId") == cur and t["id"] not in seen:
+                        seen.add(t["id"])
+                        descendants.append(t["id"])
+                        frontier.append(t["id"])
+            gone = {entity_id, *descendants}
+            deleted_ids = [entity_id, *descendants]
+            if ctx.project_id is not None:
+                tree = _project_subtree(conn, ctx.user_id, ctx.project_id)
+                touched = [tid for tid in descendants if (by_id.get(tid) or {}).get("projectId") not in tree]
+                touched += [t["id"] for t in tasks
+                            if t["id"] not in gone and t.get("projectId") not in tree
+                            and any(b in gone for b in (t.get("blockedBy") or []))]
+                if touched:
+                    raise HTTPException(status_code=409,
+                                        detail="this delete would cascade outside the key's project scope")
             tombstone("tasks", entity_id)
-            for c in children:
-                tombstone("tasks", c["id"], cascade_root=entity_id)
+            for tid in descendants:
+                tombstone("tasks", tid, cascade_root=entity_id)
             for t in tasks:
                 refs = [b for b in (t.get("blockedBy") or []) if b in gone]
                 if refs and t["id"] not in gone:
@@ -1320,9 +1507,16 @@ def agent_delete(collection: str, entity_id: str, ctx: AgentCtx = Depends(agent_
             project = ent["data"] | {"id": entity_id}
             tasks = _all(conn, ctx.user_id, "tasks")
             own = [t for t in tasks if t.get("projectId") == entity_id]
-            own_ids = {t["id"] for t in own}
-            children = [t for t in tasks if t.get("parentId") in own_ids]
-            deleted_ids = [entity_id, *own_ids, *[t["id"] for t in children]]
+            gone_tasks = {t["id"] for t in own}
+            frontier = list(gone_tasks)
+            while frontier:
+                cur = frontier.pop()
+                for t in tasks:
+                    if t.get("parentId") == cur and t["id"] not in gone_tasks:
+                        gone_tasks.add(t["id"])
+                        frontier.append(t["id"])
+            children = [t for t in tasks if t["id"] in gone_tasks and t.get("projectId") != entity_id]
+            deleted_ids = [entity_id, *[t["id"] for t in own], *[t["id"] for t in children]]
             tombstone("projects", entity_id)
             for t in own + children:
                 tombstone("tasks", t["id"], cascade_root=entity_id)
@@ -1390,18 +1584,26 @@ def agent_restore(collection: str, entity_id: str, ctx: AgentCtx = Depends(agent
             _scope_check_task(conn, ctx, data)
         _apply(conn, ctx.user_id, collection, entity_id, False, data)
         restored = [f"{collection}:{entity_id}"]
+        skipped: list[str] = []
         rows = conn.execute(
             "SELECT collection, id FROM entities WHERE user_id = ? AND deleted = 1 AND deleted_with = ?",
             (ctx.user_id, entity_id),
         ).fetchall()
         for r in rows:
             child = _get(conn, ctx.user_id, r["collection"], r["id"], include_deleted=True)
+            if ctx.project_id is not None and r["collection"] == "tasks":
+                try:
+                    _scope_check_task(conn, ctx, child["data"])
+                except HTTPException:
+                    skipped.append(f"{r['collection']}:{r['id']}")
+                    continue
             _apply(conn, ctx.user_id, r["collection"], r["id"], False, child["data"])
             restored.append(f"{r['collection']}:{r['id']}")
         # Reference rewrites done during the delete (blockedBy stripping,
         # noteId drops, subproject reparenting) are NOT reversed by restore;
         # restore recovers the entities, not the exact prior graph.
-        _audit(conn, ctx, "entity.restore", collection, entity_id, f"restored={len(restored)}")
-        return {"restored": True, "ids": restored}
+        _audit(conn, ctx, "entity.restore", collection, entity_id,
+               f"restored={len(restored)} skipped={len(skipped)}")
+        return {"restored": True, "ids": restored, "skippedOutOfScope": skipped}
 
     return _write(ctx, fn)
