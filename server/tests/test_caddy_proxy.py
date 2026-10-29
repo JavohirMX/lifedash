@@ -6,6 +6,15 @@ deployment. Unprivileged, loopback only.
 Proves the actual Caddy config path: its default X-Forwarded-For
 behavior, real vendor TLS termination, and the app's
 SYNC_TRUSTED_PROXY_HOPS=1 resolution through the real chain.
+
+To reproduce the fixture binary (unprivileged, no bundling):
+  curl -sLO https://github.com/caddyserver/caddy/releases/download/v2.11.7/caddy_2.11.7_linux_amd64.tar.gz
+  curl -sLO https://github.com/caddyserver/caddy/releases/download/v2.11.7/caddy_2.11.7_checksums.txt
+  # verify the tar's SHA-512 against checksums.txt, then: tar xzf ... caddy
+  CADDY_BIN=/path/to/caddy python -m pytest tests/test_caddy_proxy.py
+Version: Caddy v2.11.7; asset caddy_2.11.7_linux_amd64.tar.gz;
+SHA-512 (from the release's checksums.txt - always re-verify):
+  a7a433a1b133efc3c8d10eb0b99d52a24b5ef5c322dc77f5282182b1c0402139ab83f3a99f0c52409df77d20123fb0b523edad8a66d8f5e49136197bf61ef0e7
 """
 
 import http.client
