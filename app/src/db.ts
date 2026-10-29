@@ -4,6 +4,21 @@ import type { Task, Project, Attachment, Habit, HabitLog, Goal, Note, JournalEnt
 
 export const INBOX_ID = 'inbox';
 
+/** Synced automation configuration (Settings toggles + user-defined rules). */
+export interface AutomationSettingsRow {
+  id: string; // singleton: 'settings'
+  rollover: boolean;
+  completeParent: boolean;
+}
+
+export interface UserRuleRow {
+  id: string;
+  trigger: { kind: 'tag'; tag: string } | { kind: 'weekly'; weekday: number };
+  title: string;
+  createdAt: number;
+  lastFired: string | null;
+}
+
 export class LifeDashDB extends Dexie {
   syncmeta!: Table<{ key: string; value: unknown }, string>;
   tasks!: Table<Task, string>;
@@ -15,6 +30,8 @@ export class LifeDashDB extends Dexie {
   journal!: Table<JournalEntry, string>;
   habitLogs!: Table<HabitLog, string>;
   focusSessions!: Table<FocusSession, string>;
+  automationRules!: Table<AutomationSettingsRow, string>;
+  userRules!: Table<UserRuleRow, string>;
 
   constructor() {
     super(DATABASE_NAME);
@@ -146,6 +163,20 @@ export class LifeDashDB extends Dexie {
         syncmeta: 'key',
         focusSessions: 'id, taskId',
       });
+    this.version(12).stores({
+      tasks: 'id, status, projectId, parentId, dueDate, seriesId, goalId, noteId',
+      projects: 'id, order',
+      attachments: 'id, taskId',
+      habits: 'id, order',
+      habitLogs: 'id, habitId, date',
+      goals: 'id, order',
+      notes: 'id, updatedAt',
+      journal: 'id, date',
+      syncmeta: 'key',
+      focusSessions: 'id, taskId',
+      automationRules: 'id',
+      userRules: 'id',
+    });
     this.version(10)
       .stores({
         tasks: 'id, status, projectId, parentId, dueDate, seriesId, goalId, noteId',

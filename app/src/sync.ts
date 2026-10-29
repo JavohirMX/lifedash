@@ -1,5 +1,6 @@
 import { SAMPLE_MODE } from './dev/sampleMode';
 import { db } from './db';
+import { refreshAutomationFromSync } from './automation';
 
 /**
  * Sync client for the Lifedash self-hosted server (protocol v1,
@@ -52,7 +53,7 @@ export interface SyncSettings {
 }
 
 const SETTINGS_KEY = 'lifedash-sync';
-const COLLECTIONS = ['tasks', 'projects', 'habits', 'habitLogs', 'goals', 'notes', 'journal', 'focusSessions', 'attachments'] as const;
+const COLLECTIONS = ['tasks', 'projects', 'habits', 'habitLogs', 'goals', 'notes', 'journal', 'focusSessions', 'attachments', 'automationRules', 'userRules'] as const;
 type Collection = (typeof COLLECTIONS)[number];
 
 export function loadSyncSettings(): SyncSettings | null {
@@ -370,6 +371,10 @@ async function applyRemote(col: Collection, e: ServerEntity): Promise<void> {
     }
     await setMeta(revKey(col, e.id), e.rev);
     await db.syncmeta.delete(dirtyKey(col, e.id));
+    if (col === 'automationRules' || col === 'userRules') {
+      // Config lives in the localStorage cache the UI reads synchronously.
+      await refreshAutomationFromSync();
+    }
   } finally {
     applyingRemote = false;
   }

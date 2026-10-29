@@ -508,8 +508,9 @@ def agent_get_automation(ctx: AgentCtx = Depends(agent_auth)):
     _scope_check_collection(ctx, "automationRules", read=True)
     conn = get_conn()
     ent = _get(conn, ctx.user_id, "automationRules", AUTOMATION_SINGLETON_ID)
-    defaults = {"rollover": False, "completeParent": False}
-    return {"rules": {**defaults, **(ent["data"] if ent else {})}}
+    data = ent["data"] if ent else {}
+    return {"rules": {"rollover": bool(data.get("rollover", False)),
+                      "completeParent": bool(data.get("completeParent", False))}}
 
 
 @router.put("/agent/settings/automation", dependencies=WRITE)
@@ -519,7 +520,7 @@ def agent_put_automation(body: dict = Body(...), ctx: AgentCtx = Depends(agent_a
 
     def fn(conn):
         ent = _get(conn, ctx.user_id, "automationRules", AUTOMATION_SINGLETON_ID)
-        merged = {"rollover": False, "completeParent": False,
+        merged = {"id": AUTOMATION_SINGLETON_ID, "rollover": False, "completeParent": False,
                   **(ent["data"] if ent else {}), **patch}
         rev = _apply(conn, ctx.user_id, "automationRules", AUTOMATION_SINGLETON_ID, False, merged)
         _audit(conn, ctx, "settings.automation", "automationRules", AUTOMATION_SINGLETON_ID, patch)
@@ -573,6 +574,7 @@ def agent_create_user_rule(body: dict = Body(...), ctx: AgentCtx = Depends(agent
 
     def fn(conn):
         rid = _new_id()
+        data["id"] = rid
         rev = _apply(conn, ctx.user_id, "userRules", rid, False, data)
         _audit(conn, ctx, "user_rule.create", "userRules", rid, {"title": data["title"]})
         return {"id": rid, "rev": rev, "data": data}
@@ -589,6 +591,7 @@ def agent_patch_user_rule(rule_id: str, body: dict = Body(...), ctx: AgentCtx = 
         if ent is None:
             raise HTTPException(status_code=404, detail="not found")
         data = _validate_user_rule(body, ent["data"])
+        data["id"] = rule_id
         rev = _apply(conn, ctx.user_id, "userRules", rule_id, False, data)
         _audit(conn, ctx, "user_rule.patch", "userRules", rule_id, body)
         return {"id": rule_id, "rev": rev, "data": data}

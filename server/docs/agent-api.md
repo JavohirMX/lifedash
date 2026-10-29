@@ -149,6 +149,24 @@ server's disk:
   `SYNC_ATTACHMENT_MAX_FILE_MB` (25 MB per file, enforced while
   streaming, not by trusting Content-Length).
 
+## Automation configuration
+
+The app's automation config (Settings toggles and user-defined rules) is
+synced, so agents manage ONE configuration shared by every device:
+
+- `GET /api/agent/settings/automation` / `PUT /api/agent/settings/automation`
+  - the `rollover` and `completeParent` toggles; partial updates merge,
+    unknown fields and non-booleans are 422.
+- `POST /api/agent/user-rules` / `PATCH /api/agent/user-rules/{id}` plus the
+  generic list/get/delete/restore endpoints - rules shaped like the app's
+  own model: `{trigger: {kind: "tag", tag}}` or
+  `{trigger: {kind: "weekly", weekday: 0-6}}`, a non-empty `title`, and
+  `lastFired` (YYYY-MM-DD or null).
+
+Rules still EXECUTE only in the app while Lifedash is open; the API manages
+their configuration. Project-scoped keys get 403 - automation config is
+account-wide.
+
 ## What the API deliberately does not do
 
 - **No permanent delete.** Tombstones keep their full payload and are

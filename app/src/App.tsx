@@ -37,7 +37,7 @@ import SettingsDialog from './components/SettingsDialog';
 import AgentKeysDialog from './components/AgentKeysDialog';
 import { cycleTheme } from './theme';
 import { projectWithDescendants } from './projects';
-import { loadRules, saveRules, loadUserRules, saveUserRules, type AutomationRules, type UserRule } from './automation';
+import { loadRules, saveRules, loadUserRules, saveUserRules, hydrateAutomation, AUTOMATION_CHANGED_EVENT, type AutomationRules, type UserRule } from './automation';
 import { remindersEnabled, setRemindersEnabled, journalPromptEnabled, setJournalPromptEnabled, startReminders } from './reminders';
 import { applyRollover, applyWeeklyUserRules } from './repo';
 import { startAutoSync } from './sync';
@@ -127,6 +127,12 @@ export default function App() {
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
   const [rules, setRules] = useState<AutomationRules>(loadRules);
   const [userRules, setUserRules] = useState<UserRule[]>(loadUserRules);
+
+  useEffect(() => {
+    const onAutomationChanged = () => { setRules(loadRules()); setUserRules(loadUserRules()); };
+    window.addEventListener(AUTOMATION_CHANGED_EVENT, onAutomationChanged);
+    return () => window.removeEventListener(AUTOMATION_CHANGED_EVENT, onAutomationChanged);
+  }, []);
   const [remindOn, setRemindOn] = useState(remindersEnabled);
   const [nudgeOn, setNudgeOn] = useState(journalPromptEnabled);
   const [notificationError, setNotificationError] = useState('');
@@ -163,10 +169,16 @@ export default function App() {
   });
 
   useEffect(() => {
-    void ensureSeed();
-    startAutoSync();
-    if (loadRules().rollover) void runRollover();
-    void runWeeklyRules();
+    void ensureSeed().then(async () => {
+      // Move legacy localStorage automation config into Dexie (once), adopt
+      // any config sync already delivered, then re-read the cache.
+      await hydrateAutomation();
+      setRules(loadRules());
+      setUserRules(loadUserRules());
+      startAutoSync();
+      if (loadRules().rollover) void runRollover();
+      void runWeeklyRules();
+    });
   }, []);
 
   tasksRef.current = tasks ?? [];
