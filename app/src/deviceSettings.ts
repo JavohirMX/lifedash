@@ -104,3 +104,15 @@ export function applyRemoteSettings(data: Record<string, unknown>): void {
   } catch { /* keep previous */ }
   window.dispatchEvent(new Event(DEVICE_SETTINGS_CHANGED_EVENT));
 }
+
+/** Publish on startup if this device has no row yet, so agents can
+ * discover it without waiting for a local settings change. */
+export function ensureDeviceSettingsPublished(): void {
+  void (async () => {
+    try {
+      const id = getDeviceId();
+      const existing = await db.deviceSettings?.get(id);
+      if (!existing) publishLocalSettings();
+    } catch { /* Dexie unavailable: localStorage cache still works */ }
+  })();
+}

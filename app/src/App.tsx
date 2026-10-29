@@ -38,7 +38,7 @@ import AgentKeysDialog from './components/AgentKeysDialog';
 import { cycleTheme } from './theme';
 import { projectWithDescendants } from './projects';
 import { loadRules, saveRules, loadUserRules, saveUserRules, hydrateAutomation, AUTOMATION_CHANGED_EVENT, type AutomationRules, type UserRule } from './automation';
-import { publishLocalSettings, DEVICE_SETTINGS_CHANGED_EVENT } from './deviceSettings';
+import { publishLocalSettings, ensureDeviceSettingsPublished, DEVICE_SETTINGS_CHANGED_EVENT } from './deviceSettings';
 import { remindersEnabled, setRemindersEnabled, journalPromptEnabled, setJournalPromptEnabled, startReminders } from './reminders';
 import { applyRollover, applyWeeklyUserRules } from './repo';
 import { startAutoSync } from './sync';
@@ -180,6 +180,7 @@ export default function App() {
       // Move legacy localStorage automation config into Dexie (once), adopt
       // any config sync already delivered, then re-read the cache.
       await hydrateAutomation();
+    ensureDeviceSettingsPublished();
       setRules(loadRules());
       setUserRules(loadUserRules());
       startAutoSync();

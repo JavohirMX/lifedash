@@ -137,3 +137,17 @@ describe('applyRemoteSettings', () => {
     expect(getWallpaper()).toEqual({ id: 'custom', intensity: 25, image: 'data:image/jpeg;base64,aGk=' });
   });
 });
+
+describe('ensureDeviceSettingsPublished', () => {
+  it('publishes only when the row is missing', async () => {
+    const { ensureDeviceSettingsPublished } = await import('./deviceSettings');
+    ensureDeviceSettingsPublished();
+    await new Promise((r) => setTimeout(r, 0));
+    const first = tables.deviceSettings.get(getDeviceId())!;
+    expect(first).toBeTruthy();
+    tables.deviceSettings.set(getDeviceId(), { ...first, font: 'plex' });
+    ensureDeviceSettingsPublished();
+    await new Promise((r) => setTimeout(r, 0));
+    expect(tables.deviceSettings.get(getDeviceId())!.font).toBe('plex');
+  });
+});
