@@ -160,76 +160,93 @@ def register(creds: Credentials):
     return {"token": token, "user_id": user_id}
 
 
-# Per-account login throttling: keyed by username, not client IP, so it
-# works identically with or without a trusted proxy in front.
-LOGIN_WINDOW_S = 600
-LOGIN_MAX_FAILURES = 10
+# Login throttling that actually throttles: the check runs BEFORE the
+# password verification, so rejected guesses cost no PBKDF2 work. Keys are
+# (username, client IP): spraying a known username from one address never
+# touches the same user signing in from another. X-Forwarded-For is trusted
+# only when SYNC_TRUSTED_PROXY=1 (behind Caddy/nginx on the same host);
+# otherwise the socket peer is used, which behind an unconfigured proxy
+# collapses to one key per username - safe, just shared.
+#
+# Tradeoff, stated plainly: from a throttled (username, IP) pair, even the
+# correct password waits out the backoff (429 + Retry-After, capped at 15
+# minutes, doubling from 2s). A success clears the counter. Existing
+# session tokens are never affected - login failures do not invalidate
+# tokens, so already-connected devices keep working throughout.
+THROTTLE_FREE_ATTEMPTS = 5
+THROTTLE_MAX_DELAY_S = 900
+THROTTLE_IDLE_S = 24 * 60 * 60
+THROTTLE_MAX_ROWS = 10_000
 
 
-def _login_throttle_check(conn, username: str) -> None:
+def _throttle_key(request: Request, username: str) -> tuple[str, str]:
+    ip = "unknown"
+    if os.environ.get("SYNC_TRUSTED_PROXY", "0") == "1":
+        xff = request.headers.get("x-forwarded-for")
+        if xff:
+            ip = xff.split(",")[0].strip()
+    if ip == "unknown" and request.client:
+        ip = request.client.host
+    return username, ip
+
+
+def _throttle_check(conn, username: str, ip: str) -> None:
     row = conn.execute(
-        "SELECT fail_count, window_start FROM login_attempts WHERE username = ?", (username,)
+        "SELECT next_allowed FROM login_throttle WHERE username = ? AND ip = ?", (username, ip)
     ).fetchone()
     if row is None:
         return
-    if time.time() - row["window_start"] > LOGIN_WINDOW_S:
-        conn.execute("DELETE FROM login_attempts WHERE username = ?", (username,))
-        conn.commit()
-        return
-    if row["fail_count"] >= LOGIN_MAX_FAILURES:
-        raise HTTPException(status_code=429, detail="too many failed attempts; try again later")
+    wait = row["next_allowed"] - time.time()
+    if wait > 0:
+        raise HTTPException(
+            status_code=429,
+            detail=f"too many failed attempts; retry in {int(wait) + 1}s",
+            headers={"Retry-After": str(int(wait) + 1)},
+        )
 
 
-# Hard bound on the attempts table: an attacker spraying random usernames
-# cannot grow it without limit. Expired rows are pruned first; if the cap
-# is still hit, NEW unknown usernames go unrecorded (their attempts still
-# cost the full PBKDF2 verification), while existing rows keep throttling.
-LOGIN_ATTEMPTS_MAX_ROWS = 10_000
-
-
-def _login_failed(conn, username: str) -> None:
+def _throttle_failed(conn, username: str, ip: str) -> None:
     now = time.time()
     row = conn.execute(
-        "SELECT fail_count, window_start FROM login_attempts WHERE username = ?", (username,)
+        "SELECT fail_count, window_start FROM login_throttle WHERE username = ? AND ip = ?",
+        (username, ip),
     ).fetchone()
-    if row is not None and now - row["window_start"] <= LOGIN_WINDOW_S:
-        conn.execute(
-            "UPDATE login_attempts SET fail_count = fail_count + 1 WHERE username = ?", (username,)
-        )
-        conn.commit()
-        return
-    if row is None:
-        conn.execute("DELETE FROM login_attempts WHERE ? - window_start > ?", (now, LOGIN_WINDOW_S))
-        n = conn.execute("SELECT COUNT(*) AS n FROM login_attempts").fetchone()["n"]
-        if n >= LOGIN_ATTEMPTS_MAX_ROWS:
-            conn.commit()
-            return
+    if row is None or now - row["window_start"] > THROTTLE_IDLE_S:
+        if row is None:
+            conn.execute("DELETE FROM login_throttle WHERE ? - window_start > ?", (now, THROTTLE_IDLE_S))
+            n = conn.execute("SELECT COUNT(*) AS n FROM login_throttle").fetchone()["n"]
+            if n >= THROTTLE_MAX_ROWS:
+                conn.commit()
+                return
+        fails, window_start = 1, now
+    else:
+        fails, window_start = row["fail_count"] + 1, row["window_start"]
+    delay = 0.0 if fails <= THROTTLE_FREE_ATTEMPTS else min(2.0 ** (fails - THROTTLE_FREE_ATTEMPTS), THROTTLE_MAX_DELAY_S)
     conn.execute(
-        "INSERT OR REPLACE INTO login_attempts (username, fail_count, window_start) VALUES (?, 1, ?)",
-        (username, now),
+        "INSERT OR REPLACE INTO login_throttle (username, ip, fail_count, window_start, next_allowed)"
+        " VALUES (?, ?, ?, ?, ?)",
+        (username, ip, fails, window_start, now + delay),
     )
     conn.commit()
 
 
 @app.post("/api/login")
-def login(creds: Credentials):
+def login(creds: Credentials, request: Request):
     conn = get_conn()
+    username, ip = _throttle_key(request, creds.username)
+    _throttle_check(conn, username, ip)
     row = conn.execute(
         "SELECT id, password_hash FROM users WHERE username = ?", (creds.username,)
     ).fetchone()
     if row is None:
         # Equalize the timing of unknown vs known usernames.
         verify_password(creds.password, "00" * 16 + ":" + "00" * 32)
-    # A correct password always succeeds: an attacker spraying a known
-    # username must not be able to lock out the account owner. Wrong
-    # guesses stay capped by the window check in _login_failed.
     if row is not None and verify_password(creds.password, row["password_hash"]):
-        conn.execute("DELETE FROM login_attempts WHERE username = ?", (creds.username,))
+        conn.execute("DELETE FROM login_throttle WHERE username = ? AND ip = ?", (username, ip))
         token = store_token(row["id"])
         conn.commit()
         return {"token": token, "user_id": row["id"]}
-    _login_throttle_check(conn, creds.username)
-    _login_failed(conn, creds.username)
+    _throttle_failed(conn, username, ip)
     raise HTTPException(status_code=401, detail="invalid credentials")
 
 

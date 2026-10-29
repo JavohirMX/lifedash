@@ -32,14 +32,20 @@ in docker-compose.yml) and point the app's Settings -> Sync at
   revocable, scope- and project-limited.
 - Registration: open for the first user only, then closed unless
   SYNC_OPEN_REGISTRATION=1.
-- Login throttling: 10 failed attempts per account within 10 minutes
-  returns 429 for further WRONG guesses until the window passes. Keyed
-  by username, not client IP, so it behaves the same with or without a
-  proxy. The correct password always succeeds, so nobody can lock the
-  owner out by spraying a known username; a success or window expiry
-  clears the tally, and the attempts table is pruned and hard-capped
-  (10k rows) against junk-username growth. Unknown usernames pay the
-  same password-hashing cost as known ones.
+- Login throttling: after 5 failed attempts for a (username, client IP)
+  pair, further guesses back off exponentially (2s doubling to a 15
+  minute cap) and are refused with 429 + Retry-After WITHOUT running
+  the password check. Keying by address means spraying a known username
+  from one place never throttles the same user signing in from another;
+  the stated tradeoff is that from a throttled address even the correct
+  password waits out the backoff. A success clears the counter, idle
+  rows are pruned after 24h and the table is hard-capped (10k rows)
+  against junk-username growth. Existing session tokens are never
+  affected by login failures. X-Forwarded-For is honored only with
+  SYNC_TRUSTED_PROXY=1 (set it when Caddy/nginx terminates TLS on the
+  same host); without it, the proxy's address is the key for everyone,
+  which is safe but shared. Unknown usernames pay the same
+  password-hashing cost as known ones.
 - Request bodies: JSON endpoints reject a declared Content-Length above
   SYNC_MAX_BODY_MB (default 10) with 413 before parsing, and bodies
   sent without a Content-Length (chunked) are counted while streaming
@@ -62,6 +68,7 @@ in docker-compose.yml) and point the app's Settings -> Sync at
 | SYNC_OPEN_REGISTRATION | 0 | 1 re-opens registration |
 | SYNC_MAX_BODY_MB | 10 | JSON request body cap (MB) |
 | SYNC_CORS_ORIGINS | * | comma-separated allowed browser origins |
+| SYNC_TRUSTED_PROXY | 0 | 1 trusts X-Forwarded-For for throttle keys |
 | SYNC_ATTACHMENT_QUOTA_MB | 200 | total attachment bytes, incl. deleted |
 | SYNC_ATTACHMENT_MAX_FILE_MB | 25 | per-file upload cap |
 

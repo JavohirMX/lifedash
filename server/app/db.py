@@ -40,10 +40,13 @@ CREATE TABLE IF NOT EXISTS entities (
   updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')),
   PRIMARY KEY (user_id, collection, id)
 );
-CREATE TABLE IF NOT EXISTS login_attempts (
-  username TEXT PRIMARY KEY,
+CREATE TABLE IF NOT EXISTS login_throttle (
+  username TEXT NOT NULL,
+  ip TEXT NOT NULL,
   fail_count INTEGER NOT NULL DEFAULT 0,
-  window_start REAL NOT NULL DEFAULT 0
+  window_start REAL NOT NULL DEFAULT 0,
+  next_allowed REAL NOT NULL DEFAULT 0,
+  PRIMARY KEY (username, ip)
 );
 CREATE INDEX IF NOT EXISTS idx_entities_rev ON entities(user_id, rev);
 """

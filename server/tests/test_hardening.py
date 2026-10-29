@@ -74,42 +74,56 @@ def test_logout_revokes_hashed_token(client):
     assert client.get("/api/changes", headers=auth(token)).status_code == 401
 
 
-def test_login_throttle_locks_then_recovers(client):
-    username, _ = register(client)
-    for _ in range(10):
-        r = client.post("/api/login", json={"username": username, "password": "wrong password"})
-        assert r.status_code == 401
+def test_login_throttle_backs_off_then_recovers(client):
+    username, token = register(client)
+    # 5 free wrong guesses, then the 6th arms a 2s backoff.
+    for _ in range(6):
+        assert client.post("/api/login", json={"username": username, "password": "wrong password"}).status_code == 401
+    # During the backoff, wrong guesses are refused up front (no PBKDF2).
     r = client.post("/api/login", json={"username": username, "password": "wrong password"})
     assert r.status_code == 429
-    # A targeted attacker cannot lock out the owner: the correct password
-    # still succeeds inside the window and clears the tally.
+    assert int(r.headers["retry-after"]) >= 1
+    # Stated policy: even the correct password waits out the backoff...
+    assert client.post("/api/login", json={"username": username, "password": "correct horse battery staple"}).status_code == 429
+    # ...but existing sessions are untouched throughout.
+    assert client.get("/api/changes", headers=auth(token)).status_code == 200
+    # Backoff elapsed: the owner gets in and the counter clears.
+    get_conn().execute("UPDATE login_throttle SET next_allowed = 0 WHERE username = ?", (username,))
+    get_conn().commit()
     r = client.post("/api/login", json={"username": username, "password": "correct horse battery staple"})
     assert r.status_code == 200
-    assert get_conn().execute("SELECT * FROM login_attempts WHERE username = ?", (username,)).fetchone() is None
-    # Wrong guesses are capped again from scratch: after 10 more, 429.
-    for _ in range(10):
+    assert get_conn().execute("SELECT * FROM login_throttle WHERE username = ?", (username,)).fetchone() is None
+    # And the failure budget restarts from zero.
+    for _ in range(5):
         assert client.post("/api/login", json={"username": username, "password": "wrong password"}).status_code == 401
-    assert client.post("/api/login", json={"username": username, "password": "wrong password"}).status_code == 429
-    # The window expiring restores the failure budget; no permanent state.
-    get_conn().execute("UPDATE login_attempts SET window_start = ? WHERE username = ?", (time.time() - 700, username))
-    get_conn().commit()
-    r = client.post("/api/login", json={"username": username, "password": "wrong password"})
-    assert r.status_code == 401
 
 
-def test_login_attempts_table_growth_is_bounded(client, monkeypatch):
+def test_throttle_is_per_client_ip_with_trusted_proxy(client, monkeypatch):
+    monkeypatch.setenv("SYNC_TRUSTED_PROXY", "1")
+    username, _ = register(client)
+    attacker = {"x-forwarded-for": "203.0.113.9"}
+    for _ in range(6):
+        assert client.post("/api/login", json={"username": username, "password": "wrong password"}, headers=attacker).status_code == 401
+    assert client.post("/api/login", json={"username": username, "password": "wrong password"}, headers=attacker).status_code == 429
+    # The same account from another address is not throttled by the attack.
+    elsewhere = {"x-forwarded-for": "198.51.100.4"}
+    assert client.post("/api/login", json={"username": username, "password": "wrong password"}, headers=elsewhere).status_code == 401
+    r = client.post("/api/login", json={"username": username, "password": "correct horse battery staple"}, headers=elsewhere)
+    assert r.status_code == 200
+
+
+def test_throttle_table_growth_is_bounded(client, monkeypatch):
     import app.main as main_mod
-    monkeypatch.setattr(main_mod, "LOGIN_ATTEMPTS_MAX_ROWS", 3)
-    # Existing rows keep throttling even at the cap...
+    monkeypatch.setattr(main_mod, "THROTTLE_MAX_ROWS", 3)
     victim, _ = register(client)
-    for _ in range(10):
+    for _ in range(6):
         assert client.post("/api/login", json={"username": victim, "password": "wrong password"}).status_code == 401
-    # ...while sprayed unknown usernames cannot grow the table past it.
+    # Sprayed unknown usernames cannot grow the table past the cap...
     for i in range(20):
         client.post("/api/login", json={"username": f"spray-{i}", "password": "wrong password"})
-    n = get_conn().execute("SELECT COUNT(*) AS n FROM login_attempts").fetchone()["n"]
+    n = get_conn().execute("SELECT COUNT(*) AS n FROM login_throttle").fetchone()["n"]
     assert n <= 3
-    # The known account is still throttled.
+    # ...and the recorded account still throttles.
     assert client.post("/api/login", json={"username": victim, "password": "wrong password"}).status_code == 429
 
 
@@ -166,3 +180,16 @@ def test_stored_digest_is_not_a_usable_bearer(client):
 def test_unknown_username_login_costs_password_time(client):
     r = client.post("/api/login", json={"username": f"ghost-{uuid.uuid4().hex[:8]}", "password": "wrong password"})
     assert r.status_code == 401
+
+
+def test_throttled_guess_skips_password_verification(client, monkeypatch):
+    import app.main as main_mod
+    username, _ = register(client)
+    for _ in range(6):
+        client.post("/api/login", json={"username": username, "password": "wrong password"})
+    calls = []
+    real = main_mod.verify_password
+    monkeypatch.setattr(main_mod, "verify_password", lambda *a: calls.append(a) or real(*a))
+    r = client.post("/api/login", json={"username": username, "password": "wrong password"})
+    assert r.status_code == 429
+    assert calls == [], "a throttled guess must not run PBKDF2"
