@@ -444,6 +444,15 @@ def agent_create_task(body: TaskCreate, ctx: AgentCtx = Depends(agent_auth)):
 
     def fn(conn):
         project_id = body.projectId or "inbox"
+        if project_id == "inbox" and _get(conn, ctx.user_id, "projects", "inbox") is None:
+            # The app seeds the Inbox locally on first run, but a fresh account
+            # may not have pushed it yet. Seed the identical entity server-side
+            # (same id and shape as the client's seed in db.ts); when the app's
+            # own seed later pushes with base_rev 0 it conflicts and server-wins
+            # replaces it with these same values.
+            inbox = {"id": "inbox", "name": "Inbox", "color": "#0f766e", "order": 0, "archived": False}
+            _apply(conn, ctx.user_id, "projects", "inbox", False, inbox)
+            _audit(conn, ctx, "project.seed_inbox", "projects", "inbox")
         _require_entity(conn, ctx.user_id, "projects", project_id, "projectId")
         _require_entity(conn, ctx.user_id, "tasks", body.parentId, "parentId")
         _require_entity(conn, ctx.user_id, "goals", body.goalId, "goalId")

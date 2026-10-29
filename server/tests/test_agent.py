@@ -285,3 +285,92 @@ def test_audit_records_writes_not_reads(client):
     rows = get_conn().execute(
         "SELECT action, collection FROM agent_audit WHERE token_id = ?", (tid,)).fetchall()
     assert [(r["action"], r["collection"]) for r in rows] == [("task.create", "tasks")]
+
+
+# ---------- security boundaries ----------
+
+def test_cross_user_isolation(client):
+    """User A's agent key must see none of user B's data, in either direction."""
+    session_a = register(client)
+    seed_inbox(client, session_a)
+    key_a = make_key(client, session_a)
+    task_a = client.post("/api/agent/tasks", json={"title": "A secret"}, headers=auth(key_a["token"])).json()
+
+    session_b = register(client)
+    seed_inbox(client, session_b)
+    key_b = make_key(client, session_b)
+
+    # B cannot read A's task by id, and B's list contains none of A's data.
+    assert client.get(f"/api/agent/entities/tasks/{task_a['id']}", headers=auth(key_b["token"])).status_code == 404
+    listed = client.get("/api/agent/entities/tasks", headers=auth(key_b["token"])).json()["entities"]
+    assert all(e["id"] != task_a["id"] for e in listed)
+    # B cannot mutate or delete A's task.
+    assert client.patch(f"/api/agent/tasks/{task_a['id']}", json={"title": "hijack"}, headers=auth(key_b["token"])).status_code == 404
+    assert client.post(f"/api/agent/tasks/{task_a['id']}/complete", json={}, headers=auth(key_b["token"])).status_code == 404
+    assert client.request("DELETE", f"/api/agent/entities/tasks/{task_a['id']}", headers=auth(key_b["token"])).status_code == 404
+    # A's task is untouched.
+    after = client.get(f"/api/agent/entities/tasks/{task_a['id']}", headers=auth(key_a["token"])).json()
+    assert after["data"]["title"] == "A secret"
+    # B cannot manage A's keys.
+    keys_b = client.get("/api/agent-tokens", headers=auth(session_b)).json()["tokens"]
+    assert all(k["id"] != key_a["id"] for k in keys_b)
+
+
+def test_endpoint_separation(client):
+    """Agent keys never manage keys; session tokens never act as agents."""
+    session = register(client)
+    key = make_key(client, session)
+    # Agent key cannot create/list/revoke keys.
+    assert client.post("/api/agent-tokens", json={"name": "escalation", "scope": "read-write"}, headers=auth(key["token"])).status_code == 401
+    assert client.get("/api/agent-tokens", headers=auth(key["token"])).status_code == 401
+    assert client.post(f"/api/agent-tokens/{key['id']}/revoke", headers=auth(key["token"])).status_code == 401
+    # Session token cannot use agent endpoints.
+    assert client.get("/api/agent/collections", headers=auth(session)).status_code == 401
+    assert client.post("/api/agent/tasks", json={"title": "x"}, headers=auth(session)).status_code == 401
+    # Agent key cannot push raw sync changes (raw writes stay client-only).
+    r = client.post("/api/changes", json={"changes": [{"collection": "tasks", "id": "raw", "base_rev": 0, "data": {"title": "raw"}}]}, headers=auth(key["token"]))
+    assert r.status_code == 401
+
+
+def test_revoked_key_dies_immediately(client):
+    session = register(client)
+    seed_inbox(client, session)
+    key = make_key(client, session)
+    assert client.get("/api/agent/collections", headers=auth(key["token"])).status_code == 200
+    client.post(f"/api/agent-tokens/{key['id']}/revoke", headers=auth(session))
+    assert client.get("/api/agent/collections", headers=auth(key["token"])).status_code == 401
+    assert client.post("/api/agent/tasks", json={"title": "x"}, headers=auth(key["token"])).status_code == 401
+
+
+def test_unknown_collection_and_bad_refs_on_writes(client):
+    session = register(client)
+    seed_inbox(client, session)
+    key = make_key(client, session)
+    assert client.request("DELETE", "/api/agent/entities/whatever/x", headers=auth(key["token"])).status_code == 404
+    assert client.get("/api/agent/entities/whatever", headers=auth(key["token"])).status_code == 404
+    t = client.post("/api/agent/tasks", json={"title": "T"}, headers=auth(key["token"])).json()
+    assert client.patch(f"/api/agent/tasks/{t['id']}", json={"goalId": "ghost"}, headers=auth(key["token"])).status_code == 422
+    assert client.post("/api/agent/habits/ghost/check", json={"date": "2026-10-29"}, headers=auth(key["token"])).status_code == 422
+
+
+def test_oversized_and_malformed_bodies_rejected(client):
+    session = register(client)
+    seed_inbox(client, session)
+    key = make_key(client, session)
+    assert client.post("/api/agent/tasks", json={"title": "x" * 501}, headers=auth(key["token"])).status_code == 422
+    assert client.post("/api/agent/tasks", json={"title": "ok", "priority": 9}, headers=auth(key["token"])).status_code == 422
+    assert client.post("/api/agent/habits", json={"name": "h", "weekdays": [1, 1]}, headers=auth(key["token"])).status_code == 422
+    assert client.put("/api/agent/journal/not-a-date", json={}, headers=auth(key["token"])).status_code == 422
+
+
+def test_task_create_seeds_inbox_on_fresh_account(client):
+    """Fresh account, app never synced: default projectId must still work."""
+    session = register(client)  # note: no seed_inbox call
+    key = make_key(client, session)
+    r = client.post("/api/agent/tasks", json={"title": "First ever"}, headers=auth(key["token"]))
+    assert r.status_code == 201, r.text
+    assert r.json()["projectId"] == "inbox"
+    inbox = client.get("/api/agent/entities/projects/inbox", headers=auth(key["token"])).json()
+    assert inbox["data"]["name"] == "Inbox" and inbox["data"]["color"] == "#0f766e"
+    # Explicit unknown project still refuses.
+    assert client.post("/api/agent/tasks", json={"title": "x", "projectId": "ghost"}, headers=auth(key["token"])).status_code == 422
