@@ -58,7 +58,14 @@ def get_conn() -> sqlite3.Connection:
     return conn
 
 
+def _migrate(conn) -> None:
+    cols = [r["name"] for r in conn.execute("PRAGMA table_info(entities)")]
+    if "deleted_with" not in cols:
+        conn.execute("ALTER TABLE entities ADD COLUMN deleted_with TEXT")
+
+
 def init_db() -> None:
     conn = get_conn()
     conn.executescript(SCHEMA)
+    _migrate(conn)
     conn.commit()

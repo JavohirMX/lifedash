@@ -173,13 +173,17 @@ def push(body: PushBody, user_id: int = Depends(current_user)):
             new_rev = conn.execute(
                 "SELECT last_rev FROM meta WHERE user_id = ?", (user_id,)
             ).fetchone()["last_rev"]
+            # Tombstones keep the last known payload server-side (recoverable
+            # soft delete); clients send data: {} because they drop their copy.
+            data_json = row["data"] if (ch.deleted and row) else json.dumps(ch.data)
             conn.execute(
                 "INSERT INTO entities (user_id, collection, id, rev, deleted, data) "
                 "VALUES (?, ?, ?, ?, ?, ?) "
                 "ON CONFLICT (user_id, collection, id) DO UPDATE SET "
                 "rev=excluded.rev, deleted=excluded.deleted, data=excluded.data, "
+                "deleted_with=CASE WHEN excluded.deleted = 0 THEN NULL ELSE entities.deleted_with END, "
                 "updated_at=strftime('%Y-%m-%dT%H:%M:%fZ','now')",
-                (user_id, ch.collection, ch.id, new_rev, 1 if ch.deleted else 0, json.dumps(ch.data)),
+                (user_id, ch.collection, ch.id, new_rev, 1 if ch.deleted else 0, data_json),
             )
             results.append(
                 {"collection": ch.collection, "id": ch.id, "status": "ok", "rev": new_rev}

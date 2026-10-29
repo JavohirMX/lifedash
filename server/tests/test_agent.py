@@ -396,3 +396,139 @@ def test_focus_session_logging(client):
     assert any(c["collection"] == "focusSessions" and c["id"] == fs["id"] for c in pull["changes"])
     client.request("DELETE", f"/api/agent/entities/focusSessions/{fs['id']}", headers=auth(key["token"]))
     assert client.get(f"/api/agent/entities/focusSessions/{fs['id']}", headers=auth(key["token"])).json()["deleted"] is True
+
+
+def test_recurrence_rules_that_used_to_500(client):
+    # Reviewer finding: these rules created fine but /complete (and /skip) 500'd.
+    session = register(client)
+    seed_inbox(client, session)
+    key = make_key(client, session)
+    h = auth(key["token"])
+    for rule in ("FREQ=DAILY", "DTSTART:20261029T000000\nRRULE:FREQ=DAILY", "RRULE:FREQ=WEEKLY;BYDAY=MO"):
+        t = client.post("/api/agent/tasks", json={"title": "r", "recurrence": rule, "dueDate": "2026-10-28"}, headers=h)
+        assert t.status_code == 201, (rule, t.text)
+        tid = t.json()["id"]
+        r = client.post(f"/api/agent/tasks/{tid}/complete", json={"today": "2026-10-29"}, headers=h)
+        assert r.status_code == 200, (rule, r.text)
+        assert r.json()["spawned"] is not None, rule
+        assert r.json()["spawned"]["dueDate"] >= "2026-10-29"  # a no-DTSTART rule may yield later today (client parity)
+    # Parses but cannot be evaluated -> rejected at create, not a 500 later.
+    bad = client.post("/api/agent/tasks", json={"title": "bad", "recurrence": "FREQ=SECONDLY;BYHOUR=3;BYMINUTE=70"}, headers=h)
+    assert bad.status_code == 422
+    # An absurd-but-computable rule is accepted (never block creation), and
+    # completion still cannot 500 - it just yields no spawn when evaluation fails.
+    bad2 = client.post("/api/agent/tasks", json={"title": "bad2", "recurrence": "FREQ=SECONDLY;COUNT=99999999999", "dueDate": "2026-10-28"}, headers=h)
+    assert bad2.status_code == 201
+    r = client.post(f"/api/agent/tasks/{bad2.json()['id']}/complete", json={"today": "2026-10-29"}, headers=h)
+    assert r.status_code == 200
+
+
+def test_soft_delete_keeps_payload_and_restore_recovers_cascade(client):
+    session = register(client)
+    seed_inbox(client, session)
+    key = make_key(client, session)
+    h = auth(key["token"])
+    parent = client.post("/api/agent/tasks", json={"title": "parent"}, headers=h).json()
+    sub = client.post("/api/agent/tasks", json={"title": "sub", "parentId": parent["id"]}, headers=h).json()
+    client.request("DELETE", f"/api/agent/entities/tasks/{parent['id']}", headers=h)
+    gone = client.get(f"/api/agent/entities/tasks/{parent['id']}", headers=h).json()
+    assert gone["deleted"] is True and gone["data"]["title"] == "parent"
+    r = client.post(f"/api/agent/entities/tasks/{parent['id']}/restore", headers=h)
+    assert r.status_code == 200, r.text
+    assert set(r.json()["ids"]) == {f"tasks:{parent['id']}", f"tasks:{sub['id']}"}
+    assert client.get(f"/api/agent/entities/tasks/{sub['id']}", headers=h).json()["deleted"] is False
+    # Second restore is a conflict, not a silent no-op.
+    assert client.post(f"/api/agent/entities/tasks/{parent['id']}/restore", headers=h).status_code == 409
+    # Unknown entity restore is a 404.
+    assert client.post("/api/agent/entities/tasks/ghost/restore", headers=h).status_code == 404
+    # Project cascade: own tasks come back; the inbox stays protected.
+    proj = client.post("/api/agent/projects", json={"name": "P"}, headers=h).json()
+    t = client.post("/api/agent/tasks", json={"title": "pt", "projectId": proj["id"]}, headers=h).json()
+    client.request("DELETE", f"/api/agent/entities/projects/{proj['id']}", headers=h)
+    rr = client.post(f"/api/agent/entities/projects/{proj['id']}/restore", headers=h)
+    assert set(rr.json()["ids"]) == {f"projects:{proj['id']}", f"tasks:{t['id']}"}
+    assert client.request("DELETE", "/api/agent/entities/projects/inbox", headers=h).status_code == 422
+
+
+def test_client_sync_tombstone_keeps_server_payload(client):
+    session = register(client)
+    seed_inbox(client, session)
+    key = make_key(client, session)
+    t = client.post("/api/agent/tasks", json={"title": "keep me"}, headers=auth(key["token"])).json()
+    pull = client.get("/api/changes?since=0", headers=auth(session)).json()
+    rev = [c for c in pull["changes"] if c["id"] == t["id"]][0]["rev"]
+    r = client.post("/api/changes", headers=auth(session), json={"changes": [
+        {"collection": "tasks", "id": t["id"], "base_rev": rev, "deleted": True, "data": {}}]})
+    assert r.json()["results"][0]["status"] == "ok"
+    ent = client.get(f"/api/agent/entities/tasks/{t['id']}", headers=auth(key["token"])).json()
+    assert ent["deleted"] is True and ent["data"]["title"] == "keep me"
+    # Client-tombstoned rows are restorable through the agent API too.
+    rr = client.post(f"/api/agent/entities/tasks/{t['id']}/restore", headers=auth(key["token"]))
+    assert rr.status_code == 200
+    assert client.get(f"/api/agent/entities/tasks/{t['id']}", headers=auth(key["token"])).json()["deleted"] is False
+
+
+def test_null_patch_semantics(client):
+    session = register(client)
+    seed_inbox(client, session)
+    key = make_key(client, session)
+    h = auth(key["token"])
+    t = client.post("/api/agent/tasks", json={"title": "n", "dueDate": "2026-11-01", "priority": 1}, headers=h).json()
+    for field in ("title", "note", "projectId", "priority", "pinned", "status", "tags", "blockedBy"):
+        r = client.patch(f"/api/agent/tasks/{t['id']}", json={field: None}, headers=h)
+        assert r.status_code == 422, (field, r.text)
+    # Null clears the nullable-by-design fields.
+    r = client.patch(f"/api/agent/tasks/{t['id']}", json={"dueDate": None, "dueTime": None, "parentId": None, "goalId": None}, headers=h)
+    assert r.status_code == 200, r.text
+    assert r.json()["task"]["dueDate"] is None
+    # Projects/habits/goals/notes: same rule for their non-nullable fields.
+    proj = client.post("/api/agent/projects", json={"name": "P"}, headers=h).json()
+    assert client.patch(f"/api/agent/projects/{proj['id']}", json={"color": None}, headers=h).status_code == 422
+    assert client.patch(f"/api/agent/projects/{proj['id']}", json={"archived": None}, headers=h).status_code == 422
+    hab = client.post("/api/agent/habits", json={"name": "H"}, headers=h).json()
+    assert client.patch(f"/api/agent/habits/{hab['id']}", json={"color": None}, headers=h).status_code == 422
+    goal = client.post("/api/agent/goals", json={"title": "G"}, headers=h).json()
+    assert client.patch(f"/api/agent/goals/{goal['id']}", json={"habitIds": None}, headers=h).status_code == 422
+    note = client.post("/api/agent/notes", json={"title": "N"}, headers=h).json()
+    assert client.patch(f"/api/agent/notes/{note['id']}", json={"pinned": None}, headers=h).status_code == 422
+
+
+def test_archive_and_unarchive_via_patch(client):
+    session = register(client)
+    seed_inbox(client, session)
+    key = make_key(client, session)
+    h = auth(key["token"])
+    t = client.post("/api/agent/tasks", json={"title": "a"}, headers=h).json()
+    r = client.patch(f"/api/agent/tasks/{t['id']}", json={"status": "archived"}, headers=h)
+    assert r.status_code == 200 and r.json()["task"]["status"] == "archived"
+    r = client.patch(f"/api/agent/tasks/{t['id']}", json={"status": "active"}, headers=h)
+    assert r.status_code == 200 and r.json()["task"]["status"] == "active"
+    # Un-archiving a task that is not archived is a 422, and 'done' stays op-only.
+    assert client.patch(f"/api/agent/tasks/{t['id']}", json={"status": "active"}, headers=h).status_code == 422
+    assert client.patch(f"/api/agent/tasks/{t['id']}", json={"status": "done"}, headers=h).status_code == 422
+
+
+def test_color_and_weekday_validation(client):
+    session = register(client)
+    seed_inbox(client, session)
+    key = make_key(client, session)
+    h = auth(key["token"])
+    assert client.post("/api/agent/projects", json={"name": "P", "color": "red"}, headers=h).status_code == 422
+    assert client.post("/api/agent/projects", json={"name": "P", "color": "#fff"}, headers=h).status_code == 422
+    assert client.post("/api/agent/projects", json={"name": "P", "color": "#0F766E"}, headers=h).status_code == 201
+    assert client.post("/api/agent/habits", json={"name": "H", "color": "blue"}, headers=h).status_code == 422
+    assert client.post("/api/agent/habits", json={"name": "H", "weekdays": [True]}, headers=h).status_code == 422
+    assert client.post("/api/agent/habits", json={"name": "H", "weekdays": [1.0]}, headers=h).status_code == 422
+    assert client.post("/api/agent/habits", json={"name": "H", "weekdays": [0, 7]}, headers=h).status_code == 422
+    assert client.post("/api/agent/habits", json={"name": "H", "weekdays": [1, 1]}, headers=h).status_code == 422
+    assert client.post("/api/agent/habits", json={"name": "H", "weekdays": [0, 6]}, headers=h).status_code == 201
+
+
+def test_read_key_gets_403_before_body_validation(client):
+    session = register(client)
+    seed_inbox(client, session)
+    rkey = make_key(client, session, name="reader", scope="read")
+    r = client.post("/api/agent/tasks", json={"bogus": 1}, headers=auth(rkey["token"]))
+    assert r.status_code == 403, r.text
+    r = client.patch("/api/agent/tasks/whatever", json={"bogus": 1}, headers=auth(rkey["token"]))
+    assert r.status_code == 403, r.text

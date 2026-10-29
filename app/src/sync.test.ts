@@ -265,6 +265,43 @@ describe('sync edit-edit conflicts', () => {
   });
 });
 
+  it('round-trips focus sessions through pull and push', async () => {
+    // Pull: a session logged via the agent API on another device lands in the local table.
+    meta.set('cursor', 0);
+    const session = { id: 'fs1', taskId: 't1', startedAt: 1761724800000, endedAt: 1761727500000, seconds: 2400 };
+    mockFetch({
+      changesResponses: [
+        { changes: [{ collection: 'focusSessions', id: 'fs1', rev: 1, deleted: false, data: session }], rev: 1 },
+        { changes: [], rev: 1 },
+      ],
+    });
+    const r1 = await syncNow(settings);
+    expect(r1.pulled).toBe(1);
+    expect(tables.get('focusSessions')!.get('fs1')).toMatchObject({ taskId: 't1', seconds: 2400 });
+    expect(meta.get('rev:focusSessions:fs1')).toBe(1);
+    // Push: a locally recorded session goes out as a never-synced create (base_rev 0).
+    tables.get('focusSessions')!.set('fs2', { id: 'fs2', taskId: 't1', startedAt: 1761730000000, endedAt: 1761730900000, seconds: 900 });
+    meta.set('dirty:focusSessions:fs2', { deleted: false });
+    const pushes = mockFetch({
+      changesResponses: [{ changes: [], rev: 1 }, { changes: [], rev: 1 }],
+      pushResults: [{ id: 'fs2', collection: 'focusSessions', status: 'ok', rev: 2 }],
+    });
+    const r2 = await syncNow(settings);
+    expect(r2.pushed).toBe(1);
+    expect(pushes[0][0]).toMatchObject({ collection: 'focusSessions', id: 'fs2', base_rev: 0, deleted: false });
+    expect((pushes[0][0].data as { seconds: number }).seconds).toBe(900);
+    expect(meta.has('dirty:focusSessions:fs2')).toBe(false);
+    // Tombstone: a deleted session pushes deleted:true with an empty body.
+    meta.set('dirty:focusSessions:fs1', { deleted: true });
+    const pushes2 = mockFetch({
+      changesResponses: [{ changes: [], rev: 2 }, { changes: [], rev: 2 }],
+      pushResults: [{ id: 'fs1', collection: 'focusSessions', status: 'ok', rev: 3 }],
+    });
+    const r3 = await syncNow(settings);
+    expect(r3.pushed).toBe(1);
+    expect(pushes2[0][0]).toMatchObject({ collection: 'focusSessions', id: 'fs1', deleted: true, data: {} });
+  });
+
 describe('logout', () => {
   const s = { url: 'https://sync.example.com/', username: 'u', token: 'tok123' };
 

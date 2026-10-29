@@ -22,7 +22,7 @@ from datetime import date, datetime, timedelta, timezone
 
 from dateutil import rrule
 from fastapi import APIRouter, Depends, Header, HTTPException
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, StrictInt
 
 from .auth import current_user
 from .db import get_conn
@@ -91,22 +91,48 @@ def agent_auth(authorization: str = Header(default="")) -> AgentCtx:
     token = authorization[len(prefix):].strip()
     conn = get_conn()
     row = conn.execute(
-        "SELECT id, user_id, name, scope, revoked_at FROM agent_tokens WHERE token_hash = ?",
+        "SELECT id, user_id, name, scope, revoked_at, last_used_at FROM agent_tokens WHERE token_hash = ?",
         (_hash(token),),
     ).fetchone()
     if row is None or row["revoked_at"] is not None:
         raise HTTPException(status_code=401, detail="invalid or revoked agent token")
-    conn.execute(
-        "UPDATE agent_tokens SET last_used_at = strftime('%Y-%m-%dT%H:%M:%fZ','now') WHERE id = ?",
-        (row["id"],),
-    )
-    conn.commit()
+    # Throttle the last-used write: reads should not each cost a DB write.
+    stale = True
+    if row["last_used_at"]:
+        try:
+            last_dt = datetime.strptime(row["last_used_at"], "%Y-%m-%dT%H:%M:%S.%fZ").replace(tzinfo=timezone.utc)
+            stale = (datetime.now(timezone.utc) - last_dt).total_seconds() > 60
+        except ValueError:
+            stale = True
+    if stale:
+        conn.execute(
+            "UPDATE agent_tokens SET last_used_at = strftime('%Y-%m-%dT%H:%M:%fZ','now') WHERE id = ?",
+            (row["id"],),
+        )
+        conn.commit()
     return AgentCtx(token_id=row["id"], user_id=row["user_id"], name=row["name"], scope=row["scope"])
 
 
 def require_write(ctx: AgentCtx) -> None:
     if ctx.scope != "read-write":
         raise HTTPException(status_code=403, detail="this key is read-only")
+
+
+def require_agent_write(authorization: str = Header(default="")) -> None:
+    """Route-level dependency for mutating routes: runs before body validation,
+    so a read-only key always gets 403, never a misleading 422."""
+    require_write(agent_auth(authorization))
+
+
+WRITE = [Depends(require_agent_write)]
+
+_COLOR_RE = re.compile(r"^#[0-9a-fA-F]{6}$")
+
+
+def _valid_color(c: str) -> str:
+    if not _COLOR_RE.match(c):
+        raise HTTPException(status_code=422, detail="color must be a hex color like #0f766e")
+    return c.lower()
 
 
 # ---------- storage helpers ----------
@@ -120,6 +146,7 @@ def _apply(conn, user_id: int, collection: str, entity_id: str, deleted: bool, d
         "VALUES (?, ?, ?, ?, ?, ?) "
         "ON CONFLICT (user_id, collection, id) DO UPDATE SET "
         "rev=excluded.rev, deleted=excluded.deleted, data=excluded.data, "
+        "deleted_with=CASE WHEN excluded.deleted = 0 THEN NULL ELSE entities.deleted_with END, "
         "updated_at=strftime('%Y-%m-%dT%H:%M:%fZ','now')",
         (user_id, collection, entity_id, rev, 1 if deleted else 0, json.dumps(data)),
     )
@@ -239,9 +266,7 @@ def _next_monthly_clamped(day: int, base: str) -> str:
     return base
 
 
-def next_occurrence_date(rule: str, due_date: str, today: str) -> str | None:
-    """Port of the client's nextOccurrenceDate: next local date strictly after
-    max(dueDate, today); malformed rules yield None so completion is never blocked."""
+def _next_occurrence(rule: str, due_date: str, today: str) -> str | None:
     rr = _parse_rule(rule)
     if rr is None:
         return None
@@ -256,11 +281,34 @@ def next_occurrence_date(rule: str, due_date: str, today: str) -> str | None:
     ):
         return _next_monthly_clamped(int(mdays[0]), base)
     y, m, d = int(base[:4]), int(base[5:7]), int(base[8:10])
-    anchor = datetime(y, m, d, 12, 0, tzinfo=timezone.utc)
+    # Rules without a UTC (trailing-Z) DTSTART are naive; mixing a naive rule
+    # with an aware anchor crashes rr.after(), so match the rule's awareness.
+    aware = getattr(rr, "_dtstart", None) is not None and rr._dtstart.tzinfo is not None
+    anchor = datetime(y, m, d, 12, 0, tzinfo=timezone.utc if aware else None)
     nxt = rr.after(anchor, inc=False)
     if nxt is None:
         return None
     return nxt.date().isoformat()
+
+
+def next_occurrence_date(rule: str, due_date: str, today: str) -> str | None:
+    """Port of the client's nextOccurrenceDate: next local date strictly after
+    max(dueDate, today); malformed rules yield None so completion is never blocked.
+    A rule that parses but cannot be evaluated also yields None here - the
+    create/patch paths reject those up front via _check_rule_computable."""
+    try:
+        return _next_occurrence(rule, due_date, today)
+    except (ValueError, TypeError, OverflowError):
+        return None
+
+
+def _check_rule_computable(rule: str) -> None:
+    """422 for rules that parse but raise when evaluated (e.g. BYMINUTE=70)."""
+    today = datetime.now(timezone.utc).date().isoformat()
+    try:
+        _next_occurrence(rule, today, today)
+    except (ValueError, TypeError, OverflowError) as exc:
+        raise HTTPException(status_code=422, detail=f"recurrence cannot be evaluated: {exc}")
 
 
 def _would_create_cycle(tasks: list[dict], task_id: str, blocker_id: str) -> bool:
@@ -432,15 +480,17 @@ def _require_entity(conn, user_id: int, collection: str, entity_id: str | None, 
     return ent
 
 
-@router.post("/agent/tasks", status_code=201)
+@router.post("/agent/tasks", status_code=201, dependencies=WRITE)
 def agent_create_task(body: TaskCreate, ctx: AgentCtx = Depends(agent_auth)):
     title = body.title.strip()
     if not title:
         raise HTTPException(status_code=422, detail="title must not be blank")
     due_date = _opt_date(body.dueDate, "dueDate")
     due_time = _opt_time(body.dueTime, "dueTime")
-    if body.recurrence is not None and _parse_rule(body.recurrence) is None:
-        raise HTTPException(status_code=422, detail="recurrence is not a valid RRULE string")
+    if body.recurrence is not None:
+        if _parse_rule(body.recurrence) is None:
+            raise HTTPException(status_code=422, detail="recurrence is not a valid RRULE string")
+        _check_rule_computable(body.recurrence)
 
     def fn(conn):
         project_id = body.projectId or "inbox"
@@ -542,7 +592,7 @@ def _complete_task_data(task: dict, today: str, now: int) -> tuple[dict, dict | 
     return updates, spawned
 
 
-@router.post("/agent/tasks/{task_id}/complete")
+@router.post("/agent/tasks/{task_id}/complete", dependencies=WRITE)
 def agent_complete_task(task_id: str, body: CompleteBody | None = None, ctx: AgentCtx = Depends(agent_auth)):
     today = _today_or(body.today if body else None)
 
@@ -566,7 +616,7 @@ def agent_complete_task(task_id: str, body: CompleteBody | None = None, ctx: Age
     return _write(ctx, fn)
 
 
-@router.post("/agent/tasks/{task_id}/uncomplete")
+@router.post("/agent/tasks/{task_id}/uncomplete", dependencies=WRITE)
 def agent_uncomplete_task(task_id: str, ctx: AgentCtx = Depends(agent_auth)):
     def fn(conn):
         ent = _get(conn, ctx.user_id, "tasks", task_id)
@@ -585,7 +635,7 @@ def agent_uncomplete_task(task_id: str, ctx: AgentCtx = Depends(agent_auth)):
     return _write(ctx, fn)
 
 
-@router.post("/agent/tasks/{task_id}/skip")
+@router.post("/agent/tasks/{task_id}/skip", dependencies=WRITE)
 def agent_skip_task(task_id: str, body: CompleteBody | None = None, ctx: AgentCtx = Depends(agent_auth)):
     today = _today_or(body.today if body else None)
 
@@ -638,21 +688,28 @@ _PATCHABLE = ("title", "note", "projectId", "parentId", "goalId", "priority", "d
               "recurrence", "status")
 
 
-@router.patch("/agent/tasks/{task_id}")
+@router.patch("/agent/tasks/{task_id}", dependencies=WRITE)
 def agent_patch_task(task_id: str, body: TaskPatch, ctx: AgentCtx = Depends(agent_auth)):
     # model_fields_set distinguishes "field absent" from "explicitly null",
     # so agents can clear a due date or un-parent a task.
     given = body.model_fields_set
-    if body.status is not None and body.status != "archived":
-        raise HTTPException(status_code=422, detail="status changes use /complete or /uncomplete; only 'archived' may be patched")
+    # Null clears nullable-by-design fields (dates, parent, goal, recurrence);
+    # for the rest, null would corrupt the record - omit the field instead.
+    for f in ("title", "note", "projectId", "priority", "pinned", "status", "tags", "blockedBy"):
+        if f in given and getattr(body, f) is None:
+            raise HTTPException(status_code=422, detail=f"{f} cannot be null; omit the field to leave it unchanged")
+    if body.status is not None and body.status not in ("archived", "active"):
+        raise HTTPException(status_code=422, detail="status changes use /complete or /uncomplete; only 'archived' and 'active' (un-archive) may be patched")
     for f in ("dueDate", "plannedDate"):
         if f in given:
             _opt_date(getattr(body, f), f)
     for f in ("dueTime", "plannedTime"):
         if f in given:
             _opt_time(getattr(body, f), f)
-    if "recurrence" in given and body.recurrence is not None and _parse_rule(body.recurrence) is None:
-        raise HTTPException(status_code=422, detail="recurrence is not a valid RRULE string")
+    if "recurrence" in given and body.recurrence is not None:
+        if _parse_rule(body.recurrence) is None:
+            raise HTTPException(status_code=422, detail="recurrence is not a valid RRULE string")
+        _check_rule_computable(body.recurrence)
     if "title" in given and (body.title is None or not body.title.strip()):
         raise HTTPException(status_code=422, detail="title must not be blank")
 
@@ -661,6 +718,8 @@ def agent_patch_task(task_id: str, body: TaskPatch, ctx: AgentCtx = Depends(agen
         if ent is None:
             raise HTTPException(status_code=404, detail="task not found")
         task = ent["data"] | {"id": task_id}
+        if "status" in given and body.status == "active" and task.get("status") != "archived":
+            raise HTTPException(status_code=422, detail="only an archived task can be un-archived via status; use /uncomplete for done tasks")
         if "projectId" in given:
             _require_entity(conn, ctx.user_id, "projects", body.projectId, "projectId")
         if "goalId" in given:
@@ -714,7 +773,7 @@ def agent_patch_task(task_id: str, body: TaskPatch, ctx: AgentCtx = Depends(agen
 class HabitCreate(BaseModel):
     name: str = Field(min_length=1, max_length=200)
     color: str = Field(default="#0f766e", max_length=32)
-    weekdays: list[int] | None = None  # null = every day; else weekday numbers (0=Sun)
+    weekdays: list[StrictInt] | None = None  # null = every day; else weekday numbers (0=Sun)
 
 
 def _valid_weekdays(w):
@@ -725,12 +784,13 @@ def _valid_weekdays(w):
     return w
 
 
-@router.post("/agent/habits", status_code=201)
+@router.post("/agent/habits", status_code=201, dependencies=WRITE)
 def agent_create_habit(body: HabitCreate, ctx: AgentCtx = Depends(agent_auth)):
     name = body.name.strip()
     if not name:
         raise HTTPException(status_code=422, detail="name must not be blank")
     weekdays = _valid_weekdays(body.weekdays)
+    body.color = _valid_color(body.color)
 
     def fn(conn):
         count = conn.execute(
@@ -749,17 +809,22 @@ def agent_create_habit(body: HabitCreate, ctx: AgentCtx = Depends(agent_auth)):
 class HabitPatch(BaseModel):
     name: str | None = Field(default=None, max_length=200)
     color: str | None = Field(default=None, max_length=32)
-    weekdays: list[int] | None = None
+    weekdays: list[StrictInt] | None = None
     archived: bool | None = None
 
 
-@router.patch("/agent/habits/{habit_id}")
+@router.patch("/agent/habits/{habit_id}", dependencies=WRITE)
 def agent_patch_habit(habit_id: str, body: HabitPatch, ctx: AgentCtx = Depends(agent_auth)):
     given = body.model_fields_set
+    for f in ("name", "color", "archived"):
+        if f in given and getattr(body, f) is None:
+            raise HTTPException(status_code=422, detail=f"{f} cannot be null; omit the field to leave it unchanged")
     if "weekdays" in given:
         _valid_weekdays(body.weekdays)
-    if "name" in given and (body.name is None or not body.name.strip()):
+    if "name" in given and not body.name.strip():
         raise HTTPException(status_code=422, detail="name must not be blank")
+    if "color" in given:
+        body.color = _valid_color(body.color)
 
     def fn(conn):
         ent = _get(conn, ctx.user_id, "habits", habit_id)
@@ -810,12 +875,12 @@ def _set_habit_log(ctx: AgentCtx, habit_id: str, body: CheckBody, done: bool):
     return _write(ctx, fn)
 
 
-@router.post("/agent/habits/{habit_id}/check")
+@router.post("/agent/habits/{habit_id}/check", dependencies=WRITE)
 def agent_check_habit(habit_id: str, body: CheckBody, ctx: AgentCtx = Depends(agent_auth)):
     return _set_habit_log(ctx, habit_id, body, True)
 
 
-@router.post("/agent/habits/{habit_id}/uncheck")
+@router.post("/agent/habits/{habit_id}/uncheck", dependencies=WRITE)
 def agent_uncheck_habit(habit_id: str, body: CheckBody, ctx: AgentCtx = Depends(agent_auth)):
     return _set_habit_log(ctx, habit_id, body, False)
 
@@ -828,11 +893,12 @@ class ProjectCreate(BaseModel):
     parentId: str | None = None
 
 
-@router.post("/agent/projects", status_code=201)
+@router.post("/agent/projects", status_code=201, dependencies=WRITE)
 def agent_create_project(body: ProjectCreate, ctx: AgentCtx = Depends(agent_auth)):
     name = body.name.strip()
     if not name:
         raise HTTPException(status_code=422, detail="name must not be blank")
+    body.color = _valid_color(body.color)
 
     def fn(conn):
         projects = _all(conn, ctx.user_id, "projects")
@@ -854,11 +920,16 @@ class ProjectPatch(BaseModel):
     archived: bool | None = None
 
 
-@router.patch("/agent/projects/{project_id}")
+@router.patch("/agent/projects/{project_id}", dependencies=WRITE)
 def agent_patch_project(project_id: str, body: ProjectPatch, ctx: AgentCtx = Depends(agent_auth)):
     given = body.model_fields_set
-    if "name" in given and (body.name is None or not body.name.strip()):
+    for f in ("name", "color", "archived"):
+        if f in given and getattr(body, f) is None:
+            raise HTTPException(status_code=422, detail=f"{f} cannot be null; omit the field to leave it unchanged")
+    if "name" in given and not body.name.strip():
         raise HTTPException(status_code=422, detail="name must not be blank")
+    if "color" in given:
+        body.color = _valid_color(body.color)
 
     def fn(conn):
         ent = _get(conn, ctx.user_id, "projects", project_id)
@@ -892,7 +963,7 @@ class GoalCreate(BaseModel):
     targetDate: str | None = None
 
 
-@router.post("/agent/goals", status_code=201)
+@router.post("/agent/goals", status_code=201, dependencies=WRITE)
 def agent_create_goal(body: GoalCreate, ctx: AgentCtx = Depends(agent_auth)):
     title = body.title.strip()
     if not title:
@@ -923,13 +994,16 @@ class GoalPatch(BaseModel):
     projectIds: list[str] | None = None
 
 
-@router.patch("/agent/goals/{goal_id}")
+@router.patch("/agent/goals/{goal_id}", dependencies=WRITE)
 def agent_patch_goal(goal_id: str, body: GoalPatch, ctx: AgentCtx = Depends(agent_auth)):
     given = body.model_fields_set
     if "title" in given and (body.title is None or not body.title.strip()):
         raise HTTPException(status_code=422, detail="title must not be blank")
     if "targetDate" in given:
         _opt_date(body.targetDate, "targetDate")
+    for f in ("title", "note", "status", "habitIds", "projectIds"):
+        if f in given and getattr(body, f) is None:
+            raise HTTPException(status_code=422, detail=f"{f} cannot be null; omit the field to leave it unchanged")
     if "status" in given and body.status not in ("active", "done", "archived"):
         raise HTTPException(status_code=422, detail="status must be active, done or archived")
 
@@ -967,7 +1041,7 @@ class NoteCreate(BaseModel):
     pinned: bool = False
 
 
-@router.post("/agent/notes", status_code=201)
+@router.post("/agent/notes", status_code=201, dependencies=WRITE)
 def agent_create_note(body: NoteCreate, ctx: AgentCtx = Depends(agent_auth)):
     def fn(conn):
         now = _now_ms()
@@ -986,9 +1060,12 @@ class NotePatch(BaseModel):
     pinned: bool | None = None
 
 
-@router.patch("/agent/notes/{note_id}")
+@router.patch("/agent/notes/{note_id}", dependencies=WRITE)
 def agent_patch_note(note_id: str, body: NotePatch, ctx: AgentCtx = Depends(agent_auth)):
     given = body.model_fields_set
+    for f in ("title", "note", "pinned"):
+        if f in given and getattr(body, f) is None:
+            raise HTTPException(status_code=422, detail=f"{f} cannot be null; omit the field to leave it unchanged")
 
     def fn(conn):
         ent = _get(conn, ctx.user_id, "notes", note_id)
@@ -1019,7 +1096,7 @@ class JournalPut(BaseModel):
     highlight: str | None = Field(default=None, max_length=500)
 
 
-@router.put("/agent/journal/{day}")
+@router.put("/agent/journal/{day}", dependencies=WRITE)
 def agent_put_journal(day: str, body: JournalPut, ctx: AgentCtx = Depends(agent_auth)):
     day = _opt_date(day, "date")
     given = body.model_fields_set
@@ -1067,7 +1144,7 @@ class FocusSessionCreate(BaseModel):
     seconds: int = Field(ge=0)
 
 
-@router.post("/agent/focus-sessions", status_code=201)
+@router.post("/agent/focus-sessions", status_code=201, dependencies=WRITE)
 def agent_log_focus_session(body: FocusSessionCreate, ctx: AgentCtx = Depends(agent_auth)):
     if body.startedAt < _MIN_STARTED_AT:
         raise HTTPException(status_code=422, detail="startedAt looks wrong (before 2020)")
@@ -1093,10 +1170,13 @@ def agent_log_focus_session(body: FocusSessionCreate, ctx: AgentCtx = Depends(ag
 
 # ---------- soft delete (tombstones only; cascades mirror the app) ----------
 
-@router.delete("/agent/entities/{collection}/{entity_id}")
+@router.delete("/agent/entities/{collection}/{entity_id}", dependencies=WRITE)
 def agent_delete(collection: str, entity_id: str, ctx: AgentCtx = Depends(agent_auth)):
     if collection not in AGENT_COLLECTIONS:
         raise HTTPException(status_code=404, detail="unknown collection")
+
+    if collection == "projects" and entity_id == "inbox":
+        raise HTTPException(status_code=422, detail="the Inbox project cannot be deleted")
 
     def fn(conn):
         ent = _get(conn, ctx.user_id, collection, entity_id)
@@ -1105,8 +1185,17 @@ def agent_delete(collection: str, entity_id: str, ctx: AgentCtx = Depends(agent_
         now = _now_ms()
         deleted_ids = [entity_id]
 
-        def tombstone(col, eid):
-            _apply(conn, ctx.user_id, col, eid, True, {})
+        def tombstone(col, eid, cascade_root=None):
+            # Soft delete keeps the payload: the server copy stays fully
+            # recoverable (John, Oct 29: "Only soft delete"). Clients still
+            # delete their local copy on pull; restore brings the row back.
+            cur = _get(conn, ctx.user_id, col, eid, include_deleted=True)
+            _apply(conn, ctx.user_id, col, eid, True, cur["data"] if cur else {})
+            if cascade_root is not None:
+                conn.execute(
+                    "UPDATE entities SET deleted_with = ? WHERE user_id = ? AND collection = ? AND id = ?",
+                    (cascade_root, ctx.user_id, col, eid),
+                )
 
         if collection == "tasks":
             # Mirror deleteTask: direct subtasks go too; dead blockedBy refs are stripped.
@@ -1116,7 +1205,7 @@ def agent_delete(collection: str, entity_id: str, ctx: AgentCtx = Depends(agent_
             deleted_ids = list(gone)
             tombstone("tasks", entity_id)
             for c in children:
-                tombstone("tasks", c["id"])
+                tombstone("tasks", c["id"], cascade_root=entity_id)
             for t in tasks:
                 refs = [b for b in (t.get("blockedBy") or []) if b in gone]
                 if refs and t["id"] not in gone:
@@ -1134,7 +1223,7 @@ def agent_delete(collection: str, entity_id: str, ctx: AgentCtx = Depends(agent_
             deleted_ids = [entity_id, *own_ids, *[t["id"] for t in children]]
             tombstone("projects", entity_id)
             for t in own + children:
-                tombstone("tasks", t["id"])
+                tombstone("tasks", t["id"], cascade_root=entity_id)
             for p in _all(conn, ctx.user_id, "projects"):
                 if (p.get("parentId") or None) == entity_id:
                     updated = {**p, "parentId": project.get("parentId") or None}
@@ -1153,5 +1242,35 @@ def agent_delete(collection: str, entity_id: str, ctx: AgentCtx = Depends(agent_
         _audit(conn, ctx, "entity.soft_delete", collection, entity_id,
                f"cascade={len(deleted_ids)}")
         return {"deleted": True, "tombstoned": deleted_ids}
+
+    return _write(ctx, fn)
+
+
+@router.post("/agent/entities/{collection}/{entity_id}/restore", dependencies=WRITE)
+def agent_restore(collection: str, entity_id: str, ctx: AgentCtx = Depends(agent_auth)):
+    if collection not in AGENT_COLLECTIONS:
+        raise HTTPException(status_code=404, detail="unknown collection")
+
+    def fn(conn):
+        ent = _get(conn, ctx.user_id, collection, entity_id, include_deleted=True)
+        if ent is None:
+            raise HTTPException(status_code=404, detail="not found")
+        if not ent["deleted"]:
+            raise HTTPException(status_code=409, detail="entity is not deleted")
+        _apply(conn, ctx.user_id, collection, entity_id, False, ent["data"])
+        restored = [f"{collection}:{entity_id}"]
+        rows = conn.execute(
+            "SELECT collection, id FROM entities WHERE user_id = ? AND deleted = 1 AND deleted_with = ?",
+            (ctx.user_id, entity_id),
+        ).fetchall()
+        for r in rows:
+            child = _get(conn, ctx.user_id, r["collection"], r["id"], include_deleted=True)
+            _apply(conn, ctx.user_id, r["collection"], r["id"], False, child["data"])
+            restored.append(f"{r['collection']}:{r['id']}")
+        # Reference rewrites done during the delete (blockedBy stripping,
+        # noteId drops, subproject reparenting) are NOT reversed by restore;
+        # restore recovers the entities, not the exact prior graph.
+        _audit(conn, ctx, "entity.restore", collection, entity_id, f"restored={len(restored)}")
+        return {"restored": True, "ids": restored}
 
     return _write(ctx, fn)
