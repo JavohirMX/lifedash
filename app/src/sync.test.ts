@@ -250,6 +250,28 @@ describe('sync edit-edit conflicts', () => {
     expect((pushes[0][0].data as { habitId: string }).habitId).toBe('h1');
   });
 
+  it('attachment pushes carry metadata only, never the blob', async () => {
+    tables.get('attachments') ?? tables.set('attachments', new Map());
+    tables.get('attachments')!.set('A1', {
+      id: 'A1', taskId: 't1', name: 'f.txt', mime: 'text/plain', byteSize: 3,
+      blob: { size: 3, type: 'text/plain' }, createdAt: 1,
+    });
+    meta.set('dirty:attachments:A1', { deleted: false });
+
+    const pushes = mockFetch({
+      changesResponses: [{ changes: [], rev: 0 }, { changes: [], rev: 1 }],
+      pushResults: [{ id: 'A1', collection: 'attachments', status: 'ok', rev: 1 }],
+    });
+
+    await syncNow(settings);
+    const sent = pushes.flat().find((c) => c.id === 'A1');
+    expect(sent).toBeDefined();
+    expect(sent!.collection).toBe('attachments');
+    const data = sent!.data as Record<string, unknown>;
+    expect('blob' in data).toBe(false);
+    expect(data.name).toBe('f.txt');
+  });
+
   it('never-synced local create pushes with base_rev 0', async () => {
     tables.set('tasks', new Map([['N', serverTask('N', 'brand new')]]));
     meta.set('dirty:tasks:N', { deleted: false });

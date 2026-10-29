@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db } from '../db';
 import { addAttachment, deleteAttachment } from '../repo';
+import { loadSyncSettings } from '../sync';
 import type { Attachment } from '../types';
 
 function fmtSize(n: number): string {
@@ -15,7 +16,7 @@ function Thumb(props: { att: Attachment }) {
   const [url, setUrl] = useState<string | null>(null);
   const [previewFailed, setPreviewFailed] = useState(false);
   useEffect(() => {
-    if (!props.att.mime.startsWith('image/')) return;
+    if (!props.att.blob || !props.att.mime.startsWith('image/')) return;
     setUrl(null); setPreviewFailed(false);
     try {
       const u = URL.createObjectURL(props.att.blob);
@@ -27,8 +28,19 @@ function Thumb(props: { att: Attachment }) {
   return <img src={url} alt={props.att.name} className="att-thumb" onError={() => setPreviewFailed(true)} />;
 }
 
-function downloadAttachment(a: Attachment): void {
-  const url = URL.createObjectURL(a.blob);
+async function downloadAttachment(a: Attachment): Promise<void> {
+  let blob = a.blob;
+  if (!blob) {
+    // Row synced here without its bytes: fetch the blob from the server.
+    const settings = loadSyncSettings();
+    if (!settings) throw new Error('no sync account');
+    const base = settings.url.replace(/\/$/, '');
+    const res = await fetch(`${base}/api/attachments/${encodeURIComponent(a.id)}/content`,
+      { headers: { Authorization: `Bearer ${settings.token}` } });
+    if (!res.ok) throw new Error(`blob fetch failed: ${res.status}`);
+    blob = await res.blob();
+  }
+  const url = URL.createObjectURL(blob);
   const link = document.createElement('a');
   link.href = url;
   link.download = a.name;
@@ -69,10 +81,10 @@ function TaskAttachments(props: { taskId: string }) {
     finally { writing.current = false; setBusy(false); }
   }
 
-  function download(a: Attachment) {
+  async function download(a: Attachment) {
     setError(''); setStatus('');
     try {
-      downloadAttachment(a);
+      await downloadAttachment(a);
       setStatus(`Download requested for ${a.name}. Check your browser's downloads.`);
     } catch {
       setError(`Couldn't start downloading ${a.name}. The attachment is still saved; try Download again.`);

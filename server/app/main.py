@@ -15,7 +15,7 @@ from pydantic import BaseModel, Field
 
 from .auth import current_user, hash_password, new_token, verify_password
 from .db import get_conn, init_db
-from .agent import init_agent_db, router as agent_router
+from .agent import _ATTACHMENT_ID_RE, init_agent_db, router as agent_router
 from .gcal import router as gcal_router
 
 COLLECTIONS = {"tasks", "projects", "tags", "habits", "habitLogs", "goals", "notes", "journal", "focusSessions", "attachments", "automationRules", "userRules"}
@@ -149,6 +149,12 @@ def push(body: PushBody, user_id: int = Depends(current_user)):
             if ch.collection not in COLLECTIONS:
                 results.append(
                     {"collection": ch.collection, "id": ch.id, "status": "unknown_collection"}
+                )
+                continue
+            if ch.collection == "attachments" and not _ATTACHMENT_ID_RE.match(ch.id):
+                # Blob paths are built from attachment ids on the server.
+                results.append(
+                    {"collection": ch.collection, "id": ch.id, "status": "invalid_id"}
                 )
                 continue
             row = conn.execute(

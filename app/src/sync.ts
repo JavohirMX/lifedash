@@ -1,6 +1,7 @@
 import { SAMPLE_MODE } from './dev/sampleMode';
 import { db } from './db';
 import { refreshAutomationFromSync } from './automation';
+import type { Attachment } from './types';
 
 /**
  * Sync client for the Lifedash self-hosted server (protocol v1,
@@ -226,6 +227,46 @@ export async function dirtyCount(): Promise<number> {
   return db.syncmeta.where('key').startsWith('dirty:').count();
 }
 
+/**
+ * Upload one attachment's blob to the server blob API, keyed by the Dexie
+ * row id so both sides converge on one identity. Safe to retry: the server
+ * answers an identical re-upload idempotently. Returns false offline or on
+ * refusal; the row stays local and the next sync's backfill retries.
+ */
+export async function uploadAttachmentBlob(att: Pick<Attachment, 'id' | 'taskId' | 'name'> & { blob: Blob }): Promise<boolean> {
+  if (SAMPLE_MODE) return false;
+  try {
+    const settings = loadSyncSettings();
+    if (!settings) return false;
+    const base = settings.url.replace(/\/$/, '');
+    const q = `task_id=${encodeURIComponent(att.taskId)}&filename=${encodeURIComponent(att.name)}&id=${encodeURIComponent(att.id)}`;
+    const res = await fetch(`${base}/api/attachments?${q}`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${settings.token}`, 'Content-Type': att.blob.type || 'application/octet-stream' },
+      body: att.blob,
+    });
+    if (!res.ok) return false;
+    const body = (await res.json()) as { rev?: number };
+    if (typeof body.rev === 'number') {
+      await setMeta(revKey('attachments', att.id), body.rev);
+      await db.syncmeta.delete(dirtyKey('attachments', att.id));
+    }
+    await db.attachments.update(att.id, { blobOnServer: true });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/** Blobs never ride the JSON sync protocol; metadata only. */
+function pushData(col: Collection, data: unknown): unknown {
+  if (col === 'attachments' && data && typeof data === 'object') {
+    const { blob: _blob, ...rest } = data as Record<string, unknown>;
+    return rest;
+  }
+  return data;
+}
+
 /* ---------- push / pull ---------- */
 
 interface ServerEntity {
@@ -278,7 +319,7 @@ async function syncNowInner(settings: SyncSettings): Promise<SyncResult> {
       changes.push({ collection: col, id, base_rev: baseRev, deleted: true, data: {} });
       continue;
     }
-    changes.push({ collection: col, id, base_rev: baseRev, deleted: tomb, data: tomb ? {} : data });
+    changes.push({ collection: col, id, base_rev: baseRev, deleted: tomb, data: tomb ? {} : pushData(col, data) });
   }
   let pushed = 0;
   let conflicts = 0;
@@ -323,9 +364,24 @@ async function syncNowInner(settings: SyncSettings): Promise<SyncResult> {
   }
   // Final pull to settle on anything the server applied.
   const pulled2 = await pull(base, headers);
+  // Blob backfill: locally created attachments carry bytes only in Dexie.
+  // Upload a few per sync so agents and other devices can download them.
+  let blobsUploaded = 0;
+  try {
+    const pending = await db.attachments
+      .filter((a) => !!a.blob && a.blobOnServer !== true)
+      .limit(5)
+      .toArray();
+    for (const a of pending) {
+      if (a.blob && await uploadAttachmentBlob(a as Attachment & { blob: Blob })) blobsUploaded += 1;
+    }
+  } catch {
+    /* older test doubles without an attachments table */
+  }
   // Server-wins drops the conflicting local edits: keep a persistent notice
   // so an auto-sync cannot erase awareness before the user sees it.
   await recordConflicts(replaced);
+  void blobsUploaded;
   return { pushed, conflicts, pulled: pulled1 + pulled2, cursor: await getCursor() };
 }
 

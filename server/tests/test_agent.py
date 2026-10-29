@@ -1,4 +1,5 @@
 import json
+import os
 import sqlite3
 import uuid
 
@@ -562,9 +563,14 @@ def test_project_scoped_key_boundaries(client):
     ids = {e["id"] for e in client.get("/api/agent/entities/tasks", headers=h).json()["entities"]}
     assert ids == {t1["id"], t1s["id"]}
     assert client.get(f"/api/agent/entities/tasks/{t2['id']}", headers=h).status_code == 404
-    # Project tree is readable, not writable.
+    # Project tree is readable; mutations are allowed only inside the
+    # subtree (detailed rules in test_scoped_key_project_mutations).
     assert client.get("/api/agent/entities/projects", headers=h).status_code == 200
-    assert client.post("/api/agent/projects", json={"name": "X", "parentId": p1["id"]}, headers=h).status_code == 403
+    assert client.post("/api/agent/projects", json={"name": "X", "parentId": p1["id"]}, headers=h).status_code == 201
+    assert client.post("/api/agent/projects", json={"name": "X2", "parentId": p2["id"]}, headers=h).status_code == 422
+    assert client.post("/api/agent/projects", json={"name": "X3"}, headers=h).status_code == 403
+    assert client.patch(f"/api/agent/projects/{p1['id']}", json={"name": "Nope"}, headers=h).status_code == 403
+    assert client.delete(f"/api/agent/entities/projects/{s1['id']}", headers=h).status_code == 403
     # Global collections are out of reach.
     for method, url, body in (("post", "/api/agent/habits", {"name": "x"}),
                               ("post", "/api/agent/notes", {"title": "x"}),
@@ -843,3 +849,148 @@ def test_user_rules_crud_and_validation(client):
     assert push.json()["results"][0]["status"] == "ok", push.text
 
 
+
+
+def test_attachment_quota_uses_disk_not_client_metadata(client, monkeypatch):
+    monkeypatch.setenv("SYNC_ATTACHMENT_QUOTA_MB", "1")
+    session = register(client)
+    seed_inbox(client, session)
+    # A session client pushes metadata claiming 1 TB: it must NOT poison the
+    # quota, because usage is measured from real blobs on disk.
+    poison = client.post("/api/changes", headers=auth(session), json={"changes": [
+        {"collection": "attachments", "id": "fake1", "base_rev": 0,
+         "data": {"id": "fake1", "taskId": "t1", "name": "f", "mime": "text/plain",
+                  "byteSize": 10**12}}]})
+    assert poison.json()["results"][0]["status"] == "ok"
+    key = make_key(client, session)
+    h = auth(key["token"])
+    t = client.post("/api/agent/tasks", json={"title": "q"}, headers=h).json()
+    blob = b"x" * (900 * 1024)
+    r = client.post(f"/api/attachments?task_id={t['id']}&filename=a", content=blob, headers=h)
+    assert r.status_code == 201, r.text  # 0.9 MB real < 1 MB cap despite the 1 TB claim
+    # ...but real disk usage still caps: a second 900 KB file exceeds 1 MB.
+    r2 = client.post(f"/api/attachments?task_id={t['id']}&filename=b", content=blob, headers=h)
+    assert r2.status_code == 413, r2.text
+
+
+def test_attachment_unsafe_ids_rejected(client):
+    session = register(client)
+    seed_inbox(client, session)
+    h = auth(session)
+    for bad in ("..", ".", "../x", "a/b", "a b", ".hidden"):
+        r = client.post("/api/changes", headers=h, json={"changes": [
+            {"collection": "attachments", "id": bad, "base_rev": 0,
+             "data": {"id": bad, "taskId": "t1", "name": "f", "mime": "text/plain", "byteSize": 1}}]})
+        assert r.json()["results"][0]["status"] == "invalid_id", bad
+    assert client.get("/api/attachments/../content", headers=h).status_code in (404, 405)
+    assert client.get("/api/attachments/%2E%2E/content", headers=h).status_code == 404
+    # Legitimate ids still work
+    ok = client.post("/api/changes", headers=h, json={"changes": [
+        {"collection": "attachments", "id": "att-1_X.z", "base_rev": 0,
+         "data": {"id": "att-1_X.z", "taskId": "t1", "name": "f", "mime": "text/plain", "byteSize": 1}}]})
+    assert ok.json()["results"][0]["status"] == "ok"
+
+
+def test_failed_upload_leaves_no_orphan_blob(client, monkeypatch):
+    session = register(client)
+    seed_inbox(client, session)
+    key = make_key(client, session)
+    h = auth(key["token"])
+    t = client.post("/api/agent/tasks", json={"title": "q"}, headers=h).json()
+    import app.agent as agent_mod
+    uid = get_conn().execute("SELECT user_id FROM tokens WHERE token = ?", (session,)).fetchone()["user_id"]
+    def boom(*a, **k):
+        raise OSError("simulated disk failure")
+    monkeypatch.setattr(agent_mod.os, "replace", boom)
+    # TestClient re-raises handler exceptions; the endpoint's cleanup must
+    # still have run before the error propagated.
+    with pytest.raises(OSError):
+        client.post(f"/api/attachments?task_id={t['id']}&filename=a", content=b"data", headers=h)
+    # No entity, no blob, no tmp file left behind
+    lst = client.get("/api/agent/entities/attachments", headers=h).json()
+    assert lst["entities"] == []
+    blob_dir = os.path.join(agent_mod._BLOB_DIR, str(uid))
+    leftovers = os.listdir(blob_dir) if os.path.isdir(blob_dir) else []
+    assert leftovers == [], leftovers
+
+
+def test_scoped_key_project_mutations(client):
+    session = register(client)
+    seed_inbox(client, session)
+    h = auth(session)
+    root = client.post("/api/agent/projects", json={"name": "Root"},
+                       headers=auth(make_key(client, session)["token"])).json()
+    child = client.post("/api/agent/projects", json={"name": "Child", "parentId": root["id"]},
+                        headers=auth(make_key(client, session)["token"])).json()
+    other = client.post("/api/agent/projects", json={"name": "Other"},
+                        headers=auth(make_key(client, session)["token"])).json()
+    scoped = client.post("/api/agent-tokens",
+                         json={"name": "sp", "scope": "read-write", "projectId": root["id"]},
+                         headers=h).json()
+    s = auth(scoped["token"])
+
+    # Create inside the subtree: under the root and under a descendant
+    r = client.post("/api/agent/projects", json={"name": "Sub", "parentId": root["id"]}, headers=s)
+    assert r.status_code == 201, r.text
+    sub = r.json()
+    r = client.post("/api/agent/projects", json={"name": "SubSub", "parentId": child["id"]}, headers=s)
+    assert r.status_code == 201, r.text
+    # Create at top level or under an out-of-scope parent: refused, no oracle
+    assert client.post("/api/agent/projects", json={"name": "Top"}, headers=s).status_code == 403
+    r = client.post("/api/agent/projects", json={"name": "Sneak", "parentId": other["id"]}, headers=s)
+    assert r.status_code == 422 and "no such project" in r.json()["detail"]
+
+    # Patch a descendant: rename and recolor work
+    r = client.patch(f"/api/agent/projects/{sub['id']}", json={"name": "Renamed", "color": "#123abc"}, headers=s)
+    assert r.status_code == 200 and r.json()["project"]["name"] == "Renamed", r.text
+    # Move within the subtree works (under Child)
+    r = client.patch(f"/api/agent/projects/{sub['id']}", json={"parentId": child["id"]}, headers=s)
+    assert r.status_code == 200 and r.json()["project"]["parentId"] == child["id"], r.text
+    # The key's root project is read-only (shared context)
+    assert client.patch(f"/api/agent/projects/{root['id']}", json={"name": "Nope"}, headers=s).status_code == 403
+    # Out-of-scope project: 404, no oracle
+    assert client.patch(f"/api/agent/projects/{other['id']}", json={"name": "Nope"}, headers=s).status_code == 404
+    # Moves out of scope are refused
+    r = client.patch(f"/api/agent/projects/{sub['id']}", json={"parentId": other["id"]}, headers=s)
+    assert r.status_code == 422 and "no such project" in r.json()["detail"]
+    r = client.patch(f"/api/agent/projects/{sub['id']}", json={"parentId": None}, headers=s)
+    assert r.status_code == 422 and "out of this key's scope" in r.json()["detail"]
+    # Cycle protection still applies inside the subtree
+    r = client.patch(f"/api/agent/projects/{child['id']}", json={"parentId": sub["id"]}, headers=s)
+    assert r.status_code == 422 and "cycle" in r.json()["detail"]
+    # Deletion policy unchanged: scoped keys still cannot delete projects
+    assert client.delete(f"/api/agent/entities/projects/{sub['id']}", headers=s).status_code == 403
+
+
+def test_upload_with_client_id_is_idempotent(client):
+    session = register(client)
+    seed_inbox(client, session)
+    h = auth(session)
+    t = client.post("/api/agent/tasks", json={"title": "host"},
+                    headers=auth(make_key(client, session)["token"])).json()
+    # App-style upload: session token, client-chosen id (as repo.addAttachment sends)
+    r = client.post(f"/api/attachments?task_id={t['id']}&filename=note.txt&id=att-app-1",
+                    content=b"hello", headers=h)
+    assert r.status_code == 201, r.text
+    assert r.json()["id"] == "att-app-1"
+    assert r.json()["blobOnServer"] is True
+    assert r.json()["rev"] >= 1
+    # Retry of the same id with the same bytes returns the entity, no duplicate
+    r2 = client.post(f"/api/attachments?task_id={t['id']}&filename=note.txt&id=att-app-1",
+                     content=b"hello", headers=h)
+    assert r2.status_code == 201, r2.text
+    assert r2.json()["id"] == "att-app-1"
+    lst = client.get("/api/changes?since=0", headers=h).json()
+    atts = [c for c in lst["changes"] if c["collection"] == "attachments"]
+    assert len(atts) == 1
+    # Same id, different bytes: conflict
+    r3 = client.post(f"/api/attachments?task_id={t['id']}&filename=note.txt&id=att-app-1",
+                     content=b"different", headers=h)
+    assert r3.status_code == 409
+    # Unsafe client id rejected
+    r4 = client.post(f"/api/attachments?task_id={t['id']}&filename=x&id=..",
+                     content=b"z", headers=h)
+    assert r4.status_code == 422
+    # Download works with the app's session token (dual auth)
+    dl = client.get("/api/attachments/att-app-1/content", headers=h)
+    assert dl.status_code == 200 and dl.content == b"hello"

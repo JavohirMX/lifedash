@@ -1132,7 +1132,9 @@ class ProjectCreate(BaseModel):
 
 @router.post("/agent/projects", status_code=201, dependencies=WRITE)
 def agent_create_project(body: ProjectCreate, ctx: AgentCtx = Depends(agent_auth)):
-    _scope_check_collection(ctx, "projects")
+    if ctx.project_id is not None and body.parentId is None:
+        raise HTTPException(status_code=403,
+                            detail="this key is scoped to one project; new projects need a parentId inside it")
     name = body.name.strip()
     if not name:
         raise HTTPException(status_code=422, detail="name must not be blank")
@@ -1141,6 +1143,9 @@ def agent_create_project(body: ProjectCreate, ctx: AgentCtx = Depends(agent_auth
     def fn(conn):
         projects = _all(conn, ctx.user_id, "projects")
         if body.parentId is not None and not any(p["id"] == body.parentId for p in projects):
+            raise HTTPException(status_code=422, detail="parentId: no such project")
+        if ctx.project_id is not None and body.parentId not in _project_subtree(conn, ctx.user_id, ctx.project_id):
+            # Same response as a nonexistent parent: no scope oracle.
             raise HTTPException(status_code=422, detail="parentId: no such project")
         project = {"id": _new_id(), "name": name, "color": body.color,
                    "order": len(projects), "archived": False, "parentId": body.parentId}
@@ -1160,7 +1165,6 @@ class ProjectPatch(BaseModel):
 
 @router.patch("/agent/projects/{project_id}", dependencies=WRITE)
 def agent_patch_project(project_id: str, body: ProjectPatch, ctx: AgentCtx = Depends(agent_auth)):
-    _scope_check_collection(ctx, "projects")
     given = body.model_fields_set
     for f in ("name", "color", "archived"):
         if f in given and getattr(body, f) is None:
@@ -1174,6 +1178,13 @@ def agent_patch_project(project_id: str, body: ProjectPatch, ctx: AgentCtx = Dep
         ent = _get(conn, ctx.user_id, "projects", project_id)
         if ent is None:
             raise HTTPException(status_code=404, detail="project not found")
+        if ctx.project_id is not None:
+            tree = _project_subtree(conn, ctx.user_id, ctx.project_id)
+            if project_id not in tree:
+                raise HTTPException(status_code=404, detail="project not found")
+            if project_id == ctx.project_id:
+                raise HTTPException(status_code=403,
+                                    detail="this key's root project is shared context and read-only")
         project = ent["data"] | {"id": project_id}
         patch = {}
         for f in ("name", "color", "archived"):
@@ -1181,6 +1192,12 @@ def agent_patch_project(project_id: str, body: ProjectPatch, ctx: AgentCtx = Dep
                 v = getattr(body, f)
                 patch[f] = v.strip() if f == "name" and v else v
         if "parentId" in given:
+            if ctx.project_id is not None:
+                if body.parentId is None:
+                    raise HTTPException(status_code=422,
+                                        detail="cannot move a project out of this key's scope")
+                if body.parentId not in _project_subtree(conn, ctx.user_id, ctx.project_id):
+                    raise HTTPException(status_code=422, detail="parentId: no such project")
             projects = _all(conn, ctx.user_id, "projects")
             if _project_would_cycle(projects, project_id, body.parentId):
                 raise HTTPException(status_code=422, detail="that parent would create a project cycle")
@@ -1432,8 +1449,32 @@ def _quota_bytes() -> tuple[int, int]:
     return quota_mb * 1024 * 1024, max_file_mb * 1024 * 1024
 
 
+_ATTACHMENT_ID_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$")
+
+
+def _check_blob_id(attachment_id: str) -> None:
+    """Blob paths are built from the id: refuse anything that is not a plain
+    safe filename ('.', '..', separators, control chars never reach disk)."""
+    if not _ATTACHMENT_ID_RE.match(attachment_id):
+        raise HTTPException(status_code=404, detail="not found")
+
+
 def _blob_path(user_id: int, attachment_id: str) -> str:
     return os.path.join(_BLOB_DIR, str(user_id), attachment_id)
+
+
+def _disk_usage(user_id: int) -> int:
+    """Quota is measured from the blobs actually on disk, never from
+    client-supplied byteSize metadata, which a session client can poison."""
+    d = os.path.join(_BLOB_DIR, str(user_id))
+    total = 0
+    try:
+        for entry in os.scandir(d):
+            if entry.is_file() and not entry.name.endswith(".tmp"):
+                total += entry.stat().st_size
+    except FileNotFoundError:
+        pass
+    return total
 
 
 def attachment_auth(authorization: str = Header(default="")) -> tuple[int, AgentCtx | None]:
@@ -1468,8 +1509,13 @@ def _blob_write(user_id: int, ctx: AgentCtx | None, fn):
 
 
 @router.post("/attachments", status_code=201)
-async def upload_attachment(request: Request, task_id: str, filename: str,
+async def upload_attachment(request: Request, task_id: str, filename: str, id: str | None = None,
                             auth: tuple[int, AgentCtx | None] = Depends(attachment_auth)):
+    """Upload a blob + its metadata in one call.
+
+    The app passes its local attachment id so the Dexie row and the server
+    entity converge on one identity; a retry of the same id with the same
+    bytes returns the existing entity instead of duplicating it."""
     user_id, ctx = auth
     if ctx is not None:
         require_write(ctx)
@@ -1484,38 +1530,67 @@ async def upload_attachment(request: Request, task_id: str, filename: str,
     body = bytes(chunks)
     if not body:
         raise HTTPException(status_code=422, detail="empty upload")
+    if id is not None and not _ATTACHMENT_ID_RE.match(id):
+        raise HTTPException(status_code=422, detail="id must be a plain safe filename")
+    att_id = id or _new_id()
+    path = _blob_path(user_id, att_id)
+    digest = hashlib.sha256(body).hexdigest()
 
     def fn(conn):
         task = _require_entity(conn, user_id, "tasks", task_id, "task_id")
         if ctx is not None:
             _scope_check_task(conn, ctx, task["data"])
+        row = conn.execute(
+            "SELECT rev, deleted, data FROM entities WHERE user_id = ? AND collection = 'attachments' AND id = ?",
+            (user_id, att_id),
+        ).fetchone()
+        if row is not None and not row["deleted"]:
+            existing = json.loads(row["data"])
+            if os.path.exists(path) and existing.get("sha256") == digest:
+                # Idempotent retry of the same upload.
+                return existing | {"rev": row["rev"]}
+            raise HTTPException(status_code=409, detail="an attachment with this id already exists")
         # Retained tombstones still occupy disk, so they count against the
-        # quota; otherwise upload+delete loops would bypass it.
-        rows = conn.execute(
-            "SELECT data FROM entities WHERE user_id = ? AND collection = 'attachments'", (user_id,)
-        ).fetchall()
-        used = sum(json.loads(r["data"]).get("byteSize", 0) for r in rows)
+        # quota; otherwise upload+delete loops would bypass it. Measured
+        # from real files: client-pushed byteSize metadata is untrusted.
+        used = _disk_usage(user_id)
         if used + len(body) > quota:
             raise HTTPException(status_code=413, detail=f"attachment quota ({quota // (1024 * 1024)} MB) exceeded, including retained deleted files")
-        att = {"id": _new_id(), "taskId": task_id, "name": filename, "mime": mime,
-               "byteSize": len(body), "sha256": hashlib.sha256(body).hexdigest(), "createdAt": _now_ms()}
-        _apply(conn, user_id, "attachments", att["id"], False, att)
+        att = {"id": att_id, "taskId": task_id, "name": filename, "mime": mime,
+               "byteSize": len(body), "sha256": digest, "createdAt": _now_ms(),
+               "blobOnServer": True}
+        rev = _apply(conn, user_id, "attachments", att_id, False, att)
         if ctx is not None:
-            _audit(conn, ctx, "attachment.upload", "attachments", att["id"], f"{filename} {len(body)}B")
-        path = _blob_path(user_id, att["id"])
+            _audit(conn, ctx, "attachment.upload", "attachments", att_id, f"{filename} {len(body)}B")
         os.makedirs(os.path.dirname(path), exist_ok=True)
         tmp = path + ".tmp"
         with open(tmp, "wb") as f:
             f.write(body)
+        wrote["tmp"] = True
         os.replace(tmp, path)
-        return att
+        wrote["blob"] = True
+        return att | {"rev": rev}
 
-    return _blob_write(user_id, ctx, fn)
+    wrote = {"tmp": False, "blob": False}
+    try:
+        return _blob_write(user_id, ctx, fn)
+    except Exception:
+        # The entity rolled back: never leave an orphaned blob behind. Only
+        # remove what THIS request wrote - with a client-supplied id the
+        # path can belong to a pre-existing entity (e.g. a 409 retry).
+        for key, p in (("blob", path), ("tmp", path + ".tmp")):
+            if wrote[key]:
+                try:
+                    os.unlink(p)
+                except OSError:
+                    pass
+        raise
 
 
 @router.get("/attachments/{attachment_id}/content")
 def download_attachment(attachment_id: str, auth: tuple[int, AgentCtx | None] = Depends(attachment_auth)):
     user_id, ctx = auth
+    _check_blob_id(attachment_id)
     conn = get_conn()
     ent = _get(conn, user_id, "attachments", attachment_id)
     if ent is None:
@@ -1540,6 +1615,7 @@ def download_attachment(attachment_id: str, auth: tuple[int, AgentCtx | None] = 
 @router.delete("/attachments/{attachment_id}", status_code=204)
 def delete_attachment(attachment_id: str, auth: tuple[int, AgentCtx | None] = Depends(attachment_auth)):
     user_id, ctx = auth
+    _check_blob_id(attachment_id)
     if ctx is not None:
         require_write(ctx)
     conn = get_conn()

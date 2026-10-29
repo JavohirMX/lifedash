@@ -6,6 +6,7 @@ import { hasProjectCycle, wouldCycle } from './projects';
 import type { FocusSession } from './types';
 import { parseLocalDate } from './dates';
 import { db, newId, INBOX_ID } from './db';
+import { uploadAttachmentBlob } from './sync';
 import type { Task, Project, Goal, Note, JournalEntry } from './types';
 import { completeTask, skipOccurrence, subtasksOf, wouldCreateCycle, normalizeTag, normalizeTask, reorderedPosition, renamedTags, extractChecklistItems, filterNewChecklistItems } from './logic';
 import { todayStr } from './dates';
@@ -337,7 +338,7 @@ export async function exportJson(): Promise<string> {
 }
 
 export async function addAttachment(taskId: string, file: File): Promise<void> {
-  await db.attachments.add({
+  const row = {
     id: newId(),
     taskId,
     name: file.name,
@@ -345,7 +346,11 @@ export async function addAttachment(taskId: string, file: File): Promise<void> {
     byteSize: file.size,
     blob: file,
     createdAt: Date.now(),
-  });
+  };
+  await db.attachments.add(row);
+  // Best-effort blob upload so agents and other devices can download it;
+  // offline stays local and the next sync backfills.
+  void uploadAttachmentBlob(row);
 }
 
 export async function deleteAttachment(id: string): Promise<void> {

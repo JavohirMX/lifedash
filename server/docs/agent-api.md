@@ -134,9 +134,14 @@ Attachment metadata is a normal synced entity; the bytes live on the
 server's disk:
 
 - `POST /api/attachments?task_id=&filename=` (raw request body) -> the
-  metadata (`{id, taskId, name, mime, byteSize, sha256, createdAt}`).
-  The app's session token or an agent key both work; scoped keys follow
-  the task's boundary.
+  metadata (`{id, taskId, name, mime, byteSize, sha256, createdAt,
+  blobOnServer}`) plus `rev`. The app's session token or an agent key both
+  work; scoped keys follow the task's boundary. An optional `id` parameter
+  lets the app upload under its local row id so both sides converge;
+  re-uploading the same id with the same bytes returns the existing
+  entity (retry-safe), with different bytes it is a 409. Ids must be plain
+  safe filenames - anything else (`.`, `..`, separators) is refused on
+  every blob route.
 - `GET /api/attachments/{id}/content` -> the bytes, always served with
   `Content-Disposition: attachment` and `X-Content-Type-Options:
   nosniff` so stored files never render as active content.
@@ -144,10 +149,16 @@ server's disk:
   restore recovers the whole attachment. Deleting a task tombstones its
   attachments with the same cascade.
 - Quotas are deliberate defaults the operator can tune:
-  `SYNC_ATTACHMENT_QUOTA_MB` (200 MB per account, counting RETAINED
-  deleted blobs too - they still occupy disk) and
-  `SYNC_ATTACHMENT_MAX_FILE_MB` (25 MB per file, enforced while
-  streaming, not by trusting Content-Length).
+  `SYNC_ATTACHMENT_QUOTA_MB` (200 MB per account, measured from the blob
+  files actually on disk - retained deleted blobs included, client-claimed
+  `byteSize` metadata never counts) and `SYNC_ATTACHMENT_MAX_FILE_MB`
+  (25 MB per file, enforced while streaming, not by trusting
+  Content-Length). A failed upload never leaves an orphaned blob behind.
+- The app keeps blobs in its local database and uploads them through this
+  endpoint (best-effort on attach, backfilled on sync); attachment rows
+  synced without their blob are downloaded from
+  `/api/attachments/{id}/content` on demand. Blobs never ride the JSON
+  sync protocol.
 
 ## Automation configuration
 
@@ -166,6 +177,21 @@ synced, so agents manage ONE configuration shared by every device:
 Rules still EXECUTE only in the app while Lifedash is open; the API manages
 their configuration. Project-scoped keys get 403 - automation config is
 account-wide.
+
+## Project-scoped keys
+
+A key scoped to one project sees only that project's subtree: tasks,
+focus sessions and attachments inside it, and the project tree itself
+(read-only context). Account-wide collections (habits, goals, notes,
+journal, automation config) are 403. Out-of-scope entities are 404 -
+the API never reveals whether they exist.
+
+Scoped keys CAN manage the inside of their subtree: create projects
+under it (a parentId inside the subtree is required), rename, recolor,
+archive and move projects within it. The key's root project is shared
+context and read-only; moving anything out of the subtree, creating
+top-level projects, and deleting projects stay refused (403/422 with
+the same shape as ordinary validation errors, no scope oracle).
 
 ## What the API deliberately does not do
 
