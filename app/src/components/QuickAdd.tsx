@@ -110,7 +110,7 @@ export default function QuickAdd(props: { projectId: string; dueDate?: string | 
       <form className="quick-add-row" onSubmit={(e) => { e.preventDefault(); submit(); }}>
         <div className="quick-add-field">
           <Plus size={16} strokeWidth={1.75} aria-hidden="true" className="quick-add-icon" />
-          <label className="quick-add-label" htmlFor={fieldId}>New task</label>
+          <label className="quick-add-label quick-add-label--sr" htmlFor={fieldId}>New task</label>
           <input
             id={fieldId}
             ref={inputRef}

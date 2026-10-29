@@ -254,6 +254,9 @@ h2 { font-family: var(--font-display); font-size: var(--fs-section); font-weight
 .quick-add-field { position: relative; flex: 1; min-width: 0; }
 .quick-add-icon { position: absolute; left: 11px; bottom: 21px; transform: translateY(50%); color: var(--faint); pointer-events: none; }
 .quick-add-label { display: block; font-size: var(--fs-small); color: var(--muted); margin-bottom: 6px; }
+/* The placeholder and Add button already say what this field does; keep the
+   label for assistive tech without repeating it on screen. */
+.quick-add-label--sr { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
 .quick-add-field input {
   width: 100%; height: 42px; background: var(--surface); border: 1px solid var(--border);
   border-radius: var(--radius-card); padding: 0 12px 0 34px; font-size: 15px;
