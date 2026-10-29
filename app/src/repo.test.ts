@@ -128,6 +128,17 @@ describe('deleteTask', () => {
     expect(rows.tasks[0].blockedBy).toEqual(['keep']);
   });
 
+  it('cascades subtasks at every depth (matches the server cascade)', async () => {
+    const parent = mk('p');
+    const child = mk('c', { parentId: 'p' });
+    const grandchild = mk('g', { parentId: 'c' });
+    const other = mk('d', { blockedBy: ['g'] });
+    rows.tasks.push(parent, child, grandchild, other);
+    await deleteTask(parent);
+    expect(rows.tasks.map((t) => t.id)).toEqual(['d']);
+    expect(rows.tasks[0].blockedBy).toEqual([]);
+  });
+
   it('cascades subtasks and strips their ids from blockedBy too', async () => {
     const parent = mk('p');
     const child = mk('c', { parentId: 'p' });

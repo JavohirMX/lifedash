@@ -1584,7 +1584,7 @@ def agent_restore(collection: str, entity_id: str, ctx: AgentCtx = Depends(agent
             _scope_check_task(conn, ctx, data)
         _apply(conn, ctx.user_id, collection, entity_id, False, data)
         restored = [f"{collection}:{entity_id}"]
-        skipped: list[str] = []
+        skipped = 0  # count only: out-of-scope identifiers must not leak
         rows = conn.execute(
             "SELECT collection, id FROM entities WHERE user_id = ? AND deleted = 1 AND deleted_with = ?",
             (ctx.user_id, entity_id),
@@ -1595,7 +1595,7 @@ def agent_restore(collection: str, entity_id: str, ctx: AgentCtx = Depends(agent
                 try:
                     _scope_check_task(conn, ctx, child["data"])
                 except HTTPException:
-                    skipped.append(f"{r['collection']}:{r['id']}")
+                    skipped += 1
                     continue
             _apply(conn, ctx.user_id, r["collection"], r["id"], False, child["data"])
             restored.append(f"{r['collection']}:{r['id']}")
@@ -1603,7 +1603,7 @@ def agent_restore(collection: str, entity_id: str, ctx: AgentCtx = Depends(agent
         # noteId drops, subproject reparenting) are NOT reversed by restore;
         # restore recovers the entities, not the exact prior graph.
         _audit(conn, ctx, "entity.restore", collection, entity_id,
-               f"restored={len(restored)} skipped={len(skipped)}")
+               f"restored={len(restored)} skipped={skipped}")
         return {"restored": True, "ids": restored, "skippedOutOfScope": skipped}
 
     return _write(ctx, fn)

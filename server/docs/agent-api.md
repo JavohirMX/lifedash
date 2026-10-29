@@ -104,7 +104,8 @@ the key list). The boundary:
   project) or move a task out of the subtree.
 - Deletes are refused whole (409) when their cascade or reference cleanup
   would touch anything outside the subtree. Restores skip out-of-scope
-  cascade members and report them in `skippedOutOfScope`.
+  cascade members and report only a count in `skippedOutOfScope` - their
+  ids never cross the boundary.
 - `read` vs `read-write` still applies on top: a read+scoped key gets 403
   on every write, even inside its project.
 - `POST /api/agent/focus-sessions` `{taskId, startedAt, endedAt, seconds}`

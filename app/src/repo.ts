@@ -231,11 +231,20 @@ export async function togglePin(task: Task): Promise<void> {
 export async function deleteTask(task: Task): Promise<void> {
   let deletedIds: string[] = [];
   await db.transaction('rw', db.tasks, db.attachments, async () => {
-    const childIds = (await db.tasks.where('parentId').equals(task.id).primaryKeys()) as string[];
-    const gone = new Set([task.id, ...childIds]);
+    // Subtasks go too, at every depth - the same cascade the sync server
+    // applies, so a local delete and an API delete converge identically.
+    const gone = new Set([task.id]);
+    let frontier = [task.id];
+    while (frontier.length) {
+      const next: string[] = [];
+      for (const id of frontier) {
+        next.push(...((await db.tasks.where('parentId').equals(id).primaryKeys()) as string[]));
+      }
+      frontier = next.filter((id) => !gone.has(id));
+      for (const id of frontier) gone.add(id);
+    }
     deletedIds = [...gone];
-    await db.tasks.where('parentId').equals(task.id).delete();
-    await db.tasks.delete(task.id);
+    for (const id of deletedIds) await db.tasks.delete(id);
     await db.attachments.where('taskId').anyOf([...gone]).delete();
     // Strip dead dependency references so they don't linger and sync forever.
     await db.tasks
