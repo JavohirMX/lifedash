@@ -57,7 +57,11 @@ vi.mock('./db', () => ({
 }));
 
 const userRulesState = vi.hoisted(() => ({
-  rules: [] as { id: string; trigger: { kind: 'weekly'; weekday: number }; title: string; createdAt: number; lastFired: string | null }[],
+  rules: [] as {
+    id: string;
+    trigger: { kind: 'weekly'; weekday: number } | { kind: 'tag'; tag: string };
+    title: string; createdAt: number; lastFired: string | null;
+  }[],
   savesBeforeFailure: Infinity,
 }));
 vi.mock('./automation', async (importOriginal) => {
@@ -73,7 +77,7 @@ vi.mock('./automation', async (importOriginal) => {
   };
 });
 
-import { addTask, applyWeeklyUserRules, deleteNote, deleteTask } from './repo';
+import { addTask, applyUserRulesForCompletion, applyWeeklyUserRules, deleteNote, deleteTask } from './repo';
 import { parseLocalDate } from './dates';
 
 describe('addTask', () => {
@@ -201,5 +205,43 @@ describe('applyWeeklyUserRules', () => {
     expect(userRulesState.rules[1].lastFired).toBe(today);
     expect(rows.tasks.filter((t) => t.title === 'First')).toHaveLength(1);
     expect(rows.tasks.filter((t) => t.title === 'Second')).toHaveLength(1);
+  });
+});
+
+describe('applyUserRulesForCompletion', () => {
+  const tagRule = (id: string, tag: string, title: string) => ({
+    id, trigger: { kind: 'tag' as const, tag }, title, createdAt: 1, lastFired: null as string | null,
+  });
+  const completedWith = (tags: string[]): Task => ({
+    id: 'done-1', title: 'done', note: '', noteDoc: null, projectId: 'inbox', parentId: null, goalId: null,
+    noteId: null, status: 'done', pinned: false, priority: 0, dueDate: null, dueTime: null, recurrence: null,
+    blockedBy: [], tags, order: 1, seriesId: null, createdAt: 1, updatedAt: 1, completedAt: 2,
+  });
+  beforeEach(() => {
+    rows.tasks.length = 0;
+    userRulesState.rules = [];
+    userRulesState.savesBeforeFailure = Infinity;
+  });
+
+  it('overlapping completions with the same trigger tag create one rule task', async () => {
+    // Same class as the weekly race: two completions in flight both used to
+    // pass the open-title check before either committed, duplicating the task.
+    userRulesState.rules = [tagRule('r1', 'errand', 'Buy milk')];
+    const [first, second] = await Promise.all([
+      applyUserRulesForCompletion(completedWith(['errand'])),
+      applyUserRulesForCompletion(completedWith(['errand'])),
+    ]);
+    expect(first + second).toBe(1);
+    expect(rows.tasks.filter((t) => t.title === 'Buy milk')).toHaveLength(1);
+  });
+
+  it('does not re-create while a rule task is still open, fires again once done', async () => {
+    userRulesState.rules = [tagRule('r1', 'errand', 'Buy milk')];
+    expect(await applyUserRulesForCompletion(completedWith(['errand']))).toBe(1);
+    expect(await applyUserRulesForCompletion(completedWith(['errand']))).toBe(0);
+    expect(rows.tasks.filter((t) => t.title === 'Buy milk')).toHaveLength(1);
+    rows.tasks[0].status = 'done';
+    expect(await applyUserRulesForCompletion(completedWith(['errand']))).toBe(1);
+    expect(rows.tasks.filter((t) => t.title === 'Buy milk')).toHaveLength(2);
   });
 });

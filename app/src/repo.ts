@@ -109,18 +109,32 @@ export async function completeWithSubtasks(task: Task, includeSubtasks: boolean)
   if (current && current.status !== 'done') await toggleComplete(current);
 }
 
+let userRulesQueue: Promise<unknown> = Promise.resolve();
 /** Fire user tag rules for a just-completed task. Created tasks carry no
  * tags, so a rule's own product can never retrigger it. */
-export async function applyUserRulesForCompletion(task: Task): Promise<number> {
+export function applyUserRulesForCompletion(task: Task): Promise<number> {
+  // Completions can overlap in one tab. Run rule checks one at a time so two
+  // completions with the same trigger tag cannot both pass the open-title
+  // check; the per-rule transaction inside covers a second tab.
+  const run = userRulesQueue.catch(() => undefined).then(() => fireTagRules(task));
+  userRulesQueue = run;
+  return run;
+}
+async function fireTagRules(task: Task): Promise<number> {
   const due = tagRulesFor(loadUserRules(), task);
   if (due.length === 0) return 0;
-  const all = await db.tasks.toArray();
   let created = 0;
   for (const rule of due) {
-    if (hasOpenTitle(all, rule.title)) continue;
-    const t = await addTask({ title: rule.title, projectId: task.projectId });
-    all.push(t);
-    created++;
+    // Check and create in one read-write transaction: completing two tasks
+    // with the same trigger tag together, or a second tab, serializes after
+    // this commit and sees the new open task.
+    const made = await db.transaction('rw', db.tasks, async () => {
+      const open = await db.tasks.toArray();
+      if (hasOpenTitle(open, rule.title)) return false;
+      await addTask({ title: rule.title, projectId: task.projectId });
+      return true;
+    });
+    if (made) created++;
   }
   return created;
 }
