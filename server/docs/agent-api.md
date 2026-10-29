@@ -210,6 +210,17 @@ server keeps the tombstone until an explicit `POST
 /api/agent/entities/deviceSettings/{id}/restore` revives it with its
 payload. This is deliberate: soft delete means soft delete.
 
+Raw vs typed reads: the typed device endpoints above normalize what they
+relay - invalid enum/wallpaper/bool values are omitted and labels are
+bounded strings. The GENERIC entity endpoints (`/api/agent/entities/...`)
+return the row exactly as the owning account's clients pushed it, like
+every collection: a buggy or hand-rolled client of the same account can
+store an oversized label or a wallpaper.image blob, and the generic API
+will return it. The app itself never publishes the custom image (only the
+id+intensity), and the typed settings PUT rejects an `image` field - but
+an agent reading generic entities can see whatever its own account
+uploaded.
+
 ## Project-scoped keys
 
 A key scoped to one project sees only that project's subtree: tasks,
