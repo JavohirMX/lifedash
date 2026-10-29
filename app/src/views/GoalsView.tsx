@@ -166,7 +166,7 @@ export default function GoalsView(props: { tasks: Task[]; onOpen: (id: string) =
                         {expandedId === g.id
                           ? <ChevronDown size={13} strokeWidth={2} aria-hidden="true" />
                           : <ChevronRight size={13} strokeWidth={2} aria-hidden="true" />}
-                        {pct}% - {p.done} of {p.total} tasks
+                        {pct}% · {p.done} of {p.total} tasks
                       </button>
                     ) : (
                       <span className="num">No linked tasks yet</span>
