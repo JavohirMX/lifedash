@@ -21,7 +21,7 @@ signal.signal(signal.SIGINT, stop)
 signal.signal(signal.SIGTERM, stop)
 try:
     for command, directory in [
-        ([str(root / 'server/.venv/bin/uvicorn'), 'app.main:app', '--host', '127.0.0.1', '--port', '8787'], root / 'server'),
+        ([str(root / 'server/.venv/bin/uvicorn'), 'app.main:app', '--host', '127.0.0.1', '--port', '8787', '--no-proxy-headers'], root / 'server'),
         (['npm', 'run', 'dev', '--', '--host', '127.0.0.1'], root / 'app'),
     ]:
         children.append(subprocess.Popen(command, cwd=directory, start_new_session=True))

@@ -115,8 +115,22 @@ def test_real_server_trusted_proxy_hops(db_path):
     assert conn.execute("SELECT COUNT(*) FROM login_throttle WHERE username = 'bob'").fetchone()[0] == 2
 
 
-def test_shipped_launch_paths_disable_uvicorn_proxy_headers():
+def test_every_repo_launch_path_disables_uvicorn_proxy_headers():
+    # Every uvicorn launch line in the repo must carry the flag; the
+    # app's own XFF resolution is the only one allowed to run.
     root = os.path.dirname(SERVER)
-    for rel in ("server/Dockerfile", "server/SELFHOST.md", "server/README.md", "scripts/check-selfhost.py"):
-        with open(os.path.join(root, rel)) as f:
-            assert "--no-proxy-headers" in f.read(), f"{rel} lost the --no-proxy-headers launch flag"
+    launches = 0
+    for dirpath, dirnames, filenames in os.walk(root):
+        dirnames[:] = [d for d in dirnames if d not in ("node_modules", ".venv", "__pycache__", ".git", "build", "dist")]
+        for name in filenames:
+            path = os.path.join(dirpath, name)
+            if "test" in name or not name.endswith((".py", ".md", ".sh")) and name not in ("Dockerfile", "Makefile"):
+                continue
+            with open(path, errors="ignore") as f:
+                for line in f:
+                    if "uvicorn" in line and "app.main:app" in line:
+                        launches += 1
+                        assert "--no-proxy-headers" in line, (
+                            f"{path} launches uvicorn without --no-proxy-headers: {line.strip()!r}"
+                        )
+    assert launches >= 7, f"expected at least 7 uvicorn launch lines, found {launches}"
