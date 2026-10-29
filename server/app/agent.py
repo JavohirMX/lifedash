@@ -1483,7 +1483,10 @@ def attachment_auth(authorization: str = Header(default="")) -> tuple[int, Agent
     if not authorization.startswith(prefix):
         raise HTTPException(status_code=401, detail="missing bearer token")
     token = authorization[len(prefix):].strip()
-    row = get_conn().execute("SELECT user_id FROM tokens WHERE token = ?", (token,)).fetchone()
+    from .auth import hash_token
+    row = get_conn().execute("SELECT user_id FROM tokens WHERE token = ?", (hash_token(token),)).fetchone()
+    if row is None:  # legacy plaintext session row
+        row = get_conn().execute("SELECT user_id FROM tokens WHERE token = ?", (token,)).fetchone()
     if row is not None:
         return row["user_id"], None
     agent = agent_auth(authorization)

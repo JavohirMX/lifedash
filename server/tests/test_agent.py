@@ -899,7 +899,8 @@ def test_failed_upload_leaves_no_orphan_blob(client, monkeypatch):
     h = auth(key["token"])
     t = client.post("/api/agent/tasks", json={"title": "q"}, headers=h).json()
     import app.agent as agent_mod
-    uid = get_conn().execute("SELECT user_id FROM tokens WHERE token = ?", (session,)).fetchone()["user_id"]
+    from app.auth import hash_token
+    uid = get_conn().execute("SELECT user_id FROM tokens WHERE token = ?", (hash_token(session),)).fetchone()["user_id"]
     def boom(*a, **k):
         raise OSError("simulated disk failure")
     monkeypatch.setattr(agent_mod.os, "replace", boom)

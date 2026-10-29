@@ -15,6 +15,10 @@ services:
     build: ./server
     ports:
       - "8787:8787"
+      # Internet-facing setup: terminate TLS at a reverse proxy and keep
+      # the sync server private to the host instead of the line above:
+      # - "127.0.0.1:8787:8787"
+      # See docs/self-host-hardening.md.
     volumes:
       - sync-data:/data
     restart: unless-stopped

@@ -7,13 +7,15 @@ back as a conflict carrying the server's version (server-wins MVP).
 
 import json
 import os
+import time
 from contextlib import asynccontextmanager
 
-from fastapi import Depends, FastAPI, Header, HTTPException
+from fastapi import Depends, FastAPI, Header, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 
-from .auth import current_user, hash_password, new_token, verify_password
+from .auth import current_user, hash_password, hash_token, migrate_tokens, new_token, store_token, verify_password
 from .db import get_conn, init_db
 from .agent import _ATTACHMENT_ID_RE, _blob_path, init_agent_db, router as agent_router
 from .gcal import router as gcal_router
@@ -25,16 +27,45 @@ COLLECTIONS = {"tasks", "projects", "tags", "habits", "habitLogs", "goals", "not
 async def lifespan(_app: FastAPI):
     init_db()
     init_agent_db()
+    migrate_tokens()
     yield
 
 
 app = FastAPI(title="Lifedash Sync Server", version="0.1.0", lifespan=lifespan)
+# Browser clients call the API cross-origin with bearer tokens (no ambient
+# cookies), so the default stays permissive for self-host compatibility;
+# SYNC_CORS_ORIGINS="https://app.example,https://app2.example" restricts it.
+_cors_env = os.environ.get("SYNC_CORS_ORIGINS", "").strip()
+_cors_origins = [o.strip() for o in _cors_env.split(",") if o.strip()] or ["*"]
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=_cors_origins,
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+def _max_body_bytes() -> int:
+    try:
+        return int(os.environ.get("SYNC_MAX_BODY_MB", "10")) * 1024 * 1024
+    except ValueError:
+        return 10 * 1024 * 1024
+
+
+@app.middleware("http")
+async def limit_request_body(request: Request, call_next):
+    # Blob uploads stream and enforce their own per-file cap; everything
+    # else is JSON parsed whole, so reject oversized bodies up front.
+    if not (request.method == "POST" and request.url.path == "/api/attachments"):
+        raw = request.headers.get("content-length")
+        if raw is not None:
+            try:
+                size = int(raw)
+            except ValueError:
+                size = 0
+            if size > _max_body_bytes():
+                return JSONResponse({"detail": "request body too large"}, status_code=413)
+    return await call_next(request)
 
 app.include_router(gcal_router)
 app.include_router(agent_router)
@@ -75,8 +106,7 @@ def register(creds: Credentials):
         )
         user_id = cur.lastrowid
         conn.execute("INSERT INTO meta (user_id, last_rev) VALUES (?, 0)", (user_id,))
-        token = new_token()
-        conn.execute("INSERT INTO tokens (token, user_id) VALUES (?, ?)", (token, user_id))
+        token = store_token(user_id)
         conn.commit()
     except HTTPException:
         raise
@@ -86,16 +116,55 @@ def register(creds: Credentials):
     return {"token": token, "user_id": user_id}
 
 
+# Per-account login throttling: keyed by username, not client IP, so it
+# works identically with or without a trusted proxy in front.
+LOGIN_WINDOW_S = 600
+LOGIN_MAX_FAILURES = 10
+
+
+def _login_throttle_check(conn, username: str) -> None:
+    row = conn.execute(
+        "SELECT fail_count, window_start FROM login_attempts WHERE username = ?", (username,)
+    ).fetchone()
+    if row is None:
+        return
+    if time.time() - row["window_start"] > LOGIN_WINDOW_S:
+        conn.execute("DELETE FROM login_attempts WHERE username = ?", (username,))
+        conn.commit()
+        return
+    if row["fail_count"] >= LOGIN_MAX_FAILURES:
+        raise HTTPException(status_code=429, detail="too many failed attempts; try again later")
+
+
+def _login_failed(conn, username: str) -> None:
+    now = time.time()
+    row = conn.execute(
+        "SELECT fail_count, window_start FROM login_attempts WHERE username = ?", (username,)
+    ).fetchone()
+    if row is None or now - row["window_start"] > LOGIN_WINDOW_S:
+        conn.execute(
+            "INSERT OR REPLACE INTO login_attempts (username, fail_count, window_start) VALUES (?, 1, ?)",
+            (username, now),
+        )
+    else:
+        conn.execute(
+            "UPDATE login_attempts SET fail_count = fail_count + 1 WHERE username = ?", (username,)
+        )
+    conn.commit()
+
+
 @app.post("/api/login")
 def login(creds: Credentials):
     conn = get_conn()
+    _login_throttle_check(conn, creds.username)
     row = conn.execute(
         "SELECT id, password_hash FROM users WHERE username = ?", (creds.username,)
     ).fetchone()
     if row is None or not verify_password(creds.password, row["password_hash"]):
+        _login_failed(conn, creds.username)
         raise HTTPException(status_code=401, detail="invalid credentials")
-    token = new_token()
-    conn.execute("INSERT INTO tokens (token, user_id) VALUES (?, ?)", (token, row["id"]))
+    conn.execute("DELETE FROM login_attempts WHERE username = ?", (creds.username,))
+    token = store_token(row["id"])
     conn.commit()
     return {"token": token, "user_id": row["id"]}
 
@@ -107,7 +176,9 @@ def logout(authorization: str = Header(default="")):
         raise HTTPException(status_code=401, detail="missing bearer token")
     token = authorization[len(prefix):].strip()
     conn = get_conn()
-    cur = conn.execute("DELETE FROM tokens WHERE token = ?", (token,))
+    cur = conn.execute("DELETE FROM tokens WHERE token = ?", (hash_token(token),))
+    if cur.rowcount == 0:  # legacy plaintext row
+        cur = conn.execute("DELETE FROM tokens WHERE token = ?", (token,))
     conn.commit()
     if cur.rowcount == 0:
         raise HTTPException(status_code=401, detail="invalid token")
