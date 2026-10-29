@@ -54,7 +54,7 @@ CREATE TABLE IF NOT EXISTS agent_audit (
 );
 """
 
-AGENT_COLLECTIONS = {"tasks", "projects", "habits", "habitLogs", "goals", "notes", "journal"}
+AGENT_COLLECTIONS = {"tasks", "projects", "habits", "habitLogs", "goals", "notes", "journal", "focusSessions"}
 
 
 def init_agent_db() -> None:
@@ -1051,6 +1051,42 @@ def agent_put_journal(day: str, body: JournalPut, ctx: AgentCtx = Depends(agent_
         _apply(conn, ctx.user_id, "journal", entry["id"], False, updated)
         _audit(conn, ctx, "journal.create" if created else "journal.update", "journal", entry["id"], day)
         return {"created": created, "entry": updated}
+
+    return _write(ctx, fn)
+
+
+# ---------- focus sessions ----------
+
+_MIN_STARTED_AT = 1577836800000  # 2020-01-01; earlier values are data errors
+
+
+class FocusSessionCreate(BaseModel):
+    taskId: str
+    startedAt: int  # ms epoch
+    endedAt: int    # ms epoch; completed sessions only - live timers stay on the device
+    seconds: int = Field(ge=0)
+
+
+@router.post("/agent/focus-sessions", status_code=201)
+def agent_log_focus_session(body: FocusSessionCreate, ctx: AgentCtx = Depends(agent_auth)):
+    if body.startedAt < _MIN_STARTED_AT:
+        raise HTTPException(status_code=422, detail="startedAt looks wrong (before 2020)")
+    if body.endedAt <= body.startedAt:
+        raise HTTPException(status_code=422, detail="endedAt must be after startedAt")
+    elapsed = (body.endedAt - body.startedAt) // 1000
+    if body.seconds > elapsed:
+        raise HTTPException(status_code=422, detail="seconds cannot exceed the startedAt..endedAt span")
+    now = _now_ms()
+    if body.endedAt > now + 5 * 60 * 1000:
+        raise HTTPException(status_code=422, detail="endedAt is in the future")
+
+    def fn(conn):
+        _require_entity(conn, ctx.user_id, "tasks", body.taskId, "taskId")
+        session = {"id": _new_id(), "taskId": body.taskId, "startedAt": body.startedAt,
+                   "endedAt": body.endedAt, "seconds": body.seconds}
+        _apply(conn, ctx.user_id, "focusSessions", session["id"], False, session)
+        _audit(conn, ctx, "focus.log", "focusSessions", session["id"], f"seconds={body.seconds}")
+        return session
 
     return _write(ctx, fn)
 

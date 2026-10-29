@@ -52,7 +52,7 @@ export interface SyncSettings {
 }
 
 const SETTINGS_KEY = 'lifedash-sync';
-const COLLECTIONS = ['tasks', 'projects', 'habits', 'habitLogs', 'goals', 'notes', 'journal'] as const;
+const COLLECTIONS = ['tasks', 'projects', 'habits', 'habitLogs', 'goals', 'notes', 'journal', 'focusSessions'] as const;
 type Collection = (typeof COLLECTIONS)[number];
 
 export function loadSyncSettings(): SyncSettings | null {

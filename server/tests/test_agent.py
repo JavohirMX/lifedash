@@ -374,3 +374,25 @@ def test_task_create_seeds_inbox_on_fresh_account(client):
     assert inbox["data"]["name"] == "Inbox" and inbox["data"]["color"] == "#0f766e"
     # Explicit unknown project still refuses.
     assert client.post("/api/agent/tasks", json={"title": "x", "projectId": "ghost"}, headers=auth(key["token"])).status_code == 422
+
+
+def test_focus_session_logging(client):
+    session = register(client)
+    seed_inbox(client, session)
+    key = make_key(client, session)
+    t = client.post("/api/agent/tasks", json={"title": "Deep work"}, headers=auth(key["token"])).json()
+    body = {"taskId": t["id"], "startedAt": 1761724800000, "endedAt": 1761727500000, "seconds": 2400}
+    r = client.post("/api/agent/focus-sessions", json=body, headers=auth(key["token"]))
+    assert r.status_code == 201, r.text
+    fs = r.json()
+    assert fs["taskId"] == t["id"] and fs["seconds"] == 2400
+    # Validation: unknown task, inverted span, seconds beyond elapsed, far past.
+    assert client.post("/api/agent/focus-sessions", json={**body, "taskId": "ghost"}, headers=auth(key["token"])).status_code == 422
+    assert client.post("/api/agent/focus-sessions", json={**body, "endedAt": body["startedAt"]}, headers=auth(key["token"])).status_code == 422
+    assert client.post("/api/agent/focus-sessions", json={**body, "seconds": 99999}, headers=auth(key["token"])).status_code == 422
+    assert client.post("/api/agent/focus-sessions", json={**body, "startedAt": 100000}, headers=auth(key["token"])).status_code == 422
+    # Sync pull carries it; soft delete tombstones it.
+    pull = client.get("/api/changes?since=0", headers=auth(session)).json()
+    assert any(c["collection"] == "focusSessions" and c["id"] == fs["id"] for c in pull["changes"])
+    client.request("DELETE", f"/api/agent/entities/focusSessions/{fs['id']}", headers=auth(key["token"]))
+    assert client.get(f"/api/agent/entities/focusSessions/{fs['id']}", headers=auth(key["token"])).json()["deleted"] is True
