@@ -33,15 +33,23 @@ in docker-compose.yml) and point the app's Settings -> Sync at
 - Registration: open for the first user only, then closed unless
   SYNC_OPEN_REGISTRATION=1.
 - Login throttling: 10 failed attempts per account within 10 minutes
-  returns 429 until the window passes. Keyed by username, not client
-  IP, so it behaves the same with or without a proxy. It never locks an
-  account permanently.
-- Request bodies: JSON endpoints reject Content-Length above
-  SYNC_MAX_BODY_MB (default 10) with 413 before parsing. Attachment
-  uploads are exempt from this cap and instead stream with their own
-  per-file limit (SYNC_ATTACHMENT_MAX_FILE_MB, default 25) and a
-  disk-measured total quota (SYNC_ATTACHMENT_QUOTA_MB, default 200,
-  including retained deleted files).
+  returns 429 for further WRONG guesses until the window passes. Keyed
+  by username, not client IP, so it behaves the same with or without a
+  proxy. The correct password always succeeds, so nobody can lock the
+  owner out by spraying a known username; a success or window expiry
+  clears the tally, and the attempts table is pruned and hard-capped
+  (10k rows) against junk-username growth. Unknown usernames pay the
+  same password-hashing cost as known ones.
+- Request bodies: JSON endpoints reject a declared Content-Length above
+  SYNC_MAX_BODY_MB (default 10) with 413 before parsing, and bodies
+  sent without a Content-Length (chunked) are counted while streaming
+  and cut off with 413 past the same limit. (A body is also bounded by
+  its declared length at the HTTP parser, so a false small declaration
+  delivers no extra bytes.) Attachment uploads are exempt from this cap
+  and instead stream with their own per-file limit
+  (SYNC_ATTACHMENT_MAX_FILE_MB, default 25) and a disk-measured total
+  quota (SYNC_ATTACHMENT_QUOTA_MB, default 200, including retained
+  deleted files).
 - Attachment blob paths are built only from whitelisted ids; downloads
   send nosniff and attachment disposition.
 

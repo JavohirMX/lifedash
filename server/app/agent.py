@@ -1483,9 +1483,9 @@ def attachment_auth(authorization: str = Header(default="")) -> tuple[int, Agent
     if not authorization.startswith(prefix):
         raise HTTPException(status_code=401, detail="missing bearer token")
     token = authorization[len(prefix):].strip()
-    from .auth import hash_token
+    from .auth import _is_digest, hash_token
     row = get_conn().execute("SELECT user_id FROM tokens WHERE token = ?", (hash_token(token),)).fetchone()
-    if row is None:  # legacy plaintext session row
+    if row is None and not _is_digest(token):  # legacy plaintext session row
         row = get_conn().execute("SELECT user_id FROM tokens WHERE token = ?", (token,)).fetchone()
     if row is not None:
         return row["user_id"], None
@@ -1684,7 +1684,7 @@ def agent_delete(collection: str, entity_id: str, ctx: AgentCtx = Depends(agent_
 
         def tombstone(col, eid, cascade_root=None):
             # Soft delete keeps the payload: the server copy stays fully
-            # recoverable (John, Oct 29: "Only soft delete"). Clients still
+            # recoverable (soft-delete-only product decision, Oct 29). Clients still
             # delete their local copy on pull; restore brings the row back.
             cur = _get(conn, ctx.user_id, col, eid, include_deleted=True)
             _apply(conn, ctx.user_id, col, eid, True, cur["data"] if cur else {})
@@ -1739,7 +1739,7 @@ def agent_delete(collection: str, entity_id: str, ctx: AgentCtx = Depends(agent_
                     _apply(conn, ctx.user_id, "tasks", t["id"], False, updated)
         elif collection == "projects":
             # Mirror deleteProject: this project's own tasks (and their subtasks) go;
-            # subprojects move up one level and stay intact (John-approved policy, Oct 27).
+            # subprojects move up one level and stay intact (product decision, Oct 27).
             project = ent["data"] | {"id": entity_id}
             tasks = _all(conn, ctx.user_id, "tasks")
             own = [t for t in tasks if t.get("projectId") == entity_id]

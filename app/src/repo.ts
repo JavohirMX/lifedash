@@ -295,7 +295,7 @@ export async function deleteProject(project: Project): Promise<void> {
     deletedIds = [...new Set([...ids, ...childIds])] as string[];
     await db.tasks.where('parentId').anyOf([...idSet]).delete();
     await db.tasks.where('projectId').equals(project.id).delete();
-    // Approved policy (John, Oct 27): subprojects move up one level
+    // Product decision (Oct 27): subprojects move up one level
     // and stay intact; only this project's own tasks are deleted.
     await db.projects.filter((p) => (p.parentId ?? null) === project.id).modify({ parentId: project.parentId ?? null });
     await db.projects.delete(project.id);

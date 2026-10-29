@@ -15,7 +15,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 
-from .auth import current_user, hash_password, hash_token, migrate_tokens, new_token, store_token, verify_password
+from .auth import _is_digest, current_user, hash_password, hash_token, migrate_tokens, new_token, store_token, verify_password
 from .db import get_conn, init_db
 from .agent import _ATTACHMENT_ID_RE, _blob_path, init_agent_db, router as agent_router
 from .gcal import router as gcal_router
@@ -52,20 +52,64 @@ def _max_body_bytes() -> int:
         return 10 * 1024 * 1024
 
 
-@app.middleware("http")
-async def limit_request_body(request: Request, call_next):
-    # Blob uploads stream and enforce their own per-file cap; everything
-    # else is JSON parsed whole, so reject oversized bodies up front.
-    if not (request.method == "POST" and request.url.path == "/api/attachments"):
-        raw = request.headers.get("content-length")
+async def _send_413(send) -> None:
+    body = b'{"detail":"request body too large"}'
+    await send({"type": "http.response.start", "status": 413,
+                "headers": [(b"content-type", b"application/json"), (b"content-length", str(len(body)).encode())]})
+    await send({"type": "http.response.body", "body": body})
+
+
+class BodyLimitMiddleware:
+    """Pure-ASGI body cap. A declared Content-Length over the limit is
+    rejected up front; a request without one (chunked, or none) is counted
+    while it streams and rejected as soon as it crosses the limit. Blob
+    uploads are exempt: they stream with their own per-file cap."""
+
+    def __init__(self, app):
+        self.app = app
+
+    async def __call__(self, scope, receive, send):
+        if scope["type"] != "http":
+            return await self.app(scope, receive, send)
+        if scope.get("method") == "POST" and scope.get("path", "") == "/api/attachments":
+            return await self.app(scope, receive, send)
+        limit = _max_body_bytes()
+        raw = None
+        for k, v in scope.get("headers") or []:
+            if k == b"content-length":
+                raw = v
+                break
         if raw is not None:
             try:
-                size = int(raw)
+                if int(raw) > limit:
+                    return await _send_413(send)
             except ValueError:
-                size = 0
-            if size > _max_body_bytes():
-                return JSONResponse({"detail": "request body too large"}, status_code=413)
-    return await call_next(request)
+                pass
+            return await self.app(scope, receive, send)
+        # No Content-Length: count while streaming, replay the buffered body.
+        body = b""
+        while True:
+            message = await receive()
+            if message["type"] != "http.request":
+                return  # client disconnected before the body completed
+            body += message.get("body", b"")
+            if len(body) > limit:
+                return await _send_413(send)
+            if not message.get("more_body"):
+                break
+        sent = False
+
+        async def replay():
+            nonlocal sent
+            if not sent:
+                sent = True
+                return {"type": "http.request", "body": body, "more_body": False}
+            return {"type": "http.request", "body": b"", "more_body": False}
+
+        return await self.app(scope, replay, send)
+
+
+app.add_middleware(BodyLimitMiddleware)
 
 app.include_router(gcal_router)
 app.include_router(agent_router)
@@ -136,37 +180,57 @@ def _login_throttle_check(conn, username: str) -> None:
         raise HTTPException(status_code=429, detail="too many failed attempts; try again later")
 
 
+# Hard bound on the attempts table: an attacker spraying random usernames
+# cannot grow it without limit. Expired rows are pruned first; if the cap
+# is still hit, NEW unknown usernames go unrecorded (their attempts still
+# cost the full PBKDF2 verification), while existing rows keep throttling.
+LOGIN_ATTEMPTS_MAX_ROWS = 10_000
+
+
 def _login_failed(conn, username: str) -> None:
     now = time.time()
     row = conn.execute(
         "SELECT fail_count, window_start FROM login_attempts WHERE username = ?", (username,)
     ).fetchone()
-    if row is None or now - row["window_start"] > LOGIN_WINDOW_S:
-        conn.execute(
-            "INSERT OR REPLACE INTO login_attempts (username, fail_count, window_start) VALUES (?, 1, ?)",
-            (username, now),
-        )
-    else:
+    if row is not None and now - row["window_start"] <= LOGIN_WINDOW_S:
         conn.execute(
             "UPDATE login_attempts SET fail_count = fail_count + 1 WHERE username = ?", (username,)
         )
+        conn.commit()
+        return
+    if row is None:
+        conn.execute("DELETE FROM login_attempts WHERE ? - window_start > ?", (now, LOGIN_WINDOW_S))
+        n = conn.execute("SELECT COUNT(*) AS n FROM login_attempts").fetchone()["n"]
+        if n >= LOGIN_ATTEMPTS_MAX_ROWS:
+            conn.commit()
+            return
+    conn.execute(
+        "INSERT OR REPLACE INTO login_attempts (username, fail_count, window_start) VALUES (?, 1, ?)",
+        (username, now),
+    )
     conn.commit()
 
 
 @app.post("/api/login")
 def login(creds: Credentials):
     conn = get_conn()
-    _login_throttle_check(conn, creds.username)
     row = conn.execute(
         "SELECT id, password_hash FROM users WHERE username = ?", (creds.username,)
     ).fetchone()
-    if row is None or not verify_password(creds.password, row["password_hash"]):
-        _login_failed(conn, creds.username)
-        raise HTTPException(status_code=401, detail="invalid credentials")
-    conn.execute("DELETE FROM login_attempts WHERE username = ?", (creds.username,))
-    token = store_token(row["id"])
-    conn.commit()
-    return {"token": token, "user_id": row["id"]}
+    if row is None:
+        # Equalize the timing of unknown vs known usernames.
+        verify_password(creds.password, "00" * 16 + ":" + "00" * 32)
+    # A correct password always succeeds: an attacker spraying a known
+    # username must not be able to lock out the account owner. Wrong
+    # guesses stay capped by the window check in _login_failed.
+    if row is not None and verify_password(creds.password, row["password_hash"]):
+        conn.execute("DELETE FROM login_attempts WHERE username = ?", (creds.username,))
+        token = store_token(row["id"])
+        conn.commit()
+        return {"token": token, "user_id": row["id"]}
+    _login_throttle_check(conn, creds.username)
+    _login_failed(conn, creds.username)
+    raise HTTPException(status_code=401, detail="invalid credentials")
 
 
 @app.post("/api/logout", status_code=204)
@@ -177,7 +241,7 @@ def logout(authorization: str = Header(default="")):
     token = authorization[len(prefix):].strip()
     conn = get_conn()
     cur = conn.execute("DELETE FROM tokens WHERE token = ?", (hash_token(token),))
-    if cur.rowcount == 0:  # legacy plaintext row
+    if cur.rowcount == 0 and not _is_digest(token):  # legacy plaintext row
         cur = conn.execute("DELETE FROM tokens WHERE token = ?", (token,))
     conn.commit()
     if cur.rowcount == 0:

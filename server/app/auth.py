@@ -84,7 +84,11 @@ def current_user(authorization: str = Header(default="")) -> int:
     if row is not None:
         return row["user_id"]
     # Legacy plaintext row from a pre-hardening database that never ran the
-    # startup migration: authenticate once, then upgrade it in place.
+    # startup migration: authenticate once, then upgrade it in place. A
+    # presented value that IS a stored digest must never match here - the
+    # whole point is that database reads do not yield usable bearers.
+    if _is_digest(token):
+        raise HTTPException(status_code=401, detail="invalid token")
     row = conn.execute("SELECT user_id FROM tokens WHERE token = ?", (token,)).fetchone()
     if row is None:
         raise HTTPException(status_code=401, detail="invalid token")
