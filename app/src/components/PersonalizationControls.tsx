@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, type CSSProperties } from 'react';
 import { FONTS, WALLPAPERS, getFont, getWallpaper, applyFont, applyWallpaper, prepareWallpaper, wallpaperImage, type FontId, type WallpaperPrefs } from '../appearancePrefs';
+import { publishLocalSettings } from '../deviceSettings';
 import './PersonalizationControls.css';
 
 export default function PersonalizationControls({section}:{section:'style'|'font'|'wallpaper'}) {
@@ -10,8 +11,8 @@ export default function PersonalizationControls({section}:{section:'style'|'font
   const input=useRef<HTMLInputElement>(null);
   const imageGeneration=useRef(0);
   useEffect(()=>()=>{imageGeneration.current++;},[]);
-  const chooseFont=(id:FontId)=>{try{applyFont(id);setFont(id);setError('');}catch{setError('Could not save this font on this device. Your previous choice is unchanged.');}};
-  const chooseWallpaper=(p:WallpaperPrefs)=>{imageGeneration.current++;setBusy(false);try{applyWallpaper(p);setWallpaper(p);setError('');}catch{setError('Could not save this wallpaper. Free some browser storage or choose a smaller image. Your previous wallpaper is unchanged.');}};
+  const chooseFont=(id:FontId)=>{try{applyFont(id);setFont(id);setError('');publishLocalSettings();}catch{setError('Could not save this font on this device. Your previous choice is unchanged.');}};
+  const chooseWallpaper=(p:WallpaperPrefs)=>{imageGeneration.current++;setBusy(false);try{applyWallpaper(p);setWallpaper(p);setError('');publishLocalSettings();}catch{setError('Could not save this wallpaper. Free some browser storage or choose a smaller image. Your previous wallpaper is unchanged.');}};
   return <>
     <section role="tabpanel" id="appearance-section-font" hidden={section!=='font'} className="personalization-section" aria-labelledby="appearance-tab-font">
       <h3 id="appearance-font-heading">Font</h3>

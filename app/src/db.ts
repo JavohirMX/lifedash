@@ -11,6 +11,18 @@ export interface AutomationSettingsRow {
   completeParent: boolean;
 }
 
+export interface DeviceSettingsRow {
+  id: string; // stable per-device id (dev-<uuid>)
+  label?: string;
+  updatedAt?: string;
+  theme?: string;
+  style?: string;
+  font?: string;
+  wallpaper?: { id: string; intensity: number };
+  remindersEnabled?: boolean;
+  journalPromptEnabled?: boolean;
+}
+
 export interface UserRuleRow {
   id: string;
   trigger: { kind: 'tag'; tag: string } | { kind: 'weekly'; weekday: number };
@@ -32,6 +44,7 @@ export class LifeDashDB extends Dexie {
   focusSessions!: Table<FocusSession, string>;
   automationRules!: Table<AutomationSettingsRow, string>;
   userRules!: Table<UserRuleRow, string>;
+  deviceSettings!: Table<DeviceSettingsRow, string>;
 
   constructor() {
     super(DATABASE_NAME);
@@ -176,6 +189,21 @@ export class LifeDashDB extends Dexie {
       focusSessions: 'id, taskId',
       automationRules: 'id',
       userRules: 'id',
+    });
+    this.version(13).stores({
+      tasks: 'id, status, projectId, parentId, dueDate, seriesId, goalId, noteId',
+      projects: 'id, order',
+      attachments: 'id, taskId',
+      habits: 'id, order',
+      habitLogs: 'id, habitId, date',
+      goals: 'id, order',
+      notes: 'id, updatedAt',
+      journal: 'id, date',
+      syncmeta: 'key',
+      focusSessions: 'id, taskId',
+      automationRules: 'id',
+      userRules: 'id',
+      deviceSettings: 'id',
     });
     this.version(10)
       .stores({

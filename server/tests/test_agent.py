@@ -1057,3 +1057,76 @@ def test_quota_covers_metadata_completion_path(client, monkeypatch):
     # Fresh-upload path still enforces as before
     r3 = client.post(f"/api/attachments?task_id={t['id']}&filename=f&id=m2", content=blob, headers=h)
     assert r3.status_code == 413, r3.text
+
+
+def test_device_settings_roundtrip_and_validation(client):
+    session = register(client)
+    seed_inbox(client, session)
+    # The device mirrors its local prefs into a deviceSettings entity.
+    device_id = "dev-" + uuid.uuid4().hex[:12]
+    r = client.post("/api/changes", headers=auth(session), json={"changes": [
+        {"collection": "deviceSettings", "id": device_id, "base_rev": 0, "deleted": False,
+         "data": {"id": device_id, "label": "Chrome on Linux", "updatedAt": "2026-10-29T13:00:00Z",
+                  "theme": "dark", "style": "paper", "font": "inter",
+                  "wallpaper": {"id": "aurora", "intensity": 20},
+                  "remindersEnabled": True, "journalPromptEnabled": False}}]})
+    assert r.json()["results"][0]["status"] == "ok", r.text
+
+    key = make_key(client, session)
+    h = auth(key["token"])
+    got = client.get("/api/agent/devices", headers=h).json()
+    assert [d["deviceId"] for d in got["devices"]] == [device_id]
+    assert got["devices"][0]["label"] == "Chrome on Linux"
+    assert got["devices"][0]["settings"]["theme"] == "dark"
+
+    got = client.get(f"/api/agent/devices/{device_id}/settings", headers=h).json()
+    assert got["settings"]["font"] == "inter"
+
+    # Partial update merges and stamps updatedAt.
+    r = client.put(f"/api/agent/devices/{device_id}/settings",
+                   json={"theme": "light", "wallpaper": {"id": "blue", "intensity": 35}}, headers=h)
+    assert r.status_code == 200, r.text
+    got = client.get(f"/api/agent/devices/{device_id}/settings", headers=h).json()
+    assert got["settings"]["theme"] == "light"
+    assert got["settings"]["font"] == "inter"
+    assert got["settings"]["wallpaper"] == {"id": "blue", "intensity": 35}
+    assert got["settings"]["remindersEnabled"] is True
+    assert got["label"] == "Chrome on Linux"
+    assert got["updatedAt"] != "2026-10-29T13:00:00Z"
+
+    # The change rides normal sync back to the device.
+    pull = client.get("/api/changes?since=0", headers=auth(session)).json()
+    row = next(c for c in pull["changes"] if c["collection"] == "deviceSettings")
+    assert row["data"]["theme"] == "light"
+
+    # Validation matrix.
+    assert client.put(f"/api/agent/devices/{device_id}/settings", json={"theme": "blue"}, headers=h).status_code == 422
+    assert client.put(f"/api/agent/devices/{device_id}/settings", json={"style": "shiny"}, headers=h).status_code == 422
+    assert client.put(f"/api/agent/devices/{device_id}/settings", json={"font": "comic-sans"}, headers=h).status_code == 422
+    assert client.put(f"/api/agent/devices/{device_id}/settings", json={"wallpaper": {"id": "mars", "intensity": 20}}, headers=h).status_code == 422
+    assert client.put(f"/api/agent/devices/{device_id}/settings", json={"wallpaper": {"id": "none", "intensity": 36}}, headers=h).status_code == 422
+    assert client.put(f"/api/agent/devices/{device_id}/settings", json={"wallpaper": {"id": "none", "intensity": True}}, headers=h).status_code == 422
+    assert client.put(f"/api/agent/devices/{device_id}/settings", json={"remindersEnabled": "yes"}, headers=h).status_code == 422
+    r = client.put(f"/api/agent/devices/{device_id}/settings",
+                   json={"image": "data:image/jpeg;base64,xx"}, headers=h)
+    assert r.status_code == 422 and "stays on the device" in r.json()["detail"]
+    assert client.get("/api/agent/devices/nope!!!/settings", headers=h).status_code == 422
+    assert client.get("/api/agent/devices/dev-unknown00/settings", headers=h).status_code == 404
+
+    # Read-only keys cannot mutate.
+    ro = make_key(client, session, name="reader", scope="read")
+    assert client.put(f"/api/agent/devices/{device_id}/settings",
+                      json={"theme": "dark"}, headers=auth(ro["token"])).status_code == 403
+    assert client.get("/api/agent/devices", headers=auth(ro["token"])).status_code == 200
+
+
+def test_device_settings_hidden_from_project_scoped_keys(client):
+    session = register(client)
+    seed_inbox(client, session)
+    r = client.post("/api/agent-tokens", json={"name": "scoped", "scope": "read-write", "projectId": "inbox"},
+                    headers=auth(session))
+    assert r.status_code == 201, r.text
+    h = auth(r.json()["token"])
+    assert client.get("/api/agent/devices", headers=h).status_code == 403
+    assert client.get("/api/agent/devices/dev-abcdefgh/settings", headers=h).status_code == 403
+    assert client.put("/api/agent/devices/dev-abcdefgh/settings", json={"theme": "dark"}, headers=h).status_code == 403

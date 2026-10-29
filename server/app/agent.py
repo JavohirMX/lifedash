@@ -56,7 +56,7 @@ CREATE TABLE IF NOT EXISTS agent_audit (
 );
 """
 
-AGENT_COLLECTIONS = {"tasks", "projects", "habits", "habitLogs", "goals", "notes", "journal", "focusSessions", "attachments", "automationRules", "userRules"}
+AGENT_COLLECTIONS = {"tasks", "projects", "habits", "habitLogs", "goals", "notes", "journal", "focusSessions", "attachments", "automationRules", "userRules", "deviceSettings"}
 
 
 def init_agent_db() -> None:
@@ -525,6 +525,104 @@ def agent_put_automation(body: dict = Body(...), ctx: AgentCtx = Depends(agent_a
         rev = _apply(conn, ctx.user_id, "automationRules", AUTOMATION_SINGLETON_ID, False, merged)
         _audit(conn, ctx, "settings.automation", "automationRules", AUTOMATION_SINGLETON_ID, patch)
         return {"rev": rev, "rules": {"rollover": merged["rollover"], "completeParent": merged["completeParent"]}}
+
+    return _write(ctx, fn)
+
+
+# ---------- per-device settings ----------
+# Appearance and reminder preferences are per device, and agents may
+# manage them on a SPECIFIC device (Owner decision, Oct 29). The app
+# keeps a localStorage cache for synchronous boot and mirrors each
+# device's set into a deviceSettings entity keyed by device id; the
+# device applies changes on its next sync pull. Custom wallpaper IMAGES
+# never ride sync - wallpaper is id + intensity only. Project-scoped
+# keys get 403: device settings are account-wide.
+
+DEVICE_ID_RE = re.compile(r"^[A-Za-z0-9_-]{8,64}$")
+_THEMES = {"light", "dark", "system"}
+_STYLES = {"paper", "terminal", "editorial", "soft", "contrast", "nexus", "compact", "polar"}
+_FONTS = {"style", "inter", "manrope", "geist", "source-sans", "dm-sans", "plex", "system", "serif", "mono"}
+_WALLPAPERS = {"none", "aurora", "sand", "blue", "custom"}
+_DEVICE_FIELDS = ("theme", "style", "font", "wallpaper", "remindersEnabled", "journalPromptEnabled")
+
+
+def _settings_view(data: dict) -> dict:
+    return {k: data[k] for k in _DEVICE_FIELDS if k in data}
+
+
+def _validate_device_settings(payload: dict) -> dict:
+    if not isinstance(payload, dict):
+        raise HTTPException(status_code=422, detail="body must be an object")
+    unknown = sorted(set(payload) - set(_DEVICE_FIELDS))
+    if unknown:
+        if "image" in unknown:
+            raise HTTPException(status_code=422, detail="wallpaper image data stays on the device; set wallpaper by id")
+        raise HTTPException(status_code=422, detail=f"unknown fields: {unknown}")
+    patch = {}
+    for field, values in (("theme", _THEMES), ("style", _STYLES), ("font", _FONTS)):
+        if field in payload:
+            if payload[field] not in values:
+                raise HTTPException(status_code=422, detail=f"{field} must be one of {sorted(values)}")
+            patch[field] = payload[field]
+    if "wallpaper" in payload:
+        w = payload["wallpaper"]
+        if not isinstance(w, dict) or set(w) - {"id", "intensity"}:
+            raise HTTPException(status_code=422, detail='wallpaper must be {"id", "intensity"}')
+        if w.get("id") not in _WALLPAPERS:
+            raise HTTPException(status_code=422, detail=f"wallpaper.id must be one of {sorted(_WALLPAPERS)}")
+        intensity = w.get("intensity")
+        if not isinstance(intensity, int) or isinstance(intensity, bool) or not 0 <= intensity <= 35:
+            raise HTTPException(status_code=422, detail="wallpaper.intensity must be an integer 0-35")
+        patch["wallpaper"] = {"id": w["id"], "intensity": intensity}
+    for field in ("remindersEnabled", "journalPromptEnabled"):
+        if field in payload:
+            if not isinstance(payload[field], bool):
+                raise HTTPException(status_code=422, detail=f"{field} must be a boolean")
+            patch[field] = payload[field]
+    return patch
+
+
+def _check_device_id(device_id: str) -> str:
+    if not DEVICE_ID_RE.match(device_id):
+        raise HTTPException(status_code=422, detail="invalid device id")
+    return device_id
+
+
+@router.get("/agent/devices")
+def agent_list_devices(ctx: AgentCtx = Depends(agent_auth)):
+    _scope_check_collection(ctx, "deviceSettings", read=True)
+    conn = get_conn()
+    devices = [
+        {"deviceId": d["id"], "label": d.get("label"), "updatedAt": d.get("updatedAt"),
+         "settings": _settings_view(d)}
+        for d in _all(conn, ctx.user_id, "deviceSettings")
+    ]
+    return {"devices": devices}
+
+
+@router.get("/agent/devices/{device_id}/settings")
+def agent_get_device_settings(device_id: str, ctx: AgentCtx = Depends(agent_auth)):
+    _scope_check_collection(ctx, "deviceSettings", read=True)
+    conn = get_conn()
+    ent = _get(conn, ctx.user_id, "deviceSettings", _check_device_id(device_id))
+    if ent is None:
+        raise HTTPException(status_code=404, detail="device not found")
+    return {"deviceId": device_id, "label": ent["data"].get("label"),
+            "updatedAt": ent["data"].get("updatedAt"), "settings": _settings_view(ent["data"])}
+
+
+@router.put("/agent/devices/{device_id}/settings", dependencies=WRITE)
+def agent_put_device_settings(device_id: str, body: dict = Body(...), ctx: AgentCtx = Depends(agent_auth)):
+    _scope_check_collection(ctx, "deviceSettings")
+    patch = _validate_device_settings(body)
+
+    def fn(conn):
+        ent = _get(conn, ctx.user_id, "deviceSettings", device_id)
+        merged = {**(ent["data"] if ent else {}), **patch,
+                  "id": device_id, "updatedAt": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())}
+        rev = _apply(conn, ctx.user_id, "deviceSettings", device_id, False, merged)
+        _audit(conn, ctx, "settings.device", "deviceSettings", device_id, patch)
+        return {"rev": rev, "deviceId": device_id, "settings": _settings_view(merged)}
 
     return _write(ctx, fn)
 

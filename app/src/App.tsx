@@ -38,6 +38,7 @@ import AgentKeysDialog from './components/AgentKeysDialog';
 import { cycleTheme } from './theme';
 import { projectWithDescendants } from './projects';
 import { loadRules, saveRules, loadUserRules, saveUserRules, hydrateAutomation, AUTOMATION_CHANGED_EVENT, type AutomationRules, type UserRule } from './automation';
+import { publishLocalSettings, DEVICE_SETTINGS_CHANGED_EVENT } from './deviceSettings';
 import { remindersEnabled, setRemindersEnabled, journalPromptEnabled, setJournalPromptEnabled, startReminders } from './reminders';
 import { applyRollover, applyWeeklyUserRules } from './repo';
 import { startAutoSync } from './sync';
@@ -133,6 +134,12 @@ export default function App() {
     window.addEventListener(AUTOMATION_CHANGED_EVENT, onAutomationChanged);
     return () => window.removeEventListener(AUTOMATION_CHANGED_EVENT, onAutomationChanged);
   }, []);
+
+  useEffect(() => {
+    const onDeviceSettings = () => { setRemindOn(remindersEnabled()); setNudgeOn(journalPromptEnabled()); };
+    window.addEventListener(DEVICE_SETTINGS_CHANGED_EVENT, onDeviceSettings);
+    return () => window.removeEventListener(DEVICE_SETTINGS_CHANGED_EVENT, onDeviceSettings);
+  }, []);
   const [remindOn, setRemindOn] = useState(remindersEnabled);
   const [nudgeOn, setNudgeOn] = useState(journalPromptEnabled);
   const [notificationError, setNotificationError] = useState('');
@@ -142,18 +149,18 @@ export default function App() {
     if (notificationWriting.current || typeof Notification === 'undefined') return;
     notificationWriting.current = true; setNotificationBusy(true); setNotificationError('');
     try {
-      if (remindOn) { setRemindersEnabled(false); setRemindOn(false); return; }
+      if (remindOn) { setRemindersEnabled(false); setRemindOn(false); publishLocalSettings(); return; }
       let permission: NotificationPermission;
       try { permission = Notification.permission === 'granted' ? 'granted' : await Notification.requestPermission(); }
       catch { setNotificationError("Couldn't request notification permission. Your reminder preference is unchanged. Try Reminders again."); return; }
-      if (permission === 'granted') { setRemindersEnabled(true); setRemindOn(true); }
+      if (permission === 'granted') { setRemindersEnabled(true); setRemindOn(true); publishLocalSettings(); }
     } catch { setNotificationError("Couldn't save Reminders. Your previous preference is unchanged. Try Reminders again."); }
     finally { notificationWriting.current = false; setNotificationBusy(false); }
   }
   function toggleJournalNudge() {
     if (notificationWriting.current) return;
     setNotificationError('');
-    try { const next = !nudgeOn; setJournalPromptEnabled(next); setNudgeOn(next); }
+    try { const next = !nudgeOn; setJournalPromptEnabled(next); setNudgeOn(next); publishLocalSettings(); }
     catch { setNotificationError("Couldn't save Journal nudge. Your previous preference is unchanged. Try Journal nudge again."); }
   }
 

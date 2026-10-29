@@ -178,6 +178,32 @@ Rules still EXECUTE only in the app while Lifedash is open; the API manages
 their configuration. Project-scoped keys get 403 - automation config is
 account-wide.
 
+## Per-device settings
+
+Appearance and reminder preferences are PER DEVICE, and agents may manage
+them on a specific device (Owner decision, Oct 29). Each device mirrors its
+own six preferences into a `deviceSettings` entity keyed by its stable
+device id; the device keeps a localStorage cache for synchronous boot and
+applies remote changes on its next sync pull:
+
+- `GET /api/agent/devices` - every known device: `deviceId`, `label`
+  (e.g. "Chrome on Linux"), `updatedAt`, and its `settings`.
+- `GET /api/agent/devices/{deviceId}/settings` - one device; 404 when the
+  id is unknown, 422 for a malformed id.
+- `PUT /api/agent/devices/{deviceId}/settings` - partial update, merged
+  like automation config. Validated fields:
+  `theme` (light|dark|system), `style` (paper|terminal|editorial|soft|
+  contrast|nexus|compact|polar), `font` (style|inter|manrope|geist|
+  source-sans|dm-sans|plex|system|serif|mono),
+  `wallpaper` (`{id: none|aurora|sand|blue|custom, intensity: 0-35}`),
+  `remindersEnabled`, `journalPromptEnabled`. Unknown fields and wrong
+  types are 422. Custom wallpaper IMAGES never ride sync - set `custom`
+  and the device keeps its own image; sending `image` is a 422.
+
+Changes take effect when the target device next syncs (usually seconds
+while it is open). Project-scoped keys get 403 - device settings are
+account-wide.
+
 ## Project-scoped keys
 
 A key scoped to one project sees only that project's subtree: tasks,
@@ -204,11 +230,12 @@ the same shape as ordinary validation errors, no scope oracle).
   and journal invariants cannot be corrupted.
 - **No rich-text document editing.** ProseMirror `noteDoc` content is
   preserved and readable, but only editable in the app.
-- **Local-only data stays local**: attachments (blobs never sync),
-  appearance/settings, and automation rules (which live per device).
-  API completions do not fire device-local automation rules; the devices
-  apply their own rules as usual. Focus session history syncs; only live
-  timers stay on the device.
+- **Local-only data stays local**: attachment blobs (never sync),
+  custom wallpaper images, and live focus timers. Device appearance and
+  reminder settings DO sync per device (above); automation config syncs
+  account-wide. API completions do not fire device-local automation
+  rules; the devices apply their own rules as usual. Focus session
+  history syncs; only live timers stay on the device.
 
 ## Transport security
 

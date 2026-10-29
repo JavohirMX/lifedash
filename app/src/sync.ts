@@ -1,6 +1,7 @@
 import { SAMPLE_MODE } from './dev/sampleMode';
 import { db } from './db';
 import { refreshAutomationFromSync } from './automation';
+import { applyRemoteSettings, getDeviceId } from './deviceSettings';
 import type { Attachment } from './types';
 
 /**
@@ -54,7 +55,7 @@ export interface SyncSettings {
 }
 
 const SETTINGS_KEY = 'lifedash-sync';
-const COLLECTIONS = ['tasks', 'projects', 'habits', 'habitLogs', 'goals', 'notes', 'journal', 'focusSessions', 'attachments', 'automationRules', 'userRules'] as const;
+const COLLECTIONS = ['tasks', 'projects', 'habits', 'habitLogs', 'goals', 'notes', 'journal', 'focusSessions', 'attachments', 'automationRules', 'userRules', 'deviceSettings'] as const;
 type Collection = (typeof COLLECTIONS)[number];
 
 export function loadSyncSettings(): SyncSettings | null {
@@ -493,6 +494,10 @@ async function applyRemote(col: Collection, e: ServerEntity): Promise<void> {
     if (col === 'automationRules' || col === 'userRules') {
       // Config lives in the localStorage cache the UI reads synchronously.
       await refreshAutomationFromSync();
+    }
+    if (col === 'deviceSettings' && !e.deleted && e.id === getDeviceId()) {
+      // An agent (or another session) changed THIS device's settings.
+      applyRemoteSettings(e.data as Record<string, unknown>);
     }
   } finally {
     applyingRemote = false;
