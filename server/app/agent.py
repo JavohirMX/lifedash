@@ -22,7 +22,7 @@ import uuid
 from datetime import date, datetime, timedelta, timezone
 
 from dateutil import rrule
-from fastapi import APIRouter, Depends, Header, HTTPException, Request, Response
+from fastapi import APIRouter, Body, Depends, Header, HTTPException, Request, Response
 from pydantic import BaseModel, Field, StrictInt
 
 from .auth import current_user
@@ -56,7 +56,7 @@ CREATE TABLE IF NOT EXISTS agent_audit (
 );
 """
 
-AGENT_COLLECTIONS = {"tasks", "projects", "habits", "habitLogs", "goals", "notes", "journal", "focusSessions", "attachments"}
+AGENT_COLLECTIONS = {"tasks", "projects", "habits", "habitLogs", "goals", "notes", "journal", "focusSessions", "attachments", "automationRules", "userRules"}
 
 
 def init_agent_db() -> None:
@@ -183,7 +183,7 @@ def _all(conn, user_id: int, collection: str) -> list[dict]:
 def _audit(conn, ctx: AgentCtx, action: str, collection=None, entity_id=None, detail=None) -> None:
     conn.execute(
         "INSERT INTO agent_audit (token_id, action, collection, entity_id, detail) VALUES (?, ?, ?, ?, ?)",
-        (ctx.token_id, action, collection, entity_id, (detail or "")[:500]),
+        (ctx.token_id, action, collection, entity_id, (detail if isinstance(detail, str) else repr(detail) if detail is not None else "")[:500]),
     )
 
 
@@ -480,6 +480,120 @@ def _scope_check_collection(ctx: AgentCtx, collection: str, read: bool = False) 
         status_code=403,
         detail=f"this key is scoped to one project; {collection} is account-wide",
     )
+
+
+# ---------- automation config ----------
+# The app's two automation stores (Settings toggles and user-defined rules)
+# are synced entities so every device and agent manages ONE configuration.
+# Execution stays in the app - rules run only while Lifedash is open.
+
+AUTOMATION_SINGLETON_ID = "settings"
+
+
+def _validate_automation_rules(payload: dict) -> dict:
+    if not isinstance(payload, dict):
+        raise HTTPException(status_code=422, detail="body must be an object")
+    allowed = {"rollover", "completeParent"}
+    unknown = sorted(set(payload) - allowed)
+    if unknown:
+        raise HTTPException(status_code=422, detail=f"unknown fields: {unknown}")
+    for k in allowed:
+        if k in payload and not isinstance(payload[k], bool):
+            raise HTTPException(status_code=422, detail=f"{k} must be a boolean")
+    return payload
+
+
+@router.get("/agent/settings/automation")
+def agent_get_automation(ctx: AgentCtx = Depends(agent_auth)):
+    _scope_check_collection(ctx, "automationRules", read=True)
+    conn = get_conn()
+    ent = _get(conn, ctx.user_id, "automationRules", AUTOMATION_SINGLETON_ID)
+    defaults = {"rollover": False, "completeParent": False}
+    return {"rules": {**defaults, **(ent["data"] if ent else {})}}
+
+
+@router.put("/agent/settings/automation", dependencies=WRITE)
+def agent_put_automation(body: dict = Body(...), ctx: AgentCtx = Depends(agent_auth)):
+    _scope_check_collection(ctx, "automationRules")
+    patch = _validate_automation_rules(body)
+
+    def fn(conn):
+        ent = _get(conn, ctx.user_id, "automationRules", AUTOMATION_SINGLETON_ID)
+        merged = {"rollover": False, "completeParent": False,
+                  **(ent["data"] if ent else {}), **patch}
+        rev = _apply(conn, ctx.user_id, "automationRules", AUTOMATION_SINGLETON_ID, False, merged)
+        _audit(conn, ctx, "settings.automation", "automationRules", AUTOMATION_SINGLETON_ID, patch)
+        return {"rev": rev, "rules": merged}
+
+    return _write(ctx, fn)
+
+
+def _validate_user_rule(payload: dict, existing: dict | None) -> dict:
+    base = dict(existing) if existing else {}
+    for k, v in (payload or {}).items():
+        if k not in ("trigger", "title", "lastFired"):
+            raise HTTPException(status_code=422, detail=f"unknown field: {k}")
+        base[k] = v
+    trg = base.get("trigger")
+    if not isinstance(trg, dict):
+        raise HTTPException(status_code=422, detail="trigger is required: {kind: tag|weekly, ...}")
+    kind = trg.get("kind")
+    if kind == "tag":
+        tag = trg.get("tag")
+        if not isinstance(tag, str) or not tag.strip():
+            raise HTTPException(status_code=422, detail="tag trigger requires a non-empty tag")
+        base["trigger"] = {"kind": "tag", "tag": tag.strip().lstrip("#")}
+    elif kind == "weekly":
+        try:
+            wd = int(trg.get("weekday"))
+        except (TypeError, ValueError):
+            raise HTTPException(status_code=422, detail="weekly trigger requires weekday 0-6 (0=Sunday)")
+        if isinstance(trg.get("weekday"), bool) or not 0 <= wd <= 6:
+            raise HTTPException(status_code=422, detail="weekday must be 0-6 (0=Sunday)")
+        base["trigger"] = {"kind": "weekly", "weekday": wd}
+    else:
+        raise HTTPException(status_code=422, detail="trigger.kind must be 'tag' or 'weekly'")
+    title = base.get("title")
+    if not isinstance(title, str) or not title.strip():
+        raise HTTPException(status_code=422, detail="title is required (rules create a task with this title)")
+    base["title"] = title.strip()
+    lf = base.get("lastFired")
+    if lf is not None:
+        if not isinstance(lf, str) or not _valid_date(lf):
+            raise HTTPException(status_code=422, detail="lastFired must be a YYYY-MM-DD date or null")
+    base["lastFired"] = lf
+    return base
+
+
+@router.post("/agent/user-rules", status_code=201, dependencies=WRITE)
+def agent_create_user_rule(body: dict = Body(...), ctx: AgentCtx = Depends(agent_auth)):
+    _scope_check_collection(ctx, "userRules")
+    data = _validate_user_rule(body, None)
+    data.setdefault("createdAt", _now_ms())
+
+    def fn(conn):
+        rid = _new_id()
+        rev = _apply(conn, ctx.user_id, "userRules", rid, False, data)
+        _audit(conn, ctx, "user_rule.create", "userRules", rid, {"title": data["title"]})
+        return {"id": rid, "rev": rev, "data": data}
+
+    return _write(ctx, fn)
+
+
+@router.patch("/agent/user-rules/{rule_id}", dependencies=WRITE)
+def agent_patch_user_rule(rule_id: str, body: dict = Body(...), ctx: AgentCtx = Depends(agent_auth)):
+    _scope_check_collection(ctx, "userRules")
+
+    def fn(conn):
+        ent = _get(conn, ctx.user_id, "userRules", rule_id)
+        if ent is None:
+            raise HTTPException(status_code=404, detail="not found")
+        data = _validate_user_rule(body, ent["data"])
+        rev = _apply(conn, ctx.user_id, "userRules", rule_id, False, data)
+        _audit(conn, ctx, "user_rule.patch", "userRules", rule_id, body)
+        return {"id": rule_id, "rev": rev, "data": data}
+
+    return _write(ctx, fn)
 
 
 # ---------- read endpoints (agent auth, any scope) ----------

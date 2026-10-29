@@ -18,7 +18,7 @@ from .db import get_conn, init_db
 from .agent import init_agent_db, router as agent_router
 from .gcal import router as gcal_router
 
-COLLECTIONS = {"tasks", "projects", "tags", "habits", "habitLogs", "goals", "notes", "journal", "focusSessions", "attachments"}
+COLLECTIONS = {"tasks", "projects", "tags", "habits", "habitLogs", "goals", "notes", "journal", "focusSessions", "attachments", "automationRules", "userRules"}
 
 
 @asynccontextmanager

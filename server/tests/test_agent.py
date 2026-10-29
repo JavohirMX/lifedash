@@ -775,3 +775,71 @@ def test_attachment_metadata_syncs_via_client_push(client):
     assert r.json()["results"][0]["status"] == "ok", r.text
     pull = client.get("/api/changes?since=0", headers=auth(session)).json()
     assert any(c["collection"] == "attachments" and c["id"] == "a1" for c in pull["changes"])
+
+
+def test_automation_rules_roundtrip(client):
+    session = register(client)
+    seed_inbox(client, session)
+    key = make_key(client, session)
+    h = auth(key["token"])
+    got = client.get("/api/agent/settings/automation", headers=h).json()
+    assert got["rules"] == {"rollover": False, "completeParent": False}
+    r = client.put("/api/agent/settings/automation",
+                   json={"rollover": True, "completeParent": True}, headers=h)
+    assert r.status_code == 200, r.text
+    # Partial update merges; unknown fields and wrong types rejected
+    client.put("/api/agent/settings/automation", json={"rollover": False}, headers=h)
+    got = client.get("/api/agent/settings/automation", headers=h).json()
+    assert got["rules"] == {"rollover": False, "completeParent": True}
+    assert client.put("/api/agent/settings/automation",
+                      json={"evil": True}, headers=h).status_code == 422
+    assert client.put("/api/agent/settings/automation",
+                      json={"rollover": "yes"}, headers=h).status_code == 422
+    # Generic collection read sees the singleton
+    lst = client.get("/api/agent/entities/automationRules", headers=h).json()
+    assert [i["id"] for i in lst["entities"]] == ["settings"]
+
+
+def test_user_rules_crud_and_validation(client):
+    session = register(client)
+    seed_inbox(client, session)
+    key = make_key(client, session)
+    h = auth(key["token"])
+    r = client.post("/api/agent/user-rules",
+                    json={"trigger": {"kind": "tag", "tag": "#gym"}, "title": "Log workout"}, headers=h)
+    assert r.status_code == 201, r.text
+    rid = r.json()["id"]
+    assert r.json()["data"]["trigger"] == {"kind": "tag", "tag": "gym"}
+    assert r.json()["data"]["lastFired"] is None
+    bad = [
+        {"trigger": {"kind": "nope"}, "title": "x"},
+        {"trigger": {"kind": "tag"}, "title": "x"},
+        {"trigger": {"kind": "weekly", "weekday": 7}, "title": "x"},
+        {"trigger": {"kind": "weekly", "weekday": True}, "title": "x"},
+        {"trigger": {"kind": "tag", "tag": "gym"}},
+        {"trigger": {"kind": "tag", "tag": "gym"}, "title": "x", "lastFired": "not-a-date"},
+        {"trigger": {"kind": "tag", "tag": "gym"}, "title": "x", "bogus": 1},
+    ]
+    for body in bad:
+        assert client.post("/api/agent/user-rules", json=body, headers=h).status_code == 422, body
+    # Patch to weekly + lastFired stamp
+    r = client.patch(f"/api/agent/user-rules/{rid}",
+                     json={"trigger": {"kind": "weekly", "weekday": 1},
+                           "lastFired": "2026-10-26"}, headers=h)
+    assert r.status_code == 200, r.text
+    assert r.json()["data"]["trigger"] == {"kind": "weekly", "weekday": 1}
+    assert client.patch("/api/agent/user-rules/nope", json={"title": "x"}, headers=h).status_code == 404
+    # Delete via the generic endpoint, restore brings it back
+    client.delete(f"/api/agent/entities/userRules/{rid}", headers=h)
+    lst = client.get("/api/agent/entities/userRules", headers=h).json()
+    assert lst["entities"] == []
+    client.post(f"/api/agent/entities/userRules/{rid}/restore", headers=h)
+    lst = client.get("/api/agent/entities/userRules", headers=h).json()
+    assert len(lst["entities"]) == 1
+    # Client sync push accepts both collections
+    push = client.post("/api/changes", headers=auth(session), json={"changes": [
+        {"collection": "automationRules", "id": "settings", "base_rev": 0,
+         "data": {"rollover": True, "completeParent": False}}]})
+    assert push.json()["results"][0]["status"] == "ok", push.text
+
+
