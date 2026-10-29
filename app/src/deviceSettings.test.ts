@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 // In-memory stand-in for the deviceSettings Dexie table (mirrors
 // automationSync.test.ts's established pattern).
@@ -149,5 +149,39 @@ describe('ensureDeviceSettingsPublished', () => {
     ensureDeviceSettingsPublished();
     await new Promise((r) => setTimeout(r, 0));
     expect(tables.deviceSettings.get(getDeviceId())!.font).toBe('plex');
+  });
+});
+
+describe('reminder permission gate', () => {
+  const setNotification = (n: unknown) => {
+    if (n === undefined) delete (globalThis as Record<string, unknown>).Notification;
+    else (globalThis as Record<string, unknown>).Notification = n;
+  };
+  afterEach(() => setNotification(undefined));
+  it('maps permission + pref to an honest gate, never prompting', async () => {
+    const { reminderGate } = await import('./reminders');
+    const requestPermission = vi.fn();
+    setNotification(undefined);
+    expect(reminderGate(true)).toBe('unsupported');
+    expect(reminderGate(false)).toBe('unsupported');
+    setNotification({ permission: 'denied', requestPermission });
+    expect(reminderGate(true)).toBe('blocked');
+    expect(reminderGate(false)).toBe('blocked');
+    setNotification({ permission: 'default', requestPermission });
+    expect(reminderGate(true)).toBe('needs-permission');
+    expect(reminderGate(false)).toBe('off');
+    setNotification({ permission: 'granted', requestPermission });
+    expect(reminderGate(true)).toBe('on');
+    expect(reminderGate(false)).toBe('off');
+    expect(requestPermission).not.toHaveBeenCalled();
+  });
+  it('remote remindersEnabled keeps the synced pref and never prompts', async () => {
+    const { applyRemoteSettings } = await import('./deviceSettings');
+    const { remindersEnabled } = await import('./reminders');
+    const requestPermission = vi.fn();
+    setNotification({ permission: 'default', requestPermission });
+    applyRemoteSettings({ remindersEnabled: true });
+    expect(remindersEnabled()).toBe(true); // synced intent kept - no write-back loop
+    expect(requestPermission).not.toHaveBeenCalled(); // no prompt outside a gesture
   });
 });

@@ -74,7 +74,7 @@ export default function Sidebar(props: {
   onToggleJournalNudge: () => void;
   onSync: () => void;
   onAI?: () => void;
-  reminders: 'on' | 'off' | 'blocked' | 'unsupported';
+  reminders: 'on' | 'off' | 'blocked' | 'unsupported' | 'needs-permission';
   onToggleReminders: () => void;
   onAppearance: () => void;
   onSettings: () => void;

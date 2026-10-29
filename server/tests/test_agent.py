@@ -1169,3 +1169,78 @@ def test_device_settings_put_requires_live_device_and_nonempty_patch(client):
     if tomb.status_code == 200:
         data = tomb.json().get("data") or tomb.json().get("entity", {}).get("data") or {}
         assert data.get("label") == "Phone"
+
+
+def test_device_settings_delete_is_sticky_until_explicit_restore(client):
+    # Contract: deleting a device's settings row is a deliberate soft delete.
+    # The device cannot re-register by re-pushing - its pushes conflict
+    # (server keeps the tombstone) until an explicit restore brings the row
+    # back with its payload intact.
+    session = register(client)
+    seed_inbox(client, session)
+    key = make_key(client, session)
+    h = auth(key["token"])
+    device_id = "dev-" + uuid.uuid4().hex[:12]
+    payload = {"id": device_id, "label": "Pixel", "theme": "terminal", "font": "plex",
+               "remindersEnabled": True}
+    r = client.post("/api/changes", headers=auth(session), json={"changes": [
+        {"collection": "deviceSettings", "id": device_id, "base_rev": 0, "deleted": False,
+         "data": payload}]})
+    assert r.json()["results"][0]["status"] == "ok", r.text
+
+    # Agent deletes the row: soft delete, payload retained on the tombstone.
+    assert client.delete(f"/api/agent/entities/deviceSettings/{device_id}", headers=h).status_code == 200
+    ent = client.get(f"/api/agent/entities/deviceSettings/{device_id}", headers=h).json()
+    assert ent["deleted"] is True and ent["data"]["label"] == "Pixel"
+
+    # The device re-registers (fresh install-style push, base_rev 0): conflict,
+    # server wins - the tombstone and its payload survive, no revival.
+    for _ in range(2):
+        r = client.post("/api/changes", headers=auth(session), json={"changes": [
+            {"collection": "deviceSettings", "id": device_id, "base_rev": 0, "deleted": False,
+             "data": payload}]})
+        assert r.json()["results"][0]["status"] == "conflict", r.text
+        ent = client.get(f"/api/agent/entities/deviceSettings/{device_id}", headers=h).json()
+        assert ent["deleted"] is True and ent["data"]["label"] == "Pixel"
+    # And the PUT route still refuses the tombstoned device.
+    assert client.put(f"/api/agent/devices/{device_id}/settings", json={"theme": "dark"}, headers=h).status_code == 404
+
+    # Explicit restore revives the row with its payload, and PUT works again.
+    assert client.post(f"/api/agent/entities/deviceSettings/{device_id}/restore", headers=h).status_code == 200
+    ent = client.get(f"/api/agent/entities/deviceSettings/{device_id}", headers=h).json()
+    assert ent["deleted"] is False and ent["data"]["theme"] == "terminal"
+    assert client.put(f"/api/agent/devices/{device_id}/settings", json={"theme": "dark"}, headers=h).status_code == 200
+
+
+def test_device_settings_view_normalizes_malformed_own_client_rows(client):
+    # The owner's own client can push any shape through sync (trusted, like
+    # every collection). The device-listing views normalize what they relay:
+    # invalid values are omitted and labels bounded - the stored row is not
+    # rewritten.
+    session = register(client)
+    seed_inbox(client, session)
+    key = make_key(client, session)
+    h = auth(key["token"])
+    device_id = "dev-" + uuid.uuid4().hex[:12]
+    r = client.post("/api/changes", headers=auth(session), json={"changes": [
+        {"collection": "deviceSettings", "id": device_id, "base_rev": 0, "deleted": False,
+         "data": {"id": device_id, "label": "x" * 500, "theme": ["dark"], "font": "plex",
+                  "wallpaper": {"id": "mars", "intensity": 99},
+                  "remindersEnabled": "yes", "journalPromptEnabled": True}}]})
+    assert r.json()["results"][0]["status"] == "ok", r.text
+
+    got = client.get("/api/agent/devices", headers=h).json()["devices"][0]
+    assert got["label"] == "x" * 120
+    assert got["settings"] == {"font": "plex", "journalPromptEnabled": True}
+    one = client.get(f"/api/agent/devices/{device_id}/settings", headers=h).json()
+    assert one["label"] == "x" * 120
+    assert one["settings"] == {"font": "plex", "journalPromptEnabled": True}
+    # Non-string label: omitted, never relayed raw.
+    pull = client.get("/api/changes?since=0", headers=auth(session)).json()
+    rev = [c for c in pull["changes"] if c["id"] == device_id][0]["rev"]
+    r = client.post("/api/changes", headers=auth(session), json={"changes": [
+        {"collection": "deviceSettings", "id": device_id, "base_rev": rev, "deleted": False,
+         "data": {"id": device_id, "label": {"ua": "x"}, "font": "geist"}}]})
+    assert r.json()["results"][0]["status"] == "ok", r.text
+    one = client.get(f"/api/agent/devices/{device_id}/settings", headers=h).json()
+    assert one["label"] is None and one["settings"] == {"font": "geist"}

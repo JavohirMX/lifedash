@@ -546,8 +546,39 @@ _WALLPAPERS = {"none", "aurora", "sand", "blue", "custom"}
 _DEVICE_FIELDS = ("theme", "style", "font", "wallpaper", "remindersEnabled", "journalPromptEnabled")
 
 
+def _clean_wallpaper(w) -> dict | None:
+    if not isinstance(w, dict) or set(w) - {"id", "intensity"}:
+        return None
+    if w.get("id") not in _WALLPAPERS:
+        return None
+    intensity = w.get("intensity")
+    if not isinstance(intensity, int) or isinstance(intensity, bool) or not 0 <= intensity <= 35:
+        return None
+    return {"id": w["id"], "intensity": intensity}
+
+
+def _label_view(value) -> str | None:
+    # Bounded display string for the device listing, whatever was pushed.
+    return value[:120] if isinstance(value, str) else None
+
+
 def _settings_view(data: dict) -> dict:
-    return {k: data[k] for k in _DEVICE_FIELDS if k in data}
+    # Display normalization only. Rows pushed through sync by the owner's own
+    # client are trusted like every collection's rows, but a buggy client can
+    # write malformed shapes - never relay those to API consumers. The stored
+    # row is untouched.
+    out = {}
+    for field, values in (("theme", _THEMES), ("style", _STYLES), ("font", _FONTS)):
+        v = data.get(field)
+        if isinstance(v, str) and v in values:
+            out[field] = v
+    w = _clean_wallpaper(data.get("wallpaper"))
+    if w is not None:
+        out["wallpaper"] = w
+    for field in ("remindersEnabled", "journalPromptEnabled"):
+        if isinstance(data.get(field), bool):
+            out[field] = data[field]
+    return out
 
 
 def _validate_device_settings(payload: dict) -> dict:
@@ -565,15 +596,10 @@ def _validate_device_settings(payload: dict) -> dict:
                 raise HTTPException(status_code=422, detail=f"{field} must be one of {sorted(values)}")
             patch[field] = payload[field]
     if "wallpaper" in payload:
-        w = payload["wallpaper"]
-        if not isinstance(w, dict) or set(w) - {"id", "intensity"}:
-            raise HTTPException(status_code=422, detail='wallpaper must be {"id", "intensity"}')
-        if w.get("id") not in _WALLPAPERS:
-            raise HTTPException(status_code=422, detail=f"wallpaper.id must be one of {sorted(_WALLPAPERS)}")
-        intensity = w.get("intensity")
-        if not isinstance(intensity, int) or isinstance(intensity, bool) or not 0 <= intensity <= 35:
-            raise HTTPException(status_code=422, detail="wallpaper.intensity must be an integer 0-35")
-        patch["wallpaper"] = {"id": w["id"], "intensity": intensity}
+        w = _clean_wallpaper(payload["wallpaper"])
+        if w is None:
+            raise HTTPException(status_code=422, detail='wallpaper must be {"id": known id, "intensity": integer 0-35}')
+        patch["wallpaper"] = w
     for field in ("remindersEnabled", "journalPromptEnabled"):
         if field in payload:
             if not isinstance(payload[field], bool):
@@ -593,7 +619,7 @@ def agent_list_devices(ctx: AgentCtx = Depends(agent_auth)):
     _scope_check_collection(ctx, "deviceSettings", read=True)
     conn = get_conn()
     devices = [
-        {"deviceId": d["id"], "label": d.get("label"), "updatedAt": d.get("updatedAt"),
+        {"deviceId": d["id"], "label": _label_view(d.get("label")), "updatedAt": d.get("updatedAt"),
          "settings": _settings_view(d)}
         for d in _all(conn, ctx.user_id, "deviceSettings")
     ]
@@ -607,7 +633,7 @@ def agent_get_device_settings(device_id: str, ctx: AgentCtx = Depends(agent_auth
     ent = _get(conn, ctx.user_id, "deviceSettings", _check_device_id(device_id))
     if ent is None:
         raise HTTPException(status_code=404, detail="device not found")
-    return {"deviceId": device_id, "label": ent["data"].get("label"),
+    return {"deviceId": device_id, "label": _label_view(ent["data"].get("label")),
             "updatedAt": ent["data"].get("updatedAt"), "settings": _settings_view(ent["data"])}
 
 
@@ -621,9 +647,9 @@ def agent_put_device_settings(device_id: str, body: dict = Body(...), ctx: Agent
 
     def fn(conn):
         # The device must exist and be live: unknown ids and tombstones are
-        # 404 (a deleted device re-registers from the app; explicit restore
-        # stays with the generic restore endpoint). No phantom rows, no
-        # silent revival dropping the tombstoned label/prefs.
+        # 404. A deleted device stays deleted - its re-pushes conflict
+        # server-wins against the tombstone until an explicit restore
+        # (generic restore endpoint) revives the row with its payload.
         ent = _get(conn, ctx.user_id, "deviceSettings", device_id)
         if ent is None:
             raise HTTPException(status_code=404, detail="device not found")

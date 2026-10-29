@@ -39,7 +39,7 @@ import { cycleTheme } from './theme';
 import { projectWithDescendants } from './projects';
 import { loadRules, saveRules, loadUserRules, saveUserRules, hydrateAutomation, AUTOMATION_CHANGED_EVENT, type AutomationRules, type UserRule } from './automation';
 import { publishLocalSettings, ensureDeviceSettingsPublished, DEVICE_SETTINGS_CHANGED_EVENT } from './deviceSettings';
-import { remindersEnabled, setRemindersEnabled, journalPromptEnabled, setJournalPromptEnabled, startReminders } from './reminders';
+import { remindersEnabled, setRemindersEnabled, journalPromptEnabled, setJournalPromptEnabled, startReminders, reminderGate } from './reminders';
 import { applyRollover, applyWeeklyUserRules } from './repo';
 import { startAutoSync } from './sync';
 import { SyncConflictBanner } from './components/SyncConflictBanner';
@@ -149,7 +149,9 @@ export default function App() {
     if (notificationWriting.current || typeof Notification === 'undefined') return;
     notificationWriting.current = true; setNotificationBusy(true); setNotificationError('');
     try {
-      if (remindOn) { setRemindersEnabled(false); setRemindOn(false); publishLocalSettings(); return; }
+      // On + granted toggles off. On + never-asked (e.g. enabled remotely)
+      // makes this tap the permission ask, not a silent disable.
+      if (remindOn && Notification.permission === 'granted') { setRemindersEnabled(false); setRemindOn(false); publishLocalSettings(); return; }
       let permission: NotificationPermission;
       try { permission = Notification.permission === 'granted' ? 'granted' : await Notification.requestPermission(); }
       catch { setNotificationError("Couldn't request notification permission. Your reminder preference is unchanged. Try Reminders again."); return; }
@@ -455,7 +457,7 @@ export default function App() {
       <Sidebar projects={projects} selection={selection} onSelect={setSelection} counts={counts} activeByProject={activeByProject}
         onCapture={quickAddFocus}
         onPalette={() => setPaletteOpen(true)}
-        reminders={typeof Notification === 'undefined' ? 'unsupported' : Notification.permission === 'denied' ? 'blocked' : remindOn ? 'on' : 'off'}
+        reminders={reminderGate(remindOn)}
         journalNudge={nudgeOn}
         onToggleJournalNudge={toggleJournalNudge}
         onToggleReminders={() => void toggleReminders()}
@@ -504,7 +506,7 @@ export default function App() {
         onAgentKeys={() => { setSettingsOpen(false); setAgentKeysOpen(true); }}
         onSync={() => { setSettingsChild('sync'); setSettingsOpen(false); setSyncOpen(true); }}
         onAppearance={() => { setSettingsChild('appearance'); setSettingsOpen(false); setAppearanceOpen(true); }}
-        reminders={typeof Notification === 'undefined' ? 'unsupported' : Notification.permission === 'denied' ? 'blocked' : remindOn ? 'on' : 'off'}
+        reminders={reminderGate(remindOn)}
         onToggleReminders={() => void toggleReminders()}
         journalNudge={nudgeOn}
         onToggleJournalNudge={toggleJournalNudge}

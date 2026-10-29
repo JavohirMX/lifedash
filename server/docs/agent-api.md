@@ -181,7 +181,7 @@ account-wide.
 ## Per-device settings
 
 Appearance and reminder preferences are PER DEVICE, and agents may manage
-them on a specific device (Owner decision, Oct 29). Each device mirrors its
+them on a specific device (product decision, Oct 29). Each device mirrors its
 own six preferences into a `deviceSettings` entity keyed by its stable
 device id; the device keeps a localStorage cache for synchronous boot and
 applies remote changes on its next sync pull:
@@ -203,6 +203,12 @@ applies remote changes on its next sync pull:
 Changes take effect when the target device next syncs (usually seconds
 while it is open). Project-scoped keys get 403 - device settings are
 account-wide.
+
+Deleting a device's row (generic DELETE on `deviceSettings`) is sticky:
+the device cannot re-register by re-pushing - its pushes conflict and the
+server keeps the tombstone until an explicit `POST
+/api/agent/entities/deviceSettings/{id}/restore` revives it with its
+payload. This is deliberate: soft delete means soft delete.
 
 ## Project-scoped keys
 
