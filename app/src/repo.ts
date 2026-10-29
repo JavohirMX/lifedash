@@ -63,17 +63,30 @@ export async function toggleComplete(task: Task): Promise<void> {
   if (task.status === 'done') {
     // Undo. Note: if this was a recurring completion, the already-spawned next
     // occurrence stays - deleting it could remove edits the user already made.
+    // A plain conditional re-read is enough: undo writes fixed values and
+    // spawns nothing, so a second tab undoing first leaves the same state.
+    // (No transaction here - one held write resolving late can prematurely
+    // commit it and surface a false failure.)
+    const current = await db.tasks.get(task.id);
+    if (current?.status !== 'done') return;
     await updateTask(task.id, { status: 'active', completedAt: null });
     return;
   }
-  const { updates, spawned } = completeTask(task, todayStr(), Date.now());
-  await db.transaction('rw', db.tasks, async () => {
+  // The spawn decision re-reads the task inside the transaction. A stale tab
+  // completing an already-completed task must not duplicate the occurrence or
+  // re-fire completion rules below.
+  const completed = await db.transaction('rw', db.tasks, async () => {
+    const current = await db.tasks.get(task.id);
+    if (current?.status !== 'active') return false;
+    const { updates, spawned } = completeTask(current, todayStr(), Date.now());
     await db.tasks.update(task.id, updates);
     if (spawned) {
       const now = Date.now();
       await db.tasks.add({ ...spawned, id: newId(), createdAt: now, updatedAt: now });
     }
+    return true;
   });
+  if (!completed) return;
   // Automation: completing the last open subtask completes the parent
   // (through this same function, so recurrence spawns the next occurrence).
   if (task.parentId && loadRules().completeParent) {

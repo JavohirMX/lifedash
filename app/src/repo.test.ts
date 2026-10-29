@@ -9,6 +9,11 @@ function fakeTable<T extends { id: string }>(items: T[]) {
   const matching = (field: string, value: unknown) => items.filter((t) => (t as Record<string, unknown>)[field] === value);
   return {
     toArray: async () => [...items],
+    get: async (id: string) => items.find((t) => t.id === id),
+    update: async (id: string, patch: Partial<T>) => {
+      const t = items.find((x) => x.id === id);
+      if (t) Object.assign(t, patch);
+    },
     add: async (t: T) => {
       items.push(t);
       return t.id;
@@ -77,7 +82,9 @@ vi.mock('./automation', async (importOriginal) => {
   };
 });
 
-import { addTask, applyUserRulesForCompletion, applyWeeklyUserRules, deleteNote, deleteTask } from './repo';
+import { addTask, applyUserRulesForCompletion, applyWeeklyUserRules, deleteNote, deleteTask, skipTask, toggleComplete } from './repo';
+import { makeRecurrence } from './logic';
+import { todayStr } from './dates';
 import { parseLocalDate } from './dates';
 
 describe('addTask', () => {
@@ -243,5 +250,60 @@ describe('applyUserRulesForCompletion', () => {
     rows.tasks[0].status = 'done';
     expect(await applyUserRulesForCompletion(completedWith(['errand']))).toBe(1);
     expect(rows.tasks.filter((t) => t.title === 'Buy milk')).toHaveLength(2);
+  });
+});
+
+describe('toggleComplete', () => {
+  const recurringActive = (): Task => ({
+    id: 'rec-1', title: 'Water plants', note: '', noteDoc: null, projectId: 'inbox', parentId: null,
+    goalId: null, noteId: null, status: 'active', pinned: false, priority: 0, dueDate: todayStr(),
+    dueTime: null, recurrence: makeRecurrence('daily', todayStr()), blockedBy: [], tags: [], order: 1,
+    seriesId: null, createdAt: 1, updatedAt: 1, completedAt: null,
+  });
+  beforeEach(() => { rows.tasks.length = 0; });
+
+  it('a stale second completion does not spawn a duplicate next occurrence', async () => {
+    // Cross-tab shape: tab B holds a pre-completion snapshot of the same task
+    // and completes after tab A already did. The spawn decision must re-read
+    // current state, not trust the caller's snapshot.
+    const task = recurringActive();
+    rows.tasks.push(task);
+    const stale = { ...task };
+    await toggleComplete(task);
+    await toggleComplete(stale);
+    expect(rows.tasks.find((t) => t.id === 'rec-1')?.status).toBe('done');
+    expect(rows.tasks.filter((t) => t.seriesId === 'rec-1' && t.status === 'active')).toHaveLength(1);
+  });
+
+  it('undo returns the task to active and keeps the spawned occurrence', async () => {
+    const task = recurringActive();
+    rows.tasks.push(task);
+    await toggleComplete(task);
+    const done = rows.tasks.find((t) => t.id === 'rec-1');
+    expect(done).toBeDefined();
+    await toggleComplete({ ...done } as Task);
+    expect(rows.tasks.find((t) => t.id === 'rec-1')?.status).toBe('active');
+    expect(rows.tasks.find((t) => t.id === 'rec-1')?.completedAt).toBeNull();
+    expect(rows.tasks.filter((t) => t.seriesId === 'rec-1')).toHaveLength(1);
+  });
+});
+
+describe('skipTask', () => {
+  const recurringActive = (): Task => ({
+    id: 'rec-1', title: 'Water plants', note: '', noteDoc: null, projectId: 'inbox', parentId: null,
+    goalId: null, noteId: null, status: 'active', pinned: false, priority: 0, dueDate: todayStr(),
+    dueTime: null, recurrence: makeRecurrence('daily', todayStr()), blockedBy: [], tags: [], order: 1,
+    seriesId: null, createdAt: 1, updatedAt: 1, completedAt: null,
+  });
+  beforeEach(() => { rows.tasks.length = 0; });
+
+  it('a stale second skip does not advance the same occurrence twice', async () => {
+    const task = recurringActive();
+    rows.tasks.push(task);
+    const stale = { ...task };
+    await skipTask(task);
+    await skipTask(stale);
+    const after = rows.tasks.find((t) => t.id === 'rec-1');
+    expect(after?.skippedDates).toEqual([todayStr()]);
   });
 });
