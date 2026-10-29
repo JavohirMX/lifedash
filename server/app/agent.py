@@ -38,6 +38,7 @@ CREATE TABLE IF NOT EXISTS agent_tokens (
   user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   name TEXT NOT NULL,
   scope TEXT NOT NULL CHECK (scope IN ('read','read-write')),
+  project_id TEXT,  -- NULL = full access; else key is confined to this project's subtree
   token_hash TEXT UNIQUE NOT NULL,
   created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')),
   last_used_at TEXT,
@@ -60,6 +61,9 @@ AGENT_COLLECTIONS = {"tasks", "projects", "habits", "habitLogs", "goals", "notes
 def init_agent_db() -> None:
     conn = get_conn()
     conn.executescript(SCHEMA)
+    cols = [r["name"] for r in conn.execute("PRAGMA table_info(agent_tokens)")]
+    if "project_id" not in cols:
+        conn.execute("ALTER TABLE agent_tokens ADD COLUMN project_id TEXT")
     conn.commit()
 
 
@@ -82,6 +86,7 @@ class AgentCtx(BaseModel):
     user_id: int
     name: str
     scope: str
+    project_id: str | None = None
 
 
 def agent_auth(authorization: str = Header(default="")) -> AgentCtx:
@@ -91,7 +96,7 @@ def agent_auth(authorization: str = Header(default="")) -> AgentCtx:
     token = authorization[len(prefix):].strip()
     conn = get_conn()
     row = conn.execute(
-        "SELECT id, user_id, name, scope, revoked_at, last_used_at FROM agent_tokens WHERE token_hash = ?",
+        "SELECT id, user_id, name, scope, project_id, revoked_at, last_used_at FROM agent_tokens WHERE token_hash = ?",
         (_hash(token),),
     ).fetchone()
     if row is None or row["revoked_at"] is not None:
@@ -110,7 +115,8 @@ def agent_auth(authorization: str = Header(default="")) -> AgentCtx:
             (row["id"],),
         )
         conn.commit()
-    return AgentCtx(token_id=row["id"], user_id=row["user_id"], name=row["name"], scope=row["scope"])
+    return AgentCtx(token_id=row["id"], user_id=row["user_id"], name=row["name"],
+                    scope=row["scope"], project_id=row["project_id"])
 
 
 def require_write(ctx: AgentCtx) -> None:
@@ -354,6 +360,7 @@ def _project_would_cycle(projects: list[dict], pid: str, new_parent) -> bool:
 class TokenCreate(BaseModel):
     name: str = Field(min_length=1, max_length=64)
     scope: str = Field(default="read-write")
+    projectId: str | None = None  # set = key confined to that project's subtree
 
 
 @router.post("/agent-tokens", status_code=201)
@@ -364,6 +371,8 @@ def create_token(body: TokenCreate, user_id: int = Depends(current_user)):
     if not name:
         raise HTTPException(status_code=422, detail="name must not be blank")
     conn = get_conn()
+    if body.projectId is not None and _get(conn, user_id, "projects", body.projectId) is None:
+        raise HTTPException(status_code=422, detail="projectId: no such project")
     active = conn.execute(
         "SELECT COUNT(*) AS n FROM agent_tokens WHERE user_id = ? AND revoked_at IS NULL", (user_id,)
     ).fetchone()["n"]
@@ -372,24 +381,25 @@ def create_token(body: TokenCreate, user_id: int = Depends(current_user)):
     token = "ldk_" + secrets.token_urlsafe(32)
     tid = _new_id()
     conn.execute(
-        "INSERT INTO agent_tokens (id, user_id, name, scope, token_hash) VALUES (?, ?, ?, ?, ?)",
-        (tid, user_id, name, body.scope, _hash(token)),
+        "INSERT INTO agent_tokens (id, user_id, name, scope, project_id, token_hash) VALUES (?, ?, ?, ?, ?, ?)",
+        (tid, user_id, name, body.scope, body.projectId, _hash(token)),
     )
     conn.commit()
     row = conn.execute("SELECT created_at FROM agent_tokens WHERE id = ?", (tid,)).fetchone()
-    return {"id": tid, "name": name, "scope": body.scope, "token": token, "created_at": row["created_at"]}
+    return {"id": tid, "name": name, "scope": body.scope, "projectId": body.projectId,
+            "token": token, "created_at": row["created_at"]}
 
 
 @router.get("/agent-tokens")
 def list_tokens(user_id: int = Depends(current_user)):
     rows = get_conn().execute(
-        "SELECT id, name, scope, created_at, last_used_at, revoked_at FROM agent_tokens "
+        "SELECT id, name, scope, project_id, created_at, last_used_at, revoked_at FROM agent_tokens "
         "WHERE user_id = ? ORDER BY created_at",
         (user_id,),
     ).fetchall()
     return {
         "tokens": [
-            {k: r[k] for k in ("id", "name", "scope", "created_at", "last_used_at", "revoked_at")}
+            {k: r[k] for k in ("id", "name", "scope", "project_id", "created_at", "last_used_at", "revoked_at")}
             for r in rows
         ]
     }
@@ -411,11 +421,62 @@ def revoke_token(token_id: str, user_id: int = Depends(current_user)):
         conn.commit()
 
 
+# ---------- project scoping ----------
+
+# A key with project_id set is confined to that project's subtree: tasks and
+# focus sessions inside it, a read-only project tree for context, and nothing
+# else - habits, goals, notes and journal are account-wide and stay out of
+# reach, so a scoped key cannot touch data the owner did not delegate.
+
+
+def _project_subtree(conn, user_id: int, root_id: str) -> set[str]:
+    projects = _all(conn, user_id, "projects")
+    kids: dict[str | None, list[str]] = {}
+    for p in projects:
+        kids.setdefault(p.get("parentId"), []).append(p["id"])
+    out, frontier = {root_id}, [root_id]
+    while frontier:
+        cur = frontier.pop()
+        for k in kids.get(cur, []):
+            if k not in out:
+                out.add(k)
+                frontier.append(k)
+    return out
+
+
+def _scope_check_task(conn, ctx: AgentCtx, task: dict) -> None:
+    if ctx.project_id is not None and task.get("projectId") not in _project_subtree(conn, ctx.user_id, ctx.project_id):
+        raise HTTPException(status_code=404, detail="task not found")
+
+
+def _scope_check_collection(ctx: AgentCtx, collection: str, read: bool = False) -> None:
+    """Global collections are out of reach for project-scoped keys; the project
+    tree itself is readable (agents need it for context) but not writable."""
+    if ctx.project_id is None:
+        return
+    if collection in ("tasks", "focusSessions"):
+        return
+    if collection == "projects" and read:
+        return
+    raise HTTPException(
+        status_code=403,
+        detail=f"this key is scoped to one project; {collection} is account-wide",
+    )
+
+
 # ---------- read endpoints (agent auth, any scope) ----------
 
 @router.get("/agent/collections")
 def agent_collections(ctx: AgentCtx = Depends(agent_auth)):
     conn = get_conn()
+    if ctx.project_id is not None:
+        tree = _project_subtree(conn, ctx.user_id, ctx.project_id)
+        tasks = [t for t in _all(conn, ctx.user_id, "tasks") if t.get("projectId") in tree]
+        task_proj = {t["id"]: t.get("projectId") for t in _all(conn, ctx.user_id, "tasks")}
+        sessions = [s for s in _all(conn, ctx.user_id, "focusSessions")
+                    if task_proj.get(s.get("taskId")) in tree]
+        return {"collections": {"tasks": len(tasks), "projects": len(_all(conn, ctx.user_id, "projects")),
+                                "focusSessions": len(sessions)}}
     out = {}
     for col in sorted(AGENT_COLLECTIONS):
         out[col] = conn.execute(
@@ -430,14 +491,24 @@ def agent_list(collection: str, limit: int = 1000, offset: int = 0, include_dele
                ctx: AgentCtx = Depends(agent_auth)):
     if collection not in AGENT_COLLECTIONS:
         raise HTTPException(status_code=404, detail="unknown collection")
+    _scope_check_collection(ctx, collection, read=True)
     limit = max(1, min(limit, 5000))
     offset = max(0, offset)
     where = "" if include_deleted else "AND deleted = 0"
-    rows = get_conn().execute(
+    conn = get_conn()
+    rows = conn.execute(
         f"SELECT id, deleted, data FROM entities WHERE user_id = ? AND collection = ? {where} "
-        "ORDER BY id LIMIT ? OFFSET ?",
-        (ctx.user_id, collection, limit, offset),
+        "ORDER BY id",
+        (ctx.user_id, collection),
     ).fetchall()
+    if ctx.project_id is not None and collection in ("tasks", "focusSessions"):
+        tree = _project_subtree(conn, ctx.user_id, ctx.project_id)
+        if collection == "tasks":
+            rows = [r for r in rows if json.loads(r["data"]).get("projectId") in tree]
+        else:
+            task_proj = {t["id"]: t.get("projectId") for t in _all(conn, ctx.user_id, "tasks")}
+            rows = [r for r in rows if task_proj.get(json.loads(r["data"]).get("taskId")) in tree]
+    rows = rows[offset:offset + limit]
     return {
         "entities": [
             {"id": r["id"], "deleted": bool(r["deleted"]), "data": json.loads(r["data"])}
@@ -450,9 +521,17 @@ def agent_list(collection: str, limit: int = 1000, offset: int = 0, include_dele
 def agent_get(collection: str, entity_id: str, ctx: AgentCtx = Depends(agent_auth)):
     if collection not in AGENT_COLLECTIONS:
         raise HTTPException(status_code=404, detail="unknown collection")
-    ent = _get(get_conn(), ctx.user_id, collection, entity_id, include_deleted=True)
+    _scope_check_collection(ctx, collection, read=True)
+    conn = get_conn()
+    ent = _get(conn, ctx.user_id, collection, entity_id, include_deleted=True)
     if ent is None:
         raise HTTPException(status_code=404, detail="not found")
+    if ctx.project_id is not None:
+        if collection == "tasks":
+            _scope_check_task(conn, ctx, ent["data"])
+        elif collection == "focusSessions":
+            task = _get(conn, ctx.user_id, "tasks", ent["data"].get("taskId"))
+            _scope_check_task(conn, ctx, task["data"] if task else {})
     return ent
 
 
@@ -494,6 +573,8 @@ def agent_create_task(body: TaskCreate, ctx: AgentCtx = Depends(agent_auth)):
 
     def fn(conn):
         project_id = body.projectId or "inbox"
+        if ctx.project_id is not None and project_id not in _project_subtree(conn, ctx.user_id, ctx.project_id):
+            raise HTTPException(status_code=403, detail="outside this key's project scope")
         if project_id == "inbox" and _get(conn, ctx.user_id, "projects", "inbox") is None:
             # The app seeds the Inbox locally on first run, but a fresh account
             # may not have pushed it yet. Seed the identical entity server-side
@@ -601,6 +682,7 @@ def agent_complete_task(task_id: str, body: CompleteBody | None = None, ctx: Age
         if ent is None:
             raise HTTPException(status_code=404, detail="task not found")
         task = ent["data"] | {"id": task_id}
+        _scope_check_task(conn, ctx, task)
         if task.get("status") != "active":
             _audit(conn, ctx, "task.complete.noop", "tasks", task_id, f"status={task.get('status')}")
             return {"changed": False, "task": task, "spawned": None}
@@ -623,6 +705,7 @@ def agent_uncomplete_task(task_id: str, ctx: AgentCtx = Depends(agent_auth)):
         if ent is None:
             raise HTTPException(status_code=404, detail="task not found")
         task = ent["data"] | {"id": task_id}
+        _scope_check_task(conn, ctx, task)
         if task.get("status") != "done":
             _audit(conn, ctx, "task.uncomplete.noop", "tasks", task_id, f"status={task.get('status')}")
             return {"changed": False, "task": task}
@@ -644,6 +727,7 @@ def agent_skip_task(task_id: str, body: CompleteBody | None = None, ctx: AgentCt
         if ent is None:
             raise HTTPException(status_code=404, detail="task not found")
         task = ent["data"] | {"id": task_id}
+        _scope_check_task(conn, ctx, task)
         if not task.get("recurrence") or not task.get("dueDate"):
             raise HTTPException(status_code=409, detail="only a recurring task with a due date can be skipped")
         next_date = next_occurrence_date(task["recurrence"], task["dueDate"], today)
@@ -718,10 +802,13 @@ def agent_patch_task(task_id: str, body: TaskPatch, ctx: AgentCtx = Depends(agen
         if ent is None:
             raise HTTPException(status_code=404, detail="task not found")
         task = ent["data"] | {"id": task_id}
+        _scope_check_task(conn, ctx, task)
         if "status" in given and body.status == "active" and task.get("status") != "archived":
             raise HTTPException(status_code=422, detail="only an archived task can be un-archived via status; use /uncomplete for done tasks")
         if "projectId" in given:
             _require_entity(conn, ctx.user_id, "projects", body.projectId, "projectId")
+            if ctx.project_id is not None and body.projectId not in _project_subtree(conn, ctx.user_id, ctx.project_id):
+                raise HTTPException(status_code=403, detail="outside this key's project scope")
         if "goalId" in given:
             _require_entity(conn, ctx.user_id, "goals", body.goalId, "goalId")
         if "parentId" in given and body.parentId is not None:
@@ -786,6 +873,7 @@ def _valid_weekdays(w):
 
 @router.post("/agent/habits", status_code=201, dependencies=WRITE)
 def agent_create_habit(body: HabitCreate, ctx: AgentCtx = Depends(agent_auth)):
+    _scope_check_collection(ctx, "habits")
     name = body.name.strip()
     if not name:
         raise HTTPException(status_code=422, detail="name must not be blank")
@@ -815,6 +903,7 @@ class HabitPatch(BaseModel):
 
 @router.patch("/agent/habits/{habit_id}", dependencies=WRITE)
 def agent_patch_habit(habit_id: str, body: HabitPatch, ctx: AgentCtx = Depends(agent_auth)):
+    _scope_check_collection(ctx, "habits")
     given = body.model_fields_set
     for f in ("name", "color", "archived"):
         if f in given and getattr(body, f) is None:
@@ -853,6 +942,7 @@ class CheckBody(BaseModel):
 
 
 def _set_habit_log(ctx: AgentCtx, habit_id: str, body: CheckBody, done: bool):
+    _scope_check_collection(ctx, "habits")
     day = _opt_date(body.date, "date")
 
     def fn(conn):
@@ -895,6 +985,7 @@ class ProjectCreate(BaseModel):
 
 @router.post("/agent/projects", status_code=201, dependencies=WRITE)
 def agent_create_project(body: ProjectCreate, ctx: AgentCtx = Depends(agent_auth)):
+    _scope_check_collection(ctx, "projects")
     name = body.name.strip()
     if not name:
         raise HTTPException(status_code=422, detail="name must not be blank")
@@ -922,6 +1013,7 @@ class ProjectPatch(BaseModel):
 
 @router.patch("/agent/projects/{project_id}", dependencies=WRITE)
 def agent_patch_project(project_id: str, body: ProjectPatch, ctx: AgentCtx = Depends(agent_auth)):
+    _scope_check_collection(ctx, "projects")
     given = body.model_fields_set
     for f in ("name", "color", "archived"):
         if f in given and getattr(body, f) is None:
@@ -965,6 +1057,7 @@ class GoalCreate(BaseModel):
 
 @router.post("/agent/goals", status_code=201, dependencies=WRITE)
 def agent_create_goal(body: GoalCreate, ctx: AgentCtx = Depends(agent_auth)):
+    _scope_check_collection(ctx, "goals")
     title = body.title.strip()
     if not title:
         raise HTTPException(status_code=422, detail="title must not be blank")
@@ -996,6 +1089,7 @@ class GoalPatch(BaseModel):
 
 @router.patch("/agent/goals/{goal_id}", dependencies=WRITE)
 def agent_patch_goal(goal_id: str, body: GoalPatch, ctx: AgentCtx = Depends(agent_auth)):
+    _scope_check_collection(ctx, "goals")
     given = body.model_fields_set
     if "title" in given and (body.title is None or not body.title.strip()):
         raise HTTPException(status_code=422, detail="title must not be blank")
@@ -1043,6 +1137,7 @@ class NoteCreate(BaseModel):
 
 @router.post("/agent/notes", status_code=201, dependencies=WRITE)
 def agent_create_note(body: NoteCreate, ctx: AgentCtx = Depends(agent_auth)):
+    _scope_check_collection(ctx, "notes")
     def fn(conn):
         now = _now_ms()
         note = {"id": _new_id(), "title": body.title, "note": body.note, "noteDoc": None,
@@ -1062,6 +1157,7 @@ class NotePatch(BaseModel):
 
 @router.patch("/agent/notes/{note_id}", dependencies=WRITE)
 def agent_patch_note(note_id: str, body: NotePatch, ctx: AgentCtx = Depends(agent_auth)):
+    _scope_check_collection(ctx, "notes")
     given = body.model_fields_set
     for f in ("title", "note", "pinned"):
         if f in given and getattr(body, f) is None:
@@ -1098,6 +1194,7 @@ class JournalPut(BaseModel):
 
 @router.put("/agent/journal/{day}", dependencies=WRITE)
 def agent_put_journal(day: str, body: JournalPut, ctx: AgentCtx = Depends(agent_auth)):
+    _scope_check_collection(ctx, "journal")
     day = _opt_date(day, "date")
     given = body.model_fields_set
 
@@ -1158,7 +1255,8 @@ def agent_log_focus_session(body: FocusSessionCreate, ctx: AgentCtx = Depends(ag
         raise HTTPException(status_code=422, detail="endedAt is in the future")
 
     def fn(conn):
-        _require_entity(conn, ctx.user_id, "tasks", body.taskId, "taskId")
+        task = _require_entity(conn, ctx.user_id, "tasks", body.taskId, "taskId")
+        _scope_check_task(conn, ctx, task["data"])
         session = {"id": _new_id(), "taskId": body.taskId, "startedAt": body.startedAt,
                    "endedAt": body.endedAt, "seconds": body.seconds}
         _apply(conn, ctx.user_id, "focusSessions", session["id"], False, session)
@@ -1178,10 +1276,14 @@ def agent_delete(collection: str, entity_id: str, ctx: AgentCtx = Depends(agent_
     if collection == "projects" and entity_id == "inbox":
         raise HTTPException(status_code=422, detail="the Inbox project cannot be deleted")
 
+    _scope_check_collection(ctx, collection)
+
     def fn(conn):
         ent = _get(conn, ctx.user_id, collection, entity_id)
         if ent is None:
             raise HTTPException(status_code=404, detail="not found")
+        if collection == "tasks":
+            _scope_check_task(conn, ctx, ent["data"])
         now = _now_ms()
         deleted_ids = [entity_id]
 
@@ -1251,13 +1353,42 @@ def agent_restore(collection: str, entity_id: str, ctx: AgentCtx = Depends(agent
     if collection not in AGENT_COLLECTIONS:
         raise HTTPException(status_code=404, detail="unknown collection")
 
+    _scope_check_collection(ctx, collection)
+
     def fn(conn):
         ent = _get(conn, ctx.user_id, collection, entity_id, include_deleted=True)
         if ent is None:
             raise HTTPException(status_code=404, detail="not found")
         if not ent["deleted"]:
             raise HTTPException(status_code=409, detail="entity is not deleted")
-        _apply(conn, ctx.user_id, collection, entity_id, False, ent["data"])
+        data = ent["data"]
+        if not isinstance(data, dict) or not data:
+            raise HTTPException(status_code=409,
+                                detail="nothing recoverable: this tombstone has no preserved payload")
+
+        def live(col, eid):
+            return eid is None or _get(conn, ctx.user_id, col, eid) is not None
+
+        # Containment integrity: never restore an orphan into a deleted
+        # container. Soft references (goalId, noteId, blockedBy, ...) may
+        # point at tombstones by design; containment may not.
+        container = {"tasks": [("projects", data.get("projectId"), "project"),
+                               ("tasks", data.get("parentId"), "parent task")],
+                     "projects": [("projects", data.get("parentId"), "parent project")],
+                     "focusSessions": [("tasks", data.get("taskId"), "task")],
+                     "habitLogs": [("habits", data.get("habitId"), "habit")]}.get(collection, [])
+        for col, eid, label in container:
+            if not live(col, eid):
+                raise HTTPException(status_code=409, detail=f"its {label} is deleted; restore that first")
+        if collection == "journal":
+            clash = [e for e in _all(conn, ctx.user_id, "journal")
+                     if e.get("date") == data.get("date") and e["id"] != entity_id]
+            if clash:
+                raise HTTPException(status_code=409,
+                                    detail=f"a live journal entry already exists for {data.get('date')}")
+        if collection == "tasks":
+            _scope_check_task(conn, ctx, data)
+        _apply(conn, ctx.user_id, collection, entity_id, False, data)
         restored = [f"{collection}:{entity_id}"]
         rows = conn.execute(
             "SELECT collection, id FROM entities WHERE user_id = ? AND deleted = 1 AND deleted_with = ?",

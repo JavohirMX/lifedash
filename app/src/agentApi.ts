@@ -15,6 +15,8 @@ export interface AgentKeyInfo {
   id: string;
   name: string;
   scope: AgentKeyScope;
+  /** null = full access; otherwise the key is confined to this project's subtree */
+  project_id: string | null;
   created_at: string;
   last_used_at: string | null;
   revoked_at: string | null;
@@ -70,11 +72,11 @@ export async function listAgentKeys(s: SyncSettings | null): Promise<AgentKeyInf
   return data.tokens.filter((t) => t.revoked_at === null);
 }
 
-export async function createAgentKey(s: SyncSettings | null, name: string, scope: AgentKeyScope): Promise<CreatedAgentKey> {
+export async function createAgentKey(s: SyncSettings | null, name: string, scope: AgentKeyScope, projectId: string | null = null): Promise<CreatedAgentKey> {
   const settings = requireSettings(s);
   const trimmed = name.trim();
   if (!trimmed) throw new AgentApiError('bad_response', 'Enter a name for the key.');
-  return call<CreatedAgentKey>(settings, 'POST', '/api/agent-tokens', { name: trimmed, scope });
+  return call<CreatedAgentKey>(settings, 'POST', '/api/agent-tokens', { name: trimmed, scope, projectId });
 }
 
 export async function revokeAgentKey(s: SyncSettings | null, id: string): Promise<void> {

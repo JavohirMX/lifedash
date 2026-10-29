@@ -81,6 +81,30 @@ tombstones; nothing is permanently removed.
   Reference rewrites done during the delete (stripped `blockedBy`, dropped
   `noteId`, reparented subprojects) are not reversed; restore recovers the
   entities, not the exact prior graph. Restoring a live entity is a 409.
+  Restore refuses to create invalid state (409): a tombstone without a
+  preserved payload, an orphan whose container (project, parent task,
+  parent project, habit) is still deleted, or a journal entry whose date a
+  live entry already has.
+
+## Project-scoped keys
+
+A key can be confined to one project (`projectId` at creation; shown in
+the key list). The boundary:
+
+- **In scope:** tasks and focus sessions in the project AND its
+  subprojects, recursively. Out-of-scope tasks are invisible (404).
+- **Read-only:** the project tree itself (needed for context). Scoped keys
+  cannot create, patch or delete projects.
+- **Out of reach (403):** habits, goals, notes and journal - they are
+  account-wide, not owned by any one project, so a scoped key cannot read
+  or write them at all.
+- Scoped keys cannot create tasks in the Inbox (it is outside every
+  project) or move a task out of the subtree.
+- Delete and restore inside the scope work as usual, including cascades;
+  a cascade never crosses the boundary because cascades only flow
+  downward (project -> its tasks, task -> its subtasks).
+- `read` vs `read-write` still applies on top: a read+scoped key gets 403
+  on every write, even inside its project.
 - `POST /api/agent/focus-sessions` `{taskId, startedAt, endedAt, seconds}`
   -> log a COMPLETED focus session (live timers stay on the device). Dates
   are validated: endedAt after startedAt, seconds within the span, no

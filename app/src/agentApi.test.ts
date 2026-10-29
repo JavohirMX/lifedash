@@ -30,7 +30,14 @@ describe('agentApi', () => {
     vi.stubGlobal('fetch', f);
     const created = await createAgentKey(settings, '  Claude  ', 'read');
     expect(created.token).toBe('ldk_x');
-    expect(JSON.parse(f.mock.calls[0][1]?.body as string)).toEqual({ name: 'Claude', scope: 'read' });
+    expect(JSON.parse(f.mock.calls[0][1]?.body as string)).toEqual({ name: 'Claude', scope: 'read', projectId: null });
+  });
+
+  it('passes a project scope when given', async () => {
+    const f = mockFetch(201, { id: '1', name: 'Claude', scope: 'read', projectId: 'p1', token: 'ldk_x', created_at: 't', last_used_at: null, revoked_at: null });
+    vi.stubGlobal('fetch', f);
+    await createAgentKey(settings, 'Claude', 'read', 'p1');
+    expect(JSON.parse(f.mock.calls[0][1]?.body as string)).toEqual({ name: 'Claude', scope: 'read', projectId: 'p1' });
   });
 
   it('rejects blank names before any request', async () => {

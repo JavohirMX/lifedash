@@ -532,3 +532,109 @@ def test_read_key_gets_403_before_body_validation(client):
     assert r.status_code == 403, r.text
     r = client.patch("/api/agent/tasks/whatever", json={"bogus": 1}, headers=auth(rkey["token"]))
     assert r.status_code == 403, r.text
+
+
+def _setup_scoped(client):
+    session = register(client)
+    seed_inbox(client, session)
+    full = make_key(client, session, name="full")
+    h = auth(full["token"])
+    p1 = client.post("/api/agent/projects", json={"name": "P1"}, headers=h).json()
+    s1 = client.post("/api/agent/projects", json={"name": "S1", "parentId": p1["id"]}, headers=h).json()
+    p2 = client.post("/api/agent/projects", json={"name": "P2"}, headers=h).json()
+    t1 = client.post("/api/agent/tasks", json={"title": "in p1", "projectId": p1["id"]}, headers=h).json()
+    t1s = client.post("/api/agent/tasks", json={"title": "in s1", "projectId": s1["id"]}, headers=h).json()
+    t2 = client.post("/api/agent/tasks", json={"title": "in p2", "projectId": p2["id"]}, headers=h).json()
+    client.post("/api/agent/habits", json={"name": "H"}, headers=h)
+    client.post("/api/agent/notes", json={"title": "N"}, headers=h)
+    return session, full, p1, s1, p2, t1, t1s, t2
+
+
+def test_project_scoped_key_boundaries(client):
+    session, full, p1, s1, p2, t1, t1s, t2 = _setup_scoped(client)
+    scoped = make_key(client, session, name="scoped", scope="read-write")
+    r = client.post("/api/agent-tokens", json={"name": "scoped-p1", "scope": "read-write", "projectId": p1["id"]},
+                    headers=auth(session))
+    assert r.status_code == 201, r.text
+    key = r.json()["token"]
+    h = auth(key)
+    # Reads: only the subtree's tasks; out-of-scope is 404.
+    ids = {e["id"] for e in client.get("/api/agent/entities/tasks", headers=h).json()["entities"]}
+    assert ids == {t1["id"], t1s["id"]}
+    assert client.get(f"/api/agent/entities/tasks/{t2['id']}", headers=h).status_code == 404
+    # Project tree is readable, not writable.
+    assert client.get("/api/agent/entities/projects", headers=h).status_code == 200
+    assert client.post("/api/agent/projects", json={"name": "X", "parentId": p1["id"]}, headers=h).status_code == 403
+    # Global collections are out of reach.
+    for method, url, body in (("post", "/api/agent/habits", {"name": "x"}),
+                              ("post", "/api/agent/notes", {"title": "x"}),
+                              ("put", "/api/agent/journal/2026-10-29", {"note": "x"}),
+                              ("post", "/api/agent/goals", {"title": "x"})):
+        assert getattr(client, method)(url, json=body, headers=h).status_code == 403, url
+    assert client.get("/api/agent/entities/habits", headers=h).status_code == 403
+    assert client.get("/api/agent/entities/goals", headers=h).status_code == 403
+    # Writes stay inside the subtree.
+    ok = client.post("/api/agent/tasks", json={"title": "new", "projectId": s1["id"]}, headers=h)
+    assert ok.status_code == 201, ok.text
+    assert client.post("/api/agent/tasks", json={"title": "new", "projectId": p2["id"]}, headers=h).status_code == 403
+    assert client.post("/api/agent/tasks", json={"title": "new"}, headers=h).status_code == 403  # inbox is outside
+    assert client.patch(f"/api/agent/tasks/{t2['id']}", json={"title": "x"}, headers=h).status_code == 404
+    assert client.patch(f"/api/agent/tasks/{t1['id']}", json={"projectId": p2["id"]}, headers=h).status_code == 403
+    assert client.post(f"/api/agent/tasks/{t2['id']}/complete", json={}, headers=h).status_code == 404
+    assert client.post(f"/api/agent/tasks/{t1['id']}/complete", json={}, headers=h).status_code == 200
+    # Focus sessions follow the task's scope.
+    body = {"taskId": t1s["id"], "startedAt": 1761724800000, "endedAt": 1761727500000, "seconds": 60}
+    assert client.post("/api/agent/focus-sessions", json=body, headers=h).status_code == 201
+    assert client.post("/api/agent/focus-sessions", json={**body, "taskId": t2["id"]}, headers=h).status_code == 404
+    # Delete + restore inside scope work; outside are 404.
+    victim = client.post("/api/agent/tasks", json={"title": "v", "projectId": p1["id"]}, headers=h).json()
+    assert client.request("DELETE", f"/api/agent/entities/tasks/{victim['id']}", headers=h).status_code == 200
+    assert client.post(f"/api/agent/entities/tasks/{victim['id']}/restore", headers=h).status_code == 200
+    assert client.request("DELETE", f"/api/agent/entities/tasks/{t2['id']}", headers=h).status_code == 404
+    # Key metadata exposes the boundary; a bogus project is refused.
+    listed = client.get("/api/agent-tokens", headers=auth(session)).json()["tokens"]
+    assert any(t["name"] == "scoped-p1" and t["project_id"] == p1["id"] for t in listed)
+    assert client.post("/api/agent-tokens", json={"name": "bad", "projectId": "ghost"},
+                       headers=auth(session)).status_code == 422
+    # A read+scoped key still cannot write inside its subtree.
+    r2 = client.post("/api/agent-tokens", json={"name": "ro", "scope": "read", "projectId": p1["id"]},
+                     headers=auth(session))
+    assert client.post("/api/agent/tasks", json={"title": "x", "projectId": p1["id"]},
+                       headers=auth(r2.json()["token"])).status_code == 403
+
+
+def test_restore_integrity_rules(client):
+    session, full, p1, s1, p2, t1, t1s, t2 = _setup_scoped(client)
+    h = auth(full["token"])
+    # Journal: no duplicate live entry for one date.
+    client.put("/api/agent/journal/2026-10-29", json={"note": "first"}, headers=h)
+    first_id = [e for e in client.get("/api/agent/entities/journal", headers=h).json()["entities"]
+                if e["data"]["date"] == "2026-10-29"][0]["id"]
+    client.request("DELETE", f"/api/agent/entities/journal/{first_id}", headers=h)
+    client.put("/api/agent/journal/2026-10-29", json={"note": "second"}, headers=h)
+    r = client.post(f"/api/agent/entities/journal/{first_id}/restore", headers=h)
+    assert r.status_code == 409, r.text
+    live = [e for e in client.get("/api/agent/entities/journal", headers=h).json()["entities"]
+            if e["data"]["date"] == "2026-10-29" and not e["deleted"]]
+    assert len(live) == 1
+    # Orphans: a cascade-deleted task cannot be restored before its project.
+    client.request("DELETE", f"/api/agent/entities/projects/{p1['id']}", headers=h)
+    r = client.post(f"/api/agent/entities/tasks/{t1['id']}/restore", headers=h)
+    assert r.status_code == 409 and "project" in r.json()["detail"]
+    r = client.post(f"/api/agent/entities/projects/{p1['id']}/restore", headers=h)
+    assert r.status_code == 200, r.text
+    assert client.get(f"/api/agent/entities/tasks/{t1['id']}", headers=h).json()["deleted"] is False
+    # Subtask before parent.
+    parent = client.post("/api/agent/tasks", json={"title": "p", "projectId": p2["id"]}, headers=h).json()
+    child = client.post("/api/agent/tasks", json={"title": "c", "parentId": parent["id"]}, headers=h).json()
+    client.request("DELETE", f"/api/agent/entities/tasks/{parent['id']}", headers=h)
+    assert client.post(f"/api/agent/entities/tasks/{child['id']}/restore", headers=h).status_code == 409
+    assert client.post(f"/api/agent/entities/tasks/{parent['id']}/restore", headers=h).status_code == 200
+    assert client.get(f"/api/agent/entities/tasks/{child['id']}", headers=h).json()["deleted"] is False
+    # Ghost: a client-pushed empty tombstone has nothing to restore.
+    pull = client.get("/api/changes?since=0", headers=auth(session)).json()
+    ghost = "ghost-entity-1"
+    r = client.post("/api/changes", headers=auth(session), json={"changes": [
+        {"collection": "tasks", "id": ghost, "base_rev": 0, "deleted": True, "data": {}}]})
+    assert r.json()["results"][0]["status"] == "ok"
+    assert client.post(f"/api/agent/entities/tasks/{ghost}/restore", headers=h).status_code == 409

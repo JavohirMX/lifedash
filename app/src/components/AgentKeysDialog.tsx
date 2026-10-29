@@ -3,6 +3,8 @@ import { X, KeyRound, Copy, Check } from 'lucide-react';
 import { useDialogFocus } from '../hooks/useDialogFocus';
 import './AgentKeysDialog.css';
 import { loadSyncSettings } from '../sync';
+import { db } from '../db';
+import type { Project } from '../types';
 import {
   AgentApiError,
   createAgentKey,
@@ -37,7 +39,8 @@ export function AgentKeysView(props: {
   state: PanelState;
   onClose: () => void;
   onRetry?: () => void;
-  onCreate?: (name: string, scope: AgentKeyScope) => void;
+  onCreate?: (name: string, scope: AgentKeyScope, projectId: string | null) => void;
+  projects: Project[];
   onRevoke?: (id: string) => void;
   onConfirmRevoke?: (id: string | null) => void;
   onDismissCreated?: () => void;
@@ -46,6 +49,9 @@ export function AgentKeysView(props: {
   const { state } = props;
   const [name, setName] = useState('');
   const [scope, setScope] = useState<AgentKeyScope>('read-write');
+  const [projectId, setProjectId] = useState<string>('');
+  const projectName = (id: string | null) =>
+    id === null ? null : (props.projects.find(p => p.id === id)?.name ?? 'Deleted project');
   return (
     <div className="palette-overlay" onClick={props.onClose}>
       <div className="import-panel settings-panel agent-keys-panel" role="dialog" aria-modal="true" aria-label="Agent API keys" onClick={e => e.stopPropagation()}>
@@ -76,7 +82,7 @@ export function AgentKeysView(props: {
                 {state.keys.map(k => (
                   <div className="settings-row" key={k.id}>
                     <KeyRound size={19} />
-                    <span><strong>{k.name}</strong><small>{k.scope === 'read' ? 'Read only' : 'Read & change'} · created {k.created_at.slice(0, 10)}{k.last_used_at ? ` · last used ${k.last_used_at.slice(0, 10)}` : ' · never used'}</small></span>
+                    <span><strong>{k.name}</strong><small>{k.scope === 'read' ? 'Read only' : 'Read & change'}{k.project_id ? ` · project: ${projectName(k.project_id)}` : ' · all projects'} · created {k.created_at.slice(0, 10)}{k.last_used_at ? ` · last used ${k.last_used_at.slice(0, 10)}` : ' · never used'}</small></span>
                     {state.confirmingRevoke === k.id ? (
                       <button className="btn-secondary agent-key-revoke" disabled={state.busy} onClick={() => props.onRevoke?.(k.id)}>Confirm revoke</button>
                     ) : (
@@ -85,7 +91,7 @@ export function AgentKeysView(props: {
                   </div>
                 ))}
                 {state.createError && <p className="form-save-error" role="alert">{state.createError}</p>}
-                <form onSubmit={e => { e.preventDefault(); if (name.trim()) props.onCreate?.(name, scope); }}>
+                <form onSubmit={e => { e.preventDefault(); if (name.trim()) props.onCreate?.(name, scope, projectId || null); }}>
                   <label className="field">Name
                     <input id="agent-key-name" type="text" value={name} onChange={e => setName(e.target.value)} placeholder="e.g. Claude" maxLength={64} disabled={state.busy} />
                   </label>
@@ -93,6 +99,14 @@ export function AgentKeysView(props: {
                     <select aria-label="Key scope" value={scope} onChange={e => setScope(e.target.value as AgentKeyScope)} disabled={state.busy}>
                       <option value="read-write">Read & change</option>
                       <option value="read">Read only</option>
+                    </select>
+                  </label>
+                  <label className="field">Limit to project
+                    <select aria-label="Key project" value={projectId} onChange={e => setProjectId(e.target.value)} disabled={state.busy}>
+                      <option value="">All projects</option>
+                      {props.projects.filter(p => !p.archived).map(p => (
+                        <option key={p.id} value={p.id}>{p.name}</option>
+                      ))}
                     </select>
                   </label>
                   <div className="agent-key-actions">
@@ -111,6 +125,13 @@ export function AgentKeysView(props: {
 export default function AgentKeysDialog(props: { onClose: () => void }) {
   const panel = useDialogFocus<HTMLDivElement>(props.onClose);
   const [state, setState] = useState<PanelState>({ kind: 'loading' });
+  const [projects, setProjects] = useState<Project[]>([]);
+
+  useEffect(() => {
+    let alive = true;
+    void db.projects.toArray().then(p => { if (alive) setProjects(p); });
+    return () => { alive = false; };
+  }, []);
 
   const load = useCallback(async () => {
     setState({ kind: 'loading' });
@@ -127,10 +148,10 @@ export default function AgentKeysDialog(props: { onClose: () => void }) {
   const update = (patch: Partial<Extract<PanelState, { kind: 'ready' }>>) =>
     setState(s => (s.kind === 'ready' ? { ...s, ...patch } : s));
 
-  const onCreate = async (name: string, scope: AgentKeyScope) => {
+  const onCreate = async (name: string, scope: AgentKeyScope, projectId: string | null) => {
     update({ busy: true, createError: null });
     try {
-      const created = await createAgentKey(loadSyncSettings(), name, scope);
+      const created = await createAgentKey(loadSyncSettings(), name, scope, projectId);
       const keys = await listAgentKeys(loadSyncSettings());
       setState({ kind: 'ready', keys, busy: false, createError: null, created, confirmingRevoke: null, copied: false });
     } catch (e) {
@@ -165,7 +186,8 @@ export default function AgentKeysDialog(props: { onClose: () => void }) {
         state={state}
         onClose={props.onClose}
         onRetry={() => void load()}
-        onCreate={(n, s) => void onCreate(n, s)}
+        projects={projects}
+        onCreate={(n, s, p) => void onCreate(n, s, p)}
         onRevoke={id => void onRevoke(id)}
         onConfirmRevoke={id => update({ confirmingRevoke: id })}
         onDismissCreated={() => update({ created: null, copied: false })}

@@ -130,7 +130,9 @@ def pull(since: int = 0, user_id: int = Depends(current_user)):
                 "id": r["id"],
                 "rev": r["rev"],
                 "deleted": bool(r["deleted"]),
-                "data": json.loads(r["data"]),
+                # Tombstone payloads stay on the server (restore path is the
+                # agent API); clients only need the deletion marker.
+                "data": {} if r["deleted"] else json.loads(r["data"]),
             }
             for r in rows
         ],
@@ -164,7 +166,7 @@ def push(body: PushBody, user_id: int = Depends(current_user)):
                         "current": {
                             "rev": current_rev,
                             "deleted": bool(row["deleted"]) if row else False,
-                            "data": json.loads(row["data"]) if row else None,
+                            "data": ({} if row["deleted"] else json.loads(row["data"])) if row else None,
                         },
                     }
                 )

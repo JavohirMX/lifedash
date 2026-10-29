@@ -4,11 +4,11 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { AgentApiError } from '../agentApi';
 import { AgentKeysView, stateFromError, type PanelState } from './AgentKeysDialog';
 
-const key = { id: '1', name: 'Claude', scope: 'read-write' as const, created_at: '2026-10-29T00:00:00Z', last_used_at: null, revoked_at: null };
+const key = { id: '1', name: 'Claude', scope: 'read-write' as const, project_id: null, created_at: '2026-10-29T00:00:00Z', last_used_at: null, revoked_at: null };
 const ready = (extra: Record<string, unknown> = {}): PanelState => ({
   kind: 'ready', keys: [key], busy: false, createError: null, created: null, confirmingRevoke: null, copied: false, ...extra,
 });
-const html = (state: PanelState) => renderToStaticMarkup(<AgentKeysView state={state} onClose={() => {}} />);
+const html = (state: PanelState) => renderToStaticMarkup(<AgentKeysView state={state} onClose={() => {}} projects={[]} />);
 
 describe('AgentKeysDialog states', () => {
   it('maps errors', () => {
@@ -18,6 +18,15 @@ describe('AgentKeysDialog states', () => {
   });
   it('not_connected explains the Sync prerequisite', () => {
     expect(html({ kind: 'not_connected' })).toContain('Connect Sync first');
+  });
+  it('shows the project boundary on scoped keys and offers a project picker', () => {
+    const h = renderToStaticMarkup(<AgentKeysView state={ready({ keys: [{ ...key, project_id: 'p1' }] })}
+      onClose={() => {}} projects={[{ id: 'p1', name: 'Work', color: '#0f766e', order: 0, archived: false, parentId: null }]} />);
+    expect(h).toContain('project: Work');
+    expect(h).toContain('Limit to project');
+    expect(h).toContain('All projects');
+    const unscoped = html(ready());
+    expect(unscoped).toContain('all projects');
   });
   it('ready lists keys with scope and two-tap revoke', () => {
     const h = html(ready());
