@@ -366,14 +366,24 @@ async function syncNowInner(settings: SyncSettings): Promise<SyncResult> {
   const pulled2 = await pull(base, headers);
   // Blob backfill: locally created attachments carry bytes only in Dexie.
   // Upload a few per sync so agents and other devices can download them.
-  let blobsUploaded = 0;
+  // Per-row failure tallies live in syncmeta so a permanently failing blob
+  // (e.g. its task is gone server-side) stops blocking the queue.
+  const BLOB_FAIL_KEY = (id: string) => `blobfail:${id}`;
+  const BLOB_FAIL_GIVE_UP = 8;
   try {
     const pending = await db.attachments
       .filter((a) => !!a.blob && a.blobOnServer !== true)
-      .limit(5)
-      .toArray();
+      .sortBy('createdAt');
+    const eligible: (Attachment & { blob: Blob })[] = [];
     for (const a of pending) {
-      if (a.blob && await uploadAttachmentBlob(a as Attachment & { blob: Blob })) blobsUploaded += 1;
+      const fails = ((await getMeta(BLOB_FAIL_KEY(a.id))) as number | undefined) ?? 0;
+      if (fails < BLOB_FAIL_GIVE_UP) eligible.push(a as Attachment & { blob: Blob });
+      if (eligible.length >= 5) break;
+    }
+    for (const a of eligible) {
+      const ok = await uploadAttachmentBlob(a);
+      if (ok) await db.syncmeta.delete(BLOB_FAIL_KEY(a.id));
+      else await setMeta(BLOB_FAIL_KEY(a.id), (((await getMeta(BLOB_FAIL_KEY(a.id))) as number | undefined) ?? 0) + 1);
     }
   } catch {
     /* older test doubles without an attachments table */
@@ -381,7 +391,6 @@ async function syncNowInner(settings: SyncSettings): Promise<SyncResult> {
   // Server-wins drops the conflicting local edits: keep a persistent notice
   // so an auto-sync cannot erase awareness before the user sees it.
   await recordConflicts(replaced);
-  void blobsUploaded;
   return { pushed, conflicts, pulled: pulled1 + pulled2, cursor: await getCursor() };
 }
 

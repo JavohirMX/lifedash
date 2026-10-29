@@ -524,7 +524,7 @@ def agent_put_automation(body: dict = Body(...), ctx: AgentCtx = Depends(agent_a
                   **(ent["data"] if ent else {}), **patch}
         rev = _apply(conn, ctx.user_id, "automationRules", AUTOMATION_SINGLETON_ID, False, merged)
         _audit(conn, ctx, "settings.automation", "automationRules", AUTOMATION_SINGLETON_ID, patch)
-        return {"rev": rev, "rules": merged}
+        return {"rev": rev, "rules": {"rollover": merged["rollover"], "completeParent": merged["completeParent"]}}
 
     return _write(ctx, fn)
 
@@ -1546,10 +1546,29 @@ async def upload_attachment(request: Request, task_id: str, filename: str, id: s
         ).fetchone()
         if row is not None and not row["deleted"]:
             existing = json.loads(row["data"])
-            if os.path.exists(path) and existing.get("sha256") == digest:
+            has_blob = os.path.exists(path)
+            if has_blob and existing.get("sha256") == digest:
                 # Idempotent retry of the same upload.
                 return existing | {"rev": row["rev"]}
-            raise HTTPException(status_code=409, detail="an attachment with this id already exists")
+            if existing.get("taskId") != task_id:
+                raise HTTPException(status_code=409, detail="an attachment with this id already exists")
+            if has_blob or (existing.get("sha256") and existing.get("sha256") != digest):
+                raise HTTPException(status_code=409, detail="an attachment with this id already exists")
+            # Metadata arrived first (sync push) and no blob is on disk yet:
+            # this upload completes the row the client already announced.
+            completed = {**existing, "sha256": digest, "byteSize": len(body),
+                         "blobOnServer": True,
+                         "name": existing.get("name") or filename,
+                         "mime": existing.get("mime") or mime}
+            rev = _apply(conn, user_id, "attachments", att_id, False, completed)
+            os.makedirs(os.path.dirname(path), exist_ok=True)
+            tmp = path + ".tmp"
+            with open(tmp, "wb") as f:
+                f.write(body)
+            wrote["tmp"] = True
+            os.replace(tmp, path)
+            wrote["blob"] = True
+            return completed | {"rev": rev}
         # Retained tombstones still occupy disk, so they count against the
         # quota; otherwise upload+delete loops would bypass it. Measured
         # from real files: client-pushed byteSize metadata is untrusted.

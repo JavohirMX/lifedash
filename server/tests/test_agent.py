@@ -1,3 +1,4 @@
+import hashlib
 import json
 import os
 import sqlite3
@@ -994,3 +995,39 @@ def test_upload_with_client_id_is_idempotent(client):
     # Download works with the app's session token (dual auth)
     dl = client.get("/api/attachments/att-app-1/content", headers=h)
     assert dl.status_code == 200 and dl.content == b"hello"
+
+
+def test_metadata_push_then_blob_upload_completes_row(client):
+    """The reviewer's race: sync pushes metadata first, blob upload follows."""
+    session = register(client)
+    seed_inbox(client, session)
+    h = auth(session)
+    key = make_key(client, session)
+    t = client.post("/api/agent/tasks", json={"title": "host"}, headers=auth(key["token"])).json()
+    # 1. Metadata rides the JSON sync first (no sha256, no blob)
+    r = client.post("/api/changes", headers=h, json={"changes": [
+        {"collection": "attachments", "id": "att-race", "base_rev": 0,
+         "data": {"id": "att-race", "taskId": t["id"], "name": "n.txt",
+                  "mime": "text/plain", "byteSize": 5, "blobOnServer": True}}]})
+    assert r.json()["results"][0]["status"] == "ok"
+    # Server grounds blobOnServer: no file on disk, so the claim is rewritten
+    pull = client.get("/api/changes?since=0", headers=h).json()
+    row = [c for c in pull["changes"] if c["collection"] == "attachments"][0]
+    assert row["data"]["blobOnServer"] is False
+    assert client.get("/api/attachments/att-race/content", headers=h).status_code == 404
+    # 2. The blob upload with the same id completes the row instead of 409
+    r2 = client.post(f"/api/attachments?task_id={t['id']}&filename=n.txt&id=att-race",
+                     content=b"hello", headers=h)
+    assert r2.status_code == 201, r2.text
+    assert r2.json()["sha256"] == hashlib.sha256(b"hello").hexdigest()
+    assert r2.json()["blobOnServer"] is True
+    dl = client.get("/api/attachments/att-race/content", headers=h)
+    assert dl.status_code == 200 and dl.content == b"hello"
+    # 3. Same id bound to a DIFFERENT task still conflicts
+    t2 = client.post("/api/agent/tasks", json={"title": "other"}, headers=auth(key["token"])).json()
+    client.post("/api/changes", headers=h, json={"changes": [
+        {"collection": "attachments", "id": "att-race2", "base_rev": 0,
+         "data": {"id": "att-race2", "taskId": t2["id"], "name": "x", "mime": "text/plain", "byteSize": 1}}]})
+    r3 = client.post(f"/api/attachments?task_id={t['id']}&filename=x&id=att-race2",
+                     content=b"z", headers=h)
+    assert r3.status_code == 409

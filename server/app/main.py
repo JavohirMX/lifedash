@@ -15,7 +15,7 @@ from pydantic import BaseModel, Field
 
 from .auth import current_user, hash_password, new_token, verify_password
 from .db import get_conn, init_db
-from .agent import _ATTACHMENT_ID_RE, init_agent_db, router as agent_router
+from .agent import _ATTACHMENT_ID_RE, _blob_path, init_agent_db, router as agent_router
 from .gcal import router as gcal_router
 
 COLLECTIONS = {"tasks", "projects", "tags", "habits", "habitLogs", "goals", "notes", "journal", "focusSessions", "attachments", "automationRules", "userRules"}
@@ -184,6 +184,12 @@ def push(body: PushBody, user_id: int = Depends(current_user)):
             # Tombstones keep the last known payload server-side (recoverable
             # soft delete); clients send data: {} because they drop their copy.
             data_json = row["data"] if (ch.deleted and row) else json.dumps(ch.data)
+            if ch.collection == "attachments" and not ch.deleted:
+                # The server alone grounds blob presence; a client claim in
+                # pushed metadata is only a cache hint and can lie.
+                data = dict(ch.data) if isinstance(ch.data, dict) else {}
+                data["blobOnServer"] = os.path.exists(_blob_path(user_id, ch.id))
+                data_json = json.dumps(data)
             conn.execute(
                 "INSERT INTO entities (user_id, collection, id, rev, deleted, data) "
                 "VALUES (?, ?, ?, ?, ?, ?) "

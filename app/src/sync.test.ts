@@ -45,12 +45,33 @@ vi.mock('./db', () => ({
         hook: () => {},
       };
     },
+    attachments: {
+      filter: (fn: (a: unknown) => boolean) => ({
+        sortBy: async () => [...(tables.get('attachments')?.values() ?? [])].filter(fn),
+      }),
+      update: async (id: string, mods: Record<string, unknown>) => {
+        const t = tables.get('attachments');
+        const row = t?.get(id);
+        if (t && row) t.set(id, { ...(row as object), ...mods });
+      },
+    },
   },
 }));
 
 import { acknowledgeConflictNotice, getConflictNotice, loadSyncStatus, logout, syncNow } from './sync';
 
 const settings = { url: 'http://test', username: 'u', token: 'tok' };
+
+// Node test env: localStorage shim so loadSyncSettings resolves.
+const lsStore = new Map<string, string>();
+globalThis.localStorage = {
+  getItem: (k: string) => (lsStore.has(k) ? lsStore.get(k)! : null),
+  setItem: (k: string, v: string) => void lsStore.set(k, v),
+  removeItem: (k: string) => void lsStore.delete(k),
+  clear: () => lsStore.clear(),
+  key: () => null,
+  get length() { return lsStore.size; },
+} as Storage;
 
 interface PushChange { collection: string; id: string; base_rev: number; deleted: boolean; data: unknown }
 
@@ -66,16 +87,25 @@ function mockFetch(script: { changesResponses: object[]; pushResults?: object[] 
       pushes.push((JSON.parse(String(init.body)) as { changes: PushChange[] }).changes);
       return { ok: true, json: async () => ({ results: script.pushResults ?? [] }) } as Response;
     }
+    if (String(url).includes('/api/attachments?') && init?.method === 'POST') {
+      const u = new URL(String(url));
+      blobUploads.push({ id: u.searchParams.get('id'), taskId: u.searchParams.get('task_id'), size: Number(init.body ? (init.body as { size?: number }).size ?? 0 : 0) });
+      return { ok: true, json: async () => ({ id: u.searchParams.get('id'), rev: 7 }) } as Response;
+    }
     throw new Error(`unexpected fetch ${url}`);
   }));
   return pushes;
 }
+const blobUploads: { id: string | null; taskId: string | null; size: number }[] = [];
 
 const serverTask = (id: string, title: string) => ({ id, title, projectId: 'inbox' });
 
 beforeEach(() => {
   meta.clear();
   tables.clear();
+  blobUploads.length = 0;
+  lsStore.clear();
+  lsStore.set('lifedash-sync', JSON.stringify(settings));
   vi.unstubAllGlobals();
 });
 
@@ -248,6 +278,44 @@ describe('sync edit-edit conflicts', () => {
     expect(r.pushed).toBe(1);
     expect(pushes[0][0]).toMatchObject({ collection: 'habitLogs', id: 'h1:2026-10-20', base_rev: 1, deleted: false });
     expect((pushes[0][0].data as { habitId: string }).habitId).toBe('h1');
+  });
+
+  it('metadata push precedes blob upload: backfill still delivers the bytes', async () => {
+    tables.get('attachments') ?? tables.set('attachments', new Map());
+    tables.get('attachments')!.set('A9', {
+      id: 'A9', taskId: 't1', name: 'race.txt', mime: 'text/plain', byteSize: 5,
+      blob: { size: 5, type: 'text/plain' }, createdAt: 1,
+    });
+    meta.set('dirty:attachments:A9', { deleted: false });
+
+    const pushes = mockFetch({
+      changesResponses: [{ changes: [], rev: 0 }, { changes: [], rev: 1 }],
+      pushResults: [{ id: 'A9', collection: 'attachments', status: 'ok', rev: 1 }],
+    });
+
+    await syncNow(settings);
+    expect(pushes.flat().some((c) => c.id === 'A9')).toBe(true); // metadata went first
+    expect(blobUploads).toEqual([{ id: 'A9', taskId: 't1', size: 5 }]); // bytes followed
+    const row = tables.get('attachments')!.get('A9') as { blobOnServer?: boolean };
+    expect(row.blobOnServer).toBe(true);
+    expect(meta.get('rev:attachments:A9')).toBe(7); // upload rev grounds the row
+  });
+
+  it('a permanently failing blob stops blocking the backfill queue', async () => {
+    tables.get('attachments') ?? tables.set('attachments', new Map());
+    tables.get('attachments')!.set('BAD', {
+      id: 'BAD', taskId: 'gone', name: 'bad.txt', mime: 'text/plain', byteSize: 1,
+      blob: { size: 1, type: 'text/plain' }, createdAt: 1,
+    });
+    tables.get('attachments')!.set('OK1', {
+      id: 'OK1', taskId: 't1', name: 'ok.txt', mime: 'text/plain', byteSize: 2,
+      blob: { size: 2, type: 'text/plain' }, createdAt: 2,
+    });
+    meta.set('blobfail:BAD', 8); // already gave up
+
+    mockFetch({ changesResponses: [{ changes: [], rev: 0 }, { changes: [], rev: 1 }] });
+    await syncNow(settings);
+    expect(blobUploads.map((u) => u.id)).toEqual(['OK1']); // BAD skipped, OK1 delivered
   });
 
   it('attachment pushes carry metadata only, never the blob', async () => {
