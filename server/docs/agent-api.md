@@ -128,6 +128,27 @@ it in goals' `habitIds`, exactly like the app. This is deliberate: the
 referenced rows still exist as recoverable tombstones, and stripping the
 references would destroy information a restore needs.
 
+## Attachments
+
+Attachment metadata is a normal synced entity; the bytes live on the
+server's disk:
+
+- `POST /api/attachments?task_id=&filename=` (raw request body) -> the
+  metadata (`{id, taskId, name, mime, byteSize, sha256, createdAt}`).
+  The app's session token or an agent key both work; scoped keys follow
+  the task's boundary.
+- `GET /api/attachments/{id}/content` -> the bytes, always served with
+  `Content-Disposition: attachment` and `X-Content-Type-Options:
+  nosniff` so stored files never render as active content.
+- `DELETE /api/attachments/{id}` -> soft delete; the blob is retained so
+  restore recovers the whole attachment. Deleting a task tombstones its
+  attachments with the same cascade.
+- Quotas are deliberate defaults the operator can tune:
+  `SYNC_ATTACHMENT_QUOTA_MB` (200 MB per account, counting RETAINED
+  deleted blobs too - they still occupy disk) and
+  `SYNC_ATTACHMENT_MAX_FILE_MB` (25 MB per file, enforced while
+  streaming, not by trusting Content-Length).
+
 ## What the API deliberately does not do
 
 - **No permanent delete.** Tombstones keep their full payload and are

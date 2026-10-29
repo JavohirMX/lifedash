@@ -730,3 +730,48 @@ def test_scope_leaks_closed(client):
     assert set(r.json()["tombstoned"]) == {t2["id"], mid["id"], leaf["id"]}
     r = client.post(f"/api/agent/entities/tasks/{t2['id']}/restore", headers=fh)
     assert set(r.json()["ids"]) == {f"tasks:{t2['id']}", f"tasks:{mid['id']}", f"tasks:{leaf['id']}"}
+
+
+def test_attachment_quota_counts_retained_blobs(client, monkeypatch):
+    monkeypatch.setenv("SYNC_ATTACHMENT_QUOTA_MB", "1")
+    session = register(client)
+    seed_inbox(client, session)
+    key = make_key(client, session)
+    h = auth(key["token"])
+    t = client.post("/api/agent/tasks", json={"title": "q"}, headers=h).json()
+    blob = b"x" * (900 * 1024)
+    r = client.post(f"/api/attachments?task_id={t['id']}&filename=a", content=blob, headers=h)
+    assert r.status_code == 201
+    client.delete(f"/api/attachments/{r.json()['id']}", headers=h)
+    # Live bytes are 0, but the retained blob still occupies disk: refuse.
+    r2 = client.post(f"/api/attachments?task_id={t['id']}&filename=b", content=blob, headers=h)
+    assert r2.status_code == 413, r2.text
+
+
+def test_task_delete_cascades_attachments_and_restore_recovers(client):
+    session = register(client)
+    seed_inbox(client, session)
+    key = make_key(client, session)
+    h = auth(key["token"])
+    t = client.post("/api/agent/tasks", json={"title": "host"}, headers=h).json()
+    att = client.post(f"/api/attachments?task_id={t['id']}&filename=f", content=b"data", headers=h).json()
+    r = client.request("DELETE", f"/api/agent/entities/tasks/{t['id']}", headers=h)
+    assert att["id"] in r.json()["tombstoned"]
+    assert client.get(f"/api/attachments/{att['id']}/content", headers=h).status_code == 404
+    rr = client.post(f"/api/agent/entities/tasks/{t['id']}/restore", headers=h)
+    assert f"attachments:{att['id']}" in rr.json()["ids"]
+    dl = client.get(f"/api/attachments/{att['id']}/content", headers=h)
+    assert dl.status_code == 200 and dl.content == b"data"
+    assert dl.headers["content-disposition"].startswith("attachment;")
+    assert dl.headers["x-content-type-options"] == "nosniff"
+
+
+def test_attachment_metadata_syncs_via_client_push(client):
+    session = register(client)
+    seed_inbox(client, session)
+    r = client.post("/api/changes", headers=auth(session), json={"changes": [
+        {"collection": "attachments", "id": "a1", "base_rev": 0,
+         "data": {"id": "a1", "taskId": "t1", "name": "f.txt", "mime": "text/plain", "byteSize": 3}}]})
+    assert r.json()["results"][0]["status"] == "ok", r.text
+    pull = client.get("/api/changes?since=0", headers=auth(session)).json()
+    assert any(c["collection"] == "attachments" and c["id"] == "a1" for c in pull["changes"])

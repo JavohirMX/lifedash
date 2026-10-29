@@ -1358,20 +1358,28 @@ async def upload_attachment(request: Request, task_id: str, filename: str,
         require_write(ctx)
     filename = _FILENAME_RE.sub("_", os.path.basename(filename))[:200] or "file"
     mime = (request.headers.get("content-type") or "application/octet-stream").split(";")[0][:100]
-    body = await request.body()
     quota, max_file = _quota_bytes()
+    chunks = bytearray()
+    async for chunk in request.stream():
+        chunks += chunk
+        if len(chunks) > max_file:
+            raise HTTPException(status_code=413, detail=f"file exceeds the {max_file // (1024 * 1024)} MB per-file limit")
+    body = bytes(chunks)
     if not body:
         raise HTTPException(status_code=422, detail="empty upload")
-    if len(body) > max_file:
-        raise HTTPException(status_code=413, detail=f"file exceeds the {max_file // (1024 * 1024)} MB per-file limit")
 
     def fn(conn):
         task = _require_entity(conn, user_id, "tasks", task_id, "task_id")
         if ctx is not None:
             _scope_check_task(conn, ctx, task["data"])
-        used = sum(a.get("byteSize", 0) for a in _all(conn, user_id, "attachments"))
+        # Retained tombstones still occupy disk, so they count against the
+        # quota; otherwise upload+delete loops would bypass it.
+        rows = conn.execute(
+            "SELECT data FROM entities WHERE user_id = ? AND collection = 'attachments'", (user_id,)
+        ).fetchall()
+        used = sum(json.loads(r["data"]).get("byteSize", 0) for r in rows)
         if used + len(body) > quota:
-            raise HTTPException(status_code=413, detail=f"attachment quota ({quota // (1024 * 1024)} MB) exceeded")
+            raise HTTPException(status_code=413, detail=f"attachment quota ({quota // (1024 * 1024)} MB) exceeded, including retained deleted files")
         att = {"id": _new_id(), "taskId": task_id, "name": filename, "mime": mime,
                "byteSize": len(body), "sha256": hashlib.sha256(body).hexdigest(), "createdAt": _now_ms()}
         _apply(conn, user_id, "attachments", att["id"], False, att)
@@ -1403,7 +1411,13 @@ def download_attachment(attachment_id: str, auth: tuple[int, AgentCtx | None] = 
         raise HTTPException(status_code=404, detail="blob is missing on the server")
     with open(path, "rb") as f:
         content = f.read()
-    return Response(content=content, media_type=ent["data"].get("mime") or "application/octet-stream")
+    name = ent["data"].get("name") or "file"
+    return Response(
+        content=content,
+        media_type=ent["data"].get("mime") or "application/octet-stream",
+        headers={"Content-Disposition": f'attachment; filename="{name}"',
+                 "X-Content-Type-Options": "nosniff"},
+    )
 
 
 @router.delete("/attachments/{attachment_id}", status_code=204)
@@ -1495,6 +1509,10 @@ def agent_delete(collection: str, entity_id: str, ctx: AgentCtx = Depends(agent_
             tombstone("tasks", entity_id)
             for tid in descendants:
                 tombstone("tasks", tid, cascade_root=entity_id)
+            for a in _all(conn, ctx.user_id, "attachments"):
+                if a.get("taskId") in gone:
+                    tombstone("attachments", a["id"], cascade_root=entity_id)
+                    deleted_ids.append(a["id"])
             for t in tasks:
                 refs = [b for b in (t.get("blockedBy") or []) if b in gone]
                 if refs and t["id"] not in gone:
@@ -1520,6 +1538,10 @@ def agent_delete(collection: str, entity_id: str, ctx: AgentCtx = Depends(agent_
             tombstone("projects", entity_id)
             for t in own + children:
                 tombstone("tasks", t["id"], cascade_root=entity_id)
+            for a in _all(conn, ctx.user_id, "attachments"):
+                if a.get("taskId") in gone_tasks:
+                    tombstone("attachments", a["id"], cascade_root=entity_id)
+                    deleted_ids.append(a["id"])
             for p in _all(conn, ctx.user_id, "projects"):
                 if (p.get("parentId") or None) == entity_id:
                     updated = {**p, "parentId": project.get("parentId") or None}
