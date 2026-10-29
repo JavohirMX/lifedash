@@ -128,23 +128,37 @@ export async function applyUserRulesForCompletion(task: Task): Promise<number> {
 /** Fire due weekly user rules on app open. lastFired is stamped even when
  * creation is skipped (open task with the same title), so a rule still fires
  * at most once per day. */
+let weeklyRulesInFlight = false;
 export async function applyWeeklyUserRules(today: string): Promise<number> {
-  const weekday = parseLocalDate(today).getDay();
-  const rules = loadUserRules();
-  const due = weeklyRulesDue(rules, today, weekday);
-  if (due.length === 0) return 0;
-  const all = await db.tasks.toArray();
-  let created = 0;
-  for (const rule of due) {
-    if (!hasOpenTitle(all, rule.title)) {
-      const t = await addTask({ title: rule.title, projectId: 'inbox' });
-      all.push(t);
-      created++;
+  // StrictMode re-runs the startup effect and a retry can overlap a run that
+  // is still in flight. A second same-tab run has nothing new to do.
+  if (weeklyRulesInFlight) return 0;
+  weeklyRulesInFlight = true;
+  try {
+    const weekday = parseLocalDate(today).getDay();
+    const rules = loadUserRules();
+    const due = weeklyRulesDue(rules, today, weekday);
+    if (due.length === 0) return 0;
+    let created = 0;
+    for (const rule of due) {
+      // Check and create in one read-write transaction: a run in another tab
+      // serializes after this one commits and sees the new open task.
+      const made = await db.transaction('rw', db.tasks, async () => {
+        const open = await db.tasks.toArray();
+        if (hasOpenTitle(open, rule.title)) return false;
+        await addTask({ title: rule.title, projectId: 'inbox' });
+        return true;
+      });
+      if (made) created++;
+      // Stamp and persist after each rule, so a failure later in the loop
+      // leaves the handled rules marked instead of firing them again.
+      rule.lastFired = today;
+      saveUserRules(rules);
     }
-    rule.lastFired = today;
+    return created;
+  } finally {
+    weeklyRulesInFlight = false;
   }
-  saveUserRules(rules);
-  return created;
 }
 
 /** Start focusing on a task. Any already-running session is finalized in
