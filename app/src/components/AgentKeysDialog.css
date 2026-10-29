@@ -1,0 +1,8 @@
+.agent-keys-panel form { display: flex; flex-direction: column; gap: 14px; margin-top: 10px; }
+.agent-keys-panel .field input, .agent-keys-panel .field select {
+  background: var(--surface); border: 1px solid var(--control);
+  border-radius: var(--radius-control); padding: 7px 10px;
+  font-size: var(--fs-body); color: var(--text); font-family: var(--font);
+}
+.agent-keys-panel .agent-key-actions { display: flex; gap: 10px; }
+.agent-keys-panel .agent-key-revoke { flex: 0 0 auto; padding: 5px 10px; border-radius: var(--radius-control); font-size: var(--fs-small); }

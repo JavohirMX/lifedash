@@ -34,6 +34,7 @@ import SyncDialog from './components/SyncDialog';
 import AppearanceDialog from './components/AppearanceDialog';
 import GoogleCalendarDialog from './components/GoogleCalendarDialog';
 import SettingsDialog from './components/SettingsDialog';
+import AgentKeysDialog from './components/AgentKeysDialog';
 import { cycleTheme } from './theme';
 import { projectWithDescendants } from './projects';
 import { loadRules, saveRules, loadUserRules, saveUserRules, type AutomationRules, type UserRule } from './automation';
@@ -120,6 +121,7 @@ export default function App() {
   const [appearanceOpen, setAppearanceOpen] = useState(false);
   const [googleCalendarOpen,setGoogleCalendarOpen]=useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [agentKeysOpen, setAgentKeysOpen] = useState(false);
   const [dataBackupOpen, setDataBackupOpen] = useState(false);
   const [settingsChild, setSettingsChild] = useState<'appearance' | 'sync' | null>(null);
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
@@ -474,10 +476,12 @@ export default function App() {
       {syncOpen && <SyncDialog onClose={() => setSyncOpen(false)} onBack={settingsChild === 'sync' ? () => { setSyncOpen(false); setSettingsOpen(true); } : undefined} />}
       {googleCalendarOpen && <GoogleCalendarDialog onClose={()=>setGoogleCalendarOpen(false)} onBack={()=>{setGoogleCalendarOpen(false);setSettingsOpen(true);}}/>}
       {dataBackupOpen && <DataBackupDialog onClose={() => { setDataBackupOpen(false); setSettingsOpen(true); }} />}
+      {agentKeysOpen && <AgentKeysDialog onClose={() => { setAgentKeysOpen(false); setSettingsOpen(true); }} />}
       {settingsOpen && <SettingsDialog
         onDataBackup={() => { setSettingsOpen(false); setDataBackupOpen(true); }}
         onClose={() => setSettingsOpen(false)}
         onGoogleCalendar={()=>{setSettingsOpen(false);setGoogleCalendarOpen(true);}}
+        onAgentKeys={() => { setSettingsOpen(false); setAgentKeysOpen(true); }}
         onSync={() => { setSettingsChild('sync'); setSettingsOpen(false); setSyncOpen(true); }}
         onAppearance={() => { setSettingsChild('appearance'); setSettingsOpen(false); setAppearanceOpen(true); }}
         reminders={typeof Notification === 'undefined' ? 'unsupported' : Notification.permission === 'denied' ? 'blocked' : remindOn ? 'on' : 'off'}

@@ -15,6 +15,7 @@ from pydantic import BaseModel, Field
 
 from .auth import current_user, hash_password, new_token, verify_password
 from .db import get_conn, init_db
+from .agent import init_agent_db, router as agent_router
 from .gcal import router as gcal_router
 
 COLLECTIONS = {"tasks", "projects", "tags", "habits", "habitLogs", "goals", "notes", "journal"}
@@ -23,6 +24,7 @@ COLLECTIONS = {"tasks", "projects", "tags", "habits", "habitLogs", "goals", "not
 @asynccontextmanager
 async def lifespan(_app: FastAPI):
     init_db()
+    init_agent_db()
     yield
 
 
@@ -35,6 +37,7 @@ app.add_middleware(
 )
 
 app.include_router(gcal_router)
+app.include_router(agent_router)
 
 
 class Credentials(BaseModel):

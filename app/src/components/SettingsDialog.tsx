@@ -1,4 +1,4 @@
-import { X, Cloud, Palette, Bell, BookOpen } from 'lucide-react';
+import { X, Cloud, Palette, Bell, BookOpen, KeyRound } from 'lucide-react';
 import { useDialogFocus } from '../hooks/useDialogFocus';
 import './SettingsDialog.css';
 import { STYLES, getStyle, getTheme } from '../theme';
@@ -9,6 +9,7 @@ export default function SettingsDialog(props: {
   onDataBackup?: () => void;
   onAppearance: () => void;
   onGoogleCalendar?: () => void;
+  onAgentKeys?: () => void;
   reminders: 'on' | 'off' | 'blocked' | 'unsupported';
   onToggleReminders: () => void;
   notificationError?: string;
@@ -30,6 +31,7 @@ export default function SettingsDialog(props: {
         <button className="settings-row" onClick={props.onSync}><Cloud size={19} /><span><strong>Sync</strong><small>Connect to your self-hosted server</small></span><span aria-hidden="true">→</span></button>
         <button className="settings-row" onClick={props.onAppearance}><Palette size={19} /><span><strong>Appearance</strong><small>Style, mode, fonts and wallpaper</small><small className="settings-current-appearance" aria-hidden="true">{STYLES.find(s => s.id === getStyle())?.name} · {getTheme() === 'system' ? 'System mode' : `${getTheme()} mode`}</small></span><span aria-hidden="true">→</span></button>
         {props.onGoogleCalendar && <button className="settings-row" onClick={props.onGoogleCalendar}><Cloud size={19}/><span><strong>Google Calendar</strong><small>Optional read-only events, using your self-hosted server</small></span><span aria-hidden="true">→</span></button>}
+        {props.onAgentKeys && <button className="settings-row" onClick={props.onAgentKeys}><KeyRound size={19}/><span><strong>Agent API keys</strong><small>Let AI agents read or change your data through your server</small></span><span aria-hidden="true">→</span></button>}
         </section>
         <section className="settings-group" aria-labelledby="settings-notifications-heading">
         <h3 id="settings-notifications-heading">Notifications</h3>

@@ -14,3 +14,13 @@
   .settings-panel .settings-row > svg { width: 17px; }
   .settings-panel .settings-state { min-width: 0; padding: 4px 5px; }
 }
+
+.agent-key-token {
+  display: block;
+  word-break: break-all;
+  user-select: all;
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: var(--surface-2, rgba(127, 127, 127, 0.12));
+  font-size: 13px;
+}
