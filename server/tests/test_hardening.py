@@ -99,7 +99,8 @@ def test_login_throttle_backs_off_then_recovers(client):
 
 
 def test_throttle_is_per_client_ip_with_trusted_proxy(client, monkeypatch):
-    monkeypatch.setenv("SYNC_TRUSTED_PROXY", "1")
+    monkeypatch.setenv("SYNC_TRUSTED_PROXY_HOPS", "1")
+    monkeypatch.setenv("SYNC_TRUSTED_PROXY_IPS", "testclient")
     username, _ = register(client)
     attacker = {"x-forwarded-for": "203.0.113.9"}
     for _ in range(6):
@@ -110,6 +111,99 @@ def test_throttle_is_per_client_ip_with_trusted_proxy(client, monkeypatch):
     assert client.post("/api/login", json={"username": username, "password": "wrong password"}, headers=elsewhere).status_code == 401
     r = client.post("/api/login", json={"username": username, "password": "correct horse battery staple"}, headers=elsewhere)
     assert r.status_code == 200
+
+
+def test_trusted_proxy_uses_outermost_recorded_client(client, monkeypatch):
+    # Append-style proxies (stock nginx $proxy_add_x_forwarded_for): the
+    # attacker controls everything left of the entry the proxy appended.
+    monkeypatch.setenv("SYNC_TRUSTED_PROXY_HOPS", "1")
+    monkeypatch.setenv("SYNC_TRUSTED_PROXY_IPS", "testclient")
+    username, _ = register(client)
+    # Rotating the leftmost entries must not mint new throttle keys.
+    codes = [
+        client.post("/api/login", json={"username": username, "password": "wrong password"},
+                    headers={"x-forwarded-for": f"10.0.0.{i}, 203.0.113.9"}).status_code
+        for i in range(8)
+    ]
+    assert codes == [401] * 6 + [429] * 2
+    n = get_conn().execute(
+        "SELECT COUNT(*) AS n FROM login_throttle WHERE username = ?", (username,)
+    ).fetchone()["n"]
+    assert n == 1
+
+
+def test_trusted_proxy_multi_hop_skips_proxy_entries(client, monkeypatch):
+    monkeypatch.setenv("SYNC_TRUSTED_PROXY_HOPS", "2")
+    monkeypatch.setenv("SYNC_TRUSTED_PROXY_IPS", "testclient")
+    username, _ = register(client)
+    chain = {"x-forwarded-for": "198.51.100.7, 203.0.113.9, 192.0.2.1"}
+    for _ in range(6):
+        assert client.post("/api/login", json={"username": username, "password": "wrong password"}, headers=chain).status_code == 401
+    assert client.post("/api/login", json={"username": username, "password": "wrong password"}, headers=chain).status_code == 429
+    # A shorter chain than the configured hops cannot spoof: keyed by peer.
+    short = {"x-forwarded-for": "203.0.113.9"}
+    assert client.post("/api/login", json={"username": username, "password": "wrong password"}, headers=short).status_code == 401
+
+
+def test_untrusted_peer_cannot_supply_xff(client, monkeypatch):
+    # Hops configured, but the direct peer is not a trusted proxy: XFF is
+    # ignored entirely, so rotating it neither resets nor multiplies keys.
+    monkeypatch.setenv("SYNC_TRUSTED_PROXY_HOPS", "1")
+    monkeypatch.setenv("SYNC_TRUSTED_PROXY_IPS", "10.9.9.9")
+    username, _ = register(client)
+    codes = [
+        client.post("/api/login", json={"username": username, "password": "wrong password"},
+                    headers={"x-forwarded-for": f"10.1.2.{i}"}).status_code
+        for i in range(8)
+    ]
+    assert codes == [401] * 6 + [429] * 2
+    n = get_conn().execute(
+        "SELECT COUNT(*) AS n FROM login_throttle WHERE username = ?", (username,)
+    ).fetchone()["n"]
+    assert n == 1
+
+
+def test_xff_ignored_by_default(client):
+    username, _ = register(client)
+    codes = [
+        client.post("/api/login", json={"username": username, "password": "wrong password"},
+                    headers={"x-forwarded-for": f"10.2.3.{i}"}).status_code
+        for i in range(8)
+    ]
+    assert codes == [401] * 6 + [429] * 2
+    n = get_conn().execute(
+        "SELECT COUNT(*) AS n FROM login_throttle WHERE username = ?", (username,)
+    ).fetchone()["n"]
+    assert n == 1
+
+
+def test_full_table_still_throttles_unseen_keys(client, monkeypatch):
+    import app.main as main_mod
+    monkeypatch.setattr(main_mod, "THROTTLE_MAX_ROWS", 3)
+    # Fill the table with junk single guesses (un-armed rows).
+    for i in range(5):
+        client.post("/api/login", json={"username": f"junk-{i}", "password": "wrong password"})
+    # A brand-new key at a full table is recorded and throttled normally.
+    victim, _ = register(client)
+    codes = [
+        client.post("/api/login", json={"username": victim, "password": "wrong password"}).status_code
+        for _ in range(7)
+    ]
+    assert codes == [401] * 6 + [429]
+    n = get_conn().execute("SELECT COUNT(*) AS n FROM login_throttle").fetchone()["n"]
+    assert n <= 3
+
+
+def test_armed_rows_survive_junk_spray_eviction(client, monkeypatch):
+    import app.main as main_mod
+    monkeypatch.setattr(main_mod, "THROTTLE_MAX_ROWS", 3)
+    victim, _ = register(client)
+    for _ in range(6):
+        assert client.post("/api/login", json={"username": victim, "password": "wrong password"}).status_code == 401
+    for i in range(10):
+        client.post("/api/login", json={"username": f"spray-{i}", "password": "wrong password"})
+    # The armed victim row is never the eviction victim of un-armed junk.
+    assert client.post("/api/login", json={"username": victim, "password": "wrong password"}).status_code == 429
 
 
 def test_throttle_table_growth_is_bounded(client, monkeypatch):

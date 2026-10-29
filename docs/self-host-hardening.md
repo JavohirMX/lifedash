@@ -38,14 +38,37 @@ in docker-compose.yml) and point the app's Settings -> Sync at
   the password check. Keying by address means spraying a known username
   from one place never throttles the same user signing in from another;
   the stated tradeoff is that from a throttled address even the correct
-  password waits out the backoff. A success clears the counter, idle
-  rows are pruned after 24h and the table is hard-capped (10k rows)
-  against junk-username growth. Existing session tokens are never
-  affected by login failures. X-Forwarded-For is honored only with
-  SYNC_TRUSTED_PROXY=1 (set it when Caddy/nginx terminates TLS on the
-  same host); without it, the proxy's address is the key for everyone,
-  which is safe but shared. Unknown usernames pay the same
-  password-hashing cost as known ones.
+  password waits out the backoff. A success clears the counter. Existing
+  session tokens are never affected by login failures. Unknown usernames
+  pay the same password-hashing cost as known ones. Idle rows are pruned
+  after 24h and the table is hard-capped (10k rows); at the cap the
+  oldest un-armed rows are evicted, so a full table never turns
+  throttling OFF for a new key.
+
+  Client-IP resolution behind a proxy: X-Forwarded-For is honored only
+  when SYNC_TRUSTED_PROXY_HOPS is set to the number of trusted proxies
+  in front AND the direct peer is a trusted proxy address (loopback, or
+  listed in SYNC_TRUSTED_PROXY_IPS). The client is then the entry the
+  outermost trusted proxy recorded - the hops-th entry from the right.
+  Entries further left are client-controlled and never used, so
+  spoofing the header neither resets nor multiplies throttle keys.
+  Caddy's reverse proxy replaces the inbound X-Forwarded-For by
+  default, so hops=1 is correct as-is; stock nginx APPENDS
+  ($proxy_add_x_forwarded_for), which is also correct with hops=1
+  because the entry nginx appends is the rightmost one - but only if
+  clients cannot reach the app port directly, so bind the app to
+  loopback or firewall it off. Anyone reaching the app directly is
+  keyed by their real peer address, which stays throttled per address.
+  With hops unset, X-Forwarded-For is ignored and the socket peer is
+  the key; behind an unconfigured proxy that collapses to one shared
+  key per username - safe, just shared.
+
+  Stated limit: keys are per address, so an attacker rotating many
+  source addresses (botnets, IPv6 ranges) is bounded per address, not
+  globally. For a personal single-user server with a long random
+  password this is the deliberate stopping point; a global per-username
+  ceiling was considered and left out, because it would let a
+  distributed attacker slow the owner's own login.
 - Request bodies: JSON endpoints reject a declared Content-Length above
   SYNC_MAX_BODY_MB (default 10) with 413 before parsing, and bodies
   sent without a Content-Length (chunked) are counted while streaming
@@ -68,7 +91,8 @@ in docker-compose.yml) and point the app's Settings -> Sync at
 | SYNC_OPEN_REGISTRATION | 0 | 1 re-opens registration |
 | SYNC_MAX_BODY_MB | 10 | JSON request body cap (MB) |
 | SYNC_CORS_ORIGINS | * | comma-separated allowed browser origins |
-| SYNC_TRUSTED_PROXY | 0 | 1 trusts X-Forwarded-For for throttle keys |
+| SYNC_TRUSTED_PROXY_HOPS | 0 | number of trusted proxies in front; 0 ignores X-Forwarded-For |
+| SYNC_TRUSTED_PROXY_IPS | loopback | extra comma-separated proxy peer addresses allowed to supply X-Forwarded-For |
 | SYNC_ATTACHMENT_QUOTA_MB | 200 | total attachment bytes, incl. deleted |
 | SYNC_ATTACHMENT_MAX_FILE_MB | 25 | per-file upload cap |
 

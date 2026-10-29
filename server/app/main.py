@@ -163,31 +163,64 @@ def register(creds: Credentials):
 # Login throttling that actually throttles: the check runs BEFORE the
 # password verification, so rejected guesses cost no PBKDF2 work. Keys are
 # (username, client IP): spraying a known username from one address never
-# touches the same user signing in from another. X-Forwarded-For is trusted
-# only when SYNC_TRUSTED_PROXY=1 (behind Caddy/nginx on the same host);
-# otherwise the socket peer is used, which behind an unconfigured proxy
-# collapses to one key per username - safe, just shared.
+# touches the same user signing in from another.
 #
-# Tradeoff, stated plainly: from a throttled (username, IP) pair, even the
-# correct password waits out the backoff (429 + Retry-After, capped at 15
-# minutes, doubling from 2s). A success clears the counter. Existing
-# session tokens are never affected - login failures do not invalidate
-# tokens, so already-connected devices keep working throughout.
+# Client-IP resolution: X-Forwarded-For is honored only when
+# SYNC_TRUSTED_PROXY_HOPS > 0 AND the direct socket peer is a trusted
+# proxy (loopback, or listed in SYNC_TRUSTED_PROXY_IPS). The client is the
+# entry the outermost trusted proxy recorded: the hops-th entry from the
+# right. Left-side entries are attacker-controlled and never used. With
+# hops unset, XFF is ignored and the socket peer is the key, which behind
+# an unconfigured proxy collapses to one key per username - safe, just
+# shared.
+#
+# Resource bounds: idle rows are pruned after 24h and the table is capped
+# (10k rows); at the cap the oldest un-armed rows are evicted so a full
+# table never switches throttling OFF for a new key.
+#
+# Tradeoffs, stated plainly: from a throttled (username, IP) pair, even
+# the correct password waits out the backoff (429 + Retry-After, capped
+# at 15 minutes, doubling from 2s). A success clears the counter. An
+# attacker rotating many source addresses is bounded per address, not
+# globally; see docs/self-host-hardening.md. Existing session tokens are
+# never affected - login failures do not invalidate tokens, so
+# already-connected devices keep working throughout.
 THROTTLE_FREE_ATTEMPTS = 5
 THROTTLE_MAX_DELAY_S = 900
 THROTTLE_IDLE_S = 24 * 60 * 60
 THROTTLE_MAX_ROWS = 10_000
 
 
+_LOOPBACK_PEERS = {"127.0.0.1", "::1", "localhost"}
+
+
+def _trusted_hops() -> int:
+    try:
+        return max(0, int(os.environ.get("SYNC_TRUSTED_PROXY_HOPS", "0")))
+    except ValueError:
+        return 0
+
+
+def _trusted_peers() -> set[str]:
+    raw = os.environ.get("SYNC_TRUSTED_PROXY_IPS", "")
+    return _LOOPBACK_PEERS | {p.strip() for p in raw.split(",") if p.strip()}
+
+
+def _client_ip(request: Request) -> str:
+    peer = request.client.host if request.client else "unknown"
+    hops = _trusted_hops()
+    if hops > 0 and peer in _trusted_peers():
+        xff = request.headers.get("x-forwarded-for", "")
+        chain = [h.strip() for h in xff.split(",") if h.strip()]
+        if len(chain) >= hops:
+            # The rightmost hops-1 entries are the trusted proxies
+            # themselves; the client is the entry just left of them.
+            return chain[len(chain) - hops]
+    return peer
+
+
 def _throttle_key(request: Request, username: str) -> tuple[str, str]:
-    ip = "unknown"
-    if os.environ.get("SYNC_TRUSTED_PROXY", "0") == "1":
-        xff = request.headers.get("x-forwarded-for")
-        if xff:
-            ip = xff.split(",")[0].strip()
-    if ip == "unknown" and request.client:
-        ip = request.client.host
-    return username, ip
+    return username, _client_ip(request)
 
 
 def _throttle_check(conn, username: str, ip: str) -> None:
@@ -216,8 +249,15 @@ def _throttle_failed(conn, username: str, ip: str) -> None:
             conn.execute("DELETE FROM login_throttle WHERE ? - window_start > ?", (now, THROTTLE_IDLE_S))
             n = conn.execute("SELECT COUNT(*) AS n FROM login_throttle").fetchone()["n"]
             if n >= THROTTLE_MAX_ROWS:
-                conn.commit()
-                return
+                # A full table must never switch throttling OFF for a new
+                # key: evict the oldest un-armed rows (single junk guesses)
+                # first, armed rows only when nothing else is left.
+                excess = n - THROTTLE_MAX_ROWS + 1
+                conn.execute(
+                    "DELETE FROM login_throttle WHERE rowid IN (SELECT rowid FROM login_throttle"
+                    " ORDER BY (fail_count > ?) ASC, MAX(window_start, next_allowed) ASC LIMIT ?)",
+                    (THROTTLE_FREE_ATTEMPTS, excess),
+                )
         fails, window_start = 1, now
     else:
         fails, window_start = row["fail_count"] + 1, row["window_start"]
