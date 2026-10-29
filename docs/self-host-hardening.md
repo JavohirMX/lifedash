@@ -45,6 +45,15 @@ in docker-compose.yml) and point the app's Settings -> Sync at
   oldest un-armed rows are evicted, so a full table never turns
   throttling OFF for a new key.
 
+  Launch requirement: run uvicorn with --no-proxy-headers, as every
+  shipped launch path does (Dockerfile CMD, systemd unit and dev
+  commands in SELFHOST.md/README.md, scripts/check-selfhost.py).
+  Uvicorn's default --proxy-headers handling trusts loopback and
+  rewrites the client address from the RAW X-Forwarded-For header
+  before the app sees it, which would bypass the trusted-peer checks
+  below. The app resolves X-Forwarded-For itself, under the explicit
+  hops/IPs configuration, and that is the only resolution that happens.
+
   Client-IP resolution behind a proxy: X-Forwarded-For is honored only
   when SYNC_TRUSTED_PROXY_HOPS is set to the number of trusted proxies
   in front AND the direct peer is a trusted proxy address (loopback, or
