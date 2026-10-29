@@ -1130,3 +1130,42 @@ def test_device_settings_hidden_from_project_scoped_keys(client):
     assert client.get("/api/agent/devices", headers=h).status_code == 403
     assert client.get("/api/agent/devices/dev-abcdefgh/settings", headers=h).status_code == 403
     assert client.put("/api/agent/devices/dev-abcdefgh/settings", json={"theme": "dark"}, headers=h).status_code == 403
+
+
+def test_device_settings_put_requires_live_device_and_nonempty_patch(client):
+    session = register(client)
+    seed_inbox(client, session)
+    key = make_key(client, session)
+    h = auth(key["token"])
+    device_id = "dev-" + uuid.uuid4().hex[:12]
+    # Unknown device: 404, and no phantom row is created.
+    assert client.put(f"/api/agent/devices/{device_id}/settings", json={"theme": "dark"}, headers=h).status_code == 404
+    assert client.get("/api/agent/devices", headers=h).json()["devices"] == []
+    # Malformed ids: 422 on PUT too, never a row.
+    for bad in ("short", "x" * 65, "ab cd efgh"):
+        assert client.put(f"/api/agent/devices/{bad}/settings", json={"theme": "dark"}, headers=h).status_code == 422
+    assert client.get("/api/agent/devices", headers=h).json()["devices"] == []
+
+    # Register the device through the sync push path.
+    r = client.post("/api/changes", headers=auth(session), json={"changes": [
+        {"collection": "deviceSettings", "id": device_id, "base_rev": 0, "deleted": False,
+         "data": {"id": device_id, "label": "Phone", "theme": "dark", "font": "plex"}}]})
+    assert r.json()["results"][0]["status"] == "ok", r.text
+
+    # Empty patch: 422, no timestamp bump.
+    before = client.get(f"/api/agent/devices/{device_id}/settings", headers=h).json()
+    assert client.put(f"/api/agent/devices/{device_id}/settings", json={}, headers=h).status_code == 422
+    after = client.get(f"/api/agent/devices/{device_id}/settings", headers=h).json()
+    assert after["updatedAt"] == before["updatedAt"]
+
+    # Soft-delete the device row (generic agent delete), then PUT: 404, no
+    # revival, and the tombstone keeps its payload.
+    lst = client.get("/api/agent/entities/deviceSettings", headers=h).json()
+    assert [i["id"] for i in lst["entities"]] == [device_id]
+    r = client.delete(f"/api/agent/entities/deviceSettings/{device_id}", headers=h)
+    assert r.status_code in (200, 204), r.text
+    assert client.put(f"/api/agent/devices/{device_id}/settings", json={"font": "mono"}, headers=h).status_code == 404
+    tomb = client.get(f"/api/agent/entities/deviceSettings/{device_id}?include_deleted=true", headers=h)
+    if tomb.status_code == 200:
+        data = tomb.json().get("data") or tomb.json().get("entity", {}).get("data") or {}
+        assert data.get("label") == "Phone"

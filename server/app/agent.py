@@ -614,11 +614,20 @@ def agent_get_device_settings(device_id: str, ctx: AgentCtx = Depends(agent_auth
 @router.put("/agent/devices/{device_id}/settings", dependencies=WRITE)
 def agent_put_device_settings(device_id: str, body: dict = Body(...), ctx: AgentCtx = Depends(agent_auth)):
     _scope_check_collection(ctx, "deviceSettings")
+    _check_device_id(device_id)
     patch = _validate_device_settings(body)
+    if not patch:
+        raise HTTPException(status_code=422, detail="empty update: no settings fields")
 
     def fn(conn):
+        # The device must exist and be live: unknown ids and tombstones are
+        # 404 (a deleted device re-registers from the app; explicit restore
+        # stays with the generic restore endpoint). No phantom rows, no
+        # silent revival dropping the tombstoned label/prefs.
         ent = _get(conn, ctx.user_id, "deviceSettings", device_id)
-        merged = {**(ent["data"] if ent else {}), **patch,
+        if ent is None:
+            raise HTTPException(status_code=404, detail="device not found")
+        merged = {**ent["data"], **patch,
                   "id": device_id, "updatedAt": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())}
         rev = _apply(conn, ctx.user_id, "deviceSettings", device_id, False, merged)
         _audit(conn, ctx, "settings.device", "deviceSettings", device_id, patch)
