@@ -7,6 +7,7 @@ the single place that resolves the client address. These tests boot the
 real server over a real socket and replay the spoof."""
 
 import contextlib
+import json
 import os
 import socket
 import sqlite3
@@ -134,3 +135,53 @@ def test_every_repo_launch_path_disables_uvicorn_proxy_headers():
                             f"{path} launches uvicorn without --no-proxy-headers: {line.strip()!r}"
                         )
     assert launches >= 7, f"expected at least 7 uvicorn launch lines, found {launches}"
+
+
+def test_concurrent_pushes_lose_nothing(db_path):
+    # 8 parallel clients push distinct changes for one user: all 200,
+    # all applied, server revs exactly 1..8, no 5xx under lock contention.
+    import threading
+
+    with real_server(db_path, extra_env={"SYNC_OPEN_REGISTRATION": "1"}) as port:
+        register_user(port, "conc")
+        results = {}
+
+        def worker(i):
+            payload = {"changes": [{"collection": "tasks", "id": f"task-{i}", "base_rev": 0,
+                                    "deleted": False, "data": {"title": f"t{i}"}}]}
+            req = urllib.request.Request(
+                f"http://127.0.0.1:{port}/api/changes",
+                data=json.dumps(payload).encode(),
+                headers={"Content-Type": "application/json", "Authorization": f"Bearer {token}"},
+                method="POST",
+            )
+            try:
+                with urllib.request.urlopen(req, timeout=30) as r:
+                    results[i] = (r.status, json.loads(r.read()))
+            except urllib.error.HTTPError as e:
+                results[i] = (e.code, {})
+
+        # register a session to push with
+        req = urllib.request.Request(
+            f"http://127.0.0.1:{port}/api/login",
+            data=b'{"username": "conc", "password": "correct horse battery staple"}',
+            headers={"Content-Type": "application/json"}, method="POST",
+        )
+        with urllib.request.urlopen(req, timeout=5) as r:
+            token = json.loads(r.read())["token"]
+
+        threads = [threading.Thread(target=worker, args=(i,)) for i in range(8)]
+        for t in threads:
+            t.start()
+        for t in threads:
+            t.join()
+
+        assert [results[i][0] for i in range(8)] == [200] * 8
+        assert all(results[i][1]["results"][0]["status"] == "ok" for i in range(8))
+
+        req = urllib.request.Request(f"http://127.0.0.1:{port}/api/changes?since=0",
+                                     headers={"Authorization": f"Bearer {token}"})
+        with urllib.request.urlopen(req, timeout=30) as r:
+            pulled = json.loads(r.read())
+        assert sorted(ch["id"] for ch in pulled["changes"]) == [f"task-{i}" for i in range(8)]
+        assert sorted(ch["rev"] for ch in pulled["changes"]) == list(range(1, 9))
