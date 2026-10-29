@@ -214,6 +214,7 @@ export function installSyncHooks(): void {
       // the syncmeta store. Escape the zone, then write.
       setTimeout(() => {
         void setMeta(dirtyKey(col, id), { deleted });
+        if (col === 'attachments') void resetAttachmentUploadFailure(id);
         scheduleSync();
       }, 0);
     };
@@ -233,11 +234,13 @@ export async function dirtyCount(): Promise<number> {
  * answers an identical re-upload idempotently. Returns false offline or on
  * refusal; the row stays local and the next sync's backfill retries.
  */
-export async function uploadAttachmentBlob(att: Pick<Attachment, 'id' | 'taskId' | 'name'> & { blob: Blob }): Promise<boolean> {
-  if (SAMPLE_MODE) return false;
+export type BlobUploadOutcome = 'ok' | 'transient' | 'permanent';
+
+export async function uploadAttachmentBlob(att: Pick<Attachment, 'id' | 'taskId' | 'name'> & { blob: Blob }): Promise<BlobUploadOutcome> {
+  if (SAMPLE_MODE) return 'permanent';
   try {
     const settings = loadSyncSettings();
-    if (!settings) return false;
+    if (!settings) return 'permanent';
     const base = settings.url.replace(/\/$/, '');
     const q = `task_id=${encodeURIComponent(att.taskId)}&filename=${encodeURIComponent(att.name)}&id=${encodeURIComponent(att.id)}`;
     const res = await fetch(`${base}/api/attachments?${q}`, {
@@ -245,17 +248,35 @@ export async function uploadAttachmentBlob(att: Pick<Attachment, 'id' | 'taskId'
       headers: { Authorization: `Bearer ${settings.token}`, 'Content-Type': att.blob.type || 'application/octet-stream' },
       body: att.blob,
     });
-    if (!res.ok) return false;
+    if (!res.ok) {
+      // Gone task / conflicting bytes / invalid id never heal by retrying;
+      // quota (413), auth hiccups and 5xx can.
+      return (res.status === 404 || res.status === 409 || res.status === 422) ? 'permanent' : 'transient';
+    }
     const body = (await res.json()) as { rev?: number };
     if (typeof body.rev === 'number') {
       await setMeta(revKey('attachments', att.id), body.rev);
       await db.syncmeta.delete(dirtyKey('attachments', att.id));
     }
     await db.attachments.update(att.id, { blobOnServer: true });
-    return true;
+    return 'ok';
   } catch {
-    return false;
+    return 'transient';
   }
+}
+
+interface BlobFailState { count: number; lastAt: number; permanent?: boolean }
+const BLOB_FAIL_KEY = (id: string) => `blobfail:${id}`;
+/** Transient failures back off exponentially up to this gap between tries. */
+const BLOB_BACKOFF_MAX_MS = 6 * 60 * 60 * 1000;
+
+async function blobFailState(id: string): Promise<BlobFailState> {
+  return ((await getMeta(BLOB_FAIL_KEY(id))) as BlobFailState | undefined) ?? { count: 0, lastAt: 0 };
+}
+
+/** Explicit retry path: a fresh local edit of the row clears its failure tally. */
+export async function resetAttachmentUploadFailure(id: string): Promise<void> {
+  await db.syncmeta.delete(BLOB_FAIL_KEY(id));
 }
 
 /** Blobs never ride the JSON sync protocol; metadata only. */
@@ -366,24 +387,32 @@ async function syncNowInner(settings: SyncSettings): Promise<SyncResult> {
   const pulled2 = await pull(base, headers);
   // Blob backfill: locally created attachments carry bytes only in Dexie.
   // Upload a few per sync so agents and other devices can download them.
-  // Per-row failure tallies live in syncmeta so a permanently failing blob
-  // (e.g. its task is gone server-side) stops blocking the queue.
-  const BLOB_FAIL_KEY = (id: string) => `blobfail:${id}`;
-  const BLOB_FAIL_GIVE_UP = 8;
+  // Failure handling: permanent refusals stop retrying (until the row is
+  // edited, which clears the tally); transient failures back off
+  // exponentially instead of burning every sync, and never strand the blob.
   try {
     const pending = await db.attachments
       .filter((a) => !!a.blob && a.blobOnServer !== true)
       .sortBy('createdAt');
     const eligible: (Attachment & { blob: Blob })[] = [];
     for (const a of pending) {
-      const fails = ((await getMeta(BLOB_FAIL_KEY(a.id))) as number | undefined) ?? 0;
-      if (fails < BLOB_FAIL_GIVE_UP) eligible.push(a as Attachment & { blob: Blob });
+      const st = await blobFailState(a.id);
+      if (st.permanent) continue;
+      const wait = Math.min(2 ** st.count * 60 * 1000, BLOB_BACKOFF_MAX_MS);
+      if (st.count > 0 && Date.now() - st.lastAt < wait) continue;
+      eligible.push(a as Attachment & { blob: Blob });
       if (eligible.length >= 5) break;
     }
     for (const a of eligible) {
-      const ok = await uploadAttachmentBlob(a);
-      if (ok) await db.syncmeta.delete(BLOB_FAIL_KEY(a.id));
-      else await setMeta(BLOB_FAIL_KEY(a.id), (((await getMeta(BLOB_FAIL_KEY(a.id))) as number | undefined) ?? 0) + 1);
+      const outcome = await uploadAttachmentBlob(a);
+      if (outcome === 'ok') {
+        await db.syncmeta.delete(BLOB_FAIL_KEY(a.id));
+      } else {
+        const st = await blobFailState(a.id);
+        await setMeta(BLOB_FAIL_KEY(a.id), {
+          count: st.count + 1, lastAt: Date.now(), permanent: outcome === 'permanent' || undefined,
+        });
+      }
     }
   } catch {
     /* older test doubles without an attachments table */

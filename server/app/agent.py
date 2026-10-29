@@ -1556,6 +1556,9 @@ async def upload_attachment(request: Request, task_id: str, filename: str, id: s
                 raise HTTPException(status_code=409, detail="an attachment with this id already exists")
             # Metadata arrived first (sync push) and no blob is on disk yet:
             # this upload completes the row the client already announced.
+            used = _disk_usage(user_id)
+            if used + len(body) > quota:
+                raise HTTPException(status_code=413, detail=f"attachment quota ({quota // (1024 * 1024)} MB) exceeded, including retained deleted files")
             completed = {**existing, "sha256": digest, "byteSize": len(body),
                          "blobOnServer": True,
                          "name": existing.get("name") or filename,

@@ -311,11 +311,31 @@ describe('sync edit-edit conflicts', () => {
       id: 'OK1', taskId: 't1', name: 'ok.txt', mime: 'text/plain', byteSize: 2,
       blob: { size: 2, type: 'text/plain' }, createdAt: 2,
     });
-    meta.set('blobfail:BAD', 8); // already gave up
+    meta.set('blobfail:BAD', { count: 1, lastAt: Date.now(), permanent: true }); // refused for good
 
     mockFetch({ changesResponses: [{ changes: [], rev: 0 }, { changes: [], rev: 1 }] });
     await syncNow(settings);
     expect(blobUploads.map((u) => u.id)).toEqual(['OK1']); // BAD skipped, OK1 delivered
+  });
+
+  it('transient failures back off, then retry after the backoff elapses', async () => {
+    tables.get('attachments') ?? tables.set('attachments', new Map());
+    const row = {
+      id: 'FLAKY', taskId: 't1', name: 'f.txt', mime: 'text/plain', byteSize: 2,
+      blob: { size: 2, type: 'text/plain' }, createdAt: 1,
+    };
+    tables.get('attachments')!.set('FLAKY', row);
+    // Two recent transient failures: still inside the backoff window, skipped.
+    meta.set('blobfail:FLAKY', { count: 2, lastAt: Date.now() });
+    mockFetch({ changesResponses: [{ changes: [], rev: 0 }, { changes: [], rev: 1 }] });
+    await syncNow(settings);
+    expect(blobUploads).toEqual([]);
+    // Backoff elapsed: retried and delivered.
+    meta.set('blobfail:FLAKY', { count: 2, lastAt: Date.now() - 10 * 60 * 1000 });
+    mockFetch({ changesResponses: [{ changes: [], rev: 0 }, { changes: [], rev: 1 }] });
+    await syncNow(settings);
+    expect(blobUploads.map((u) => u.id)).toEqual(['FLAKY']);
+    expect(meta.get('blobfail:FLAKY')).toBeUndefined(); // tally cleared on success
   });
 
   it('attachment pushes carry metadata only, never the blob', async () => {

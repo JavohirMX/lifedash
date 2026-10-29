@@ -1031,3 +1031,28 @@ def test_metadata_push_then_blob_upload_completes_row(client):
     r3 = client.post(f"/api/attachments?task_id={t['id']}&filename=x&id=att-race2",
                      content=b"z", headers=h)
     assert r3.status_code == 409
+
+
+def test_quota_covers_metadata_completion_path(client, monkeypatch):
+    """Round-7 defect: the metadata-completion branch must enforce quota too."""
+    monkeypatch.setenv("SYNC_ATTACHMENT_QUOTA_MB", "1")
+    session = register(client)
+    seed_inbox(client, session)
+    h = auth(session)
+    key = make_key(client, session)
+    t = client.post("/api/agent/tasks", json={"title": "host"}, headers=auth(key["token"])).json()
+    blob = b"x" * (900 * 1024)
+    # Free-form metadata rows first, then blob uploads against them.
+    for i in range(3):
+        r = client.post("/api/changes", headers=h, json={"changes": [
+            {"collection": "attachments", "id": f"m{i}", "base_rev": 0,
+             "data": {"id": f"m{i}", "taskId": t["id"], "name": "f", "mime": "text/plain", "byteSize": 1}}]})
+        assert r.json()["results"][0]["status"] == "ok"
+    r1 = client.post(f"/api/attachments?task_id={t['id']}&filename=f&id=m0", content=blob, headers=h)
+    assert r1.status_code == 201, r1.text
+    r2 = client.post(f"/api/attachments?task_id={t['id']}&filename=f&id=m1", content=blob, headers=h)
+    assert r2.status_code == 413, r2.text  # cap hit on the completion path
+    assert client.get("/api/attachments/m1/content", headers=h).status_code == 404
+    # Fresh-upload path still enforces as before
+    r3 = client.post(f"/api/attachments?task_id={t['id']}&filename=f&id=m2", content=blob, headers=h)
+    assert r3.status_code == 413, r3.text
