@@ -5,6 +5,7 @@ export function syncFailureMessage(error:unknown,action:'login'|'register'|'sync
  const message=error instanceof Error?error.message:String(error);
  if(message==='Failed to fetch'||/NetworkError|Load failed/i.test(message))return "Couldn't reach the server. Check the Server URL and that the server is running and allows this app to connect, then try again.";
  const status=message.match(/(?:login|register) failed: (\d{3})/);const code=Number(status?.[1]);
+ if(action==='sync'&&/(?:push|pull) failed: 401/.test(message))return "The server did not accept this device's sign-in. Disconnect and sign in again to keep syncing. Your local data is still here.";
  if(code===401)return 'Sign-in was not accepted. Check your username and password, then try again.';
  if(code===403&&action==='register')return 'Account creation is closed on this server. Sign in with the existing account, or check the self-host setup guide.';
  if(code===409&&action==='register')return 'This username is already in use. Sign in, or choose another username.';

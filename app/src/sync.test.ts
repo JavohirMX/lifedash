@@ -280,6 +280,21 @@ describe('sync edit-edit conflicts', () => {
     expect(loadSyncStatus()?.summary).toBe('pushed 0, pulled 0');
   });
 
+  it('a failed sync replaces the stale success status with an honest failure', async () => {
+    // An earlier success is on record.
+    mockFetch({ changesResponses: [{ changes: [], rev: 0 }, { changes: [], rev: 0 }] });
+    await syncNow(settings);
+    expect(loadSyncStatus()?.ok).toBe(true);
+    // The server then rejects the token: the persisted status must say so,
+    // in user-safe wording, instead of keeping the stale success.
+    vi.stubGlobal('fetch', vi.fn(async () => ({ ok: false, status: 401, text: async () => '{"detail":"invalid token"}' }) as Response));
+    await expect(syncNow(settings)).rejects.toThrow();
+    const st = loadSyncStatus();
+    expect(st?.ok).toBe(false);
+    expect(st?.summary).toContain('sign in');
+    expect(st?.summary).not.toContain('invalid token');
+  });
+
   it('does not record a notice when a sync has no conflicts', async () => {
     mockFetch({ changesResponses: [{ changes: [], rev: 0 }, { changes: [], rev: 0 }], pushResults: [] });
     const r = await syncNow(settings);

@@ -1,4 +1,5 @@
 import { SAMPLE_MODE } from './dev/sampleMode';
+import { syncFailureMessage } from './syncFormFeedback';
 import { db } from './db';
 import { refreshAutomationFromSync } from './automation';
 import { applyRemoteSettings, getDeviceId } from './deviceSettings';
@@ -182,7 +183,7 @@ async function runAutoSync(): Promise<void> {
     const r = await syncNow(settings); // syncNow owns the in-flight guard
     saveSyncStatus({ at: Date.now(), ok: true, summary: await summaryWithNotice(r) });
   } catch (e) {
-    saveSyncStatus({ at: Date.now(), ok: false, summary: e instanceof Error ? e.message : String(e) });
+    saveSyncStatus({ at: Date.now(), ok: false, summary: syncFailureMessage(e, 'sync') });
     console.warn('auto-sync failed', e);
   }
 }
@@ -401,6 +402,10 @@ export async function syncNow(settings: SyncSettings, opts?: { retryFailedUpload
     const r = await syncNowInner(settings);
     saveSyncStatus({ at: Date.now(), ok: true, summary: await summaryWithNotice(r) });
     return r;
+  } catch (e) {
+    // A thrown sync must not leave the last success standing as if current.
+    saveSyncStatus({ at: Date.now(), ok: false, summary: syncFailureMessage(e, 'sync') });
+    throw e;
   } finally {
     syncing = false;
   }
