@@ -460,6 +460,30 @@ describe('sync edit-edit conflicts', () => {
     expect(tally.permanent).toBe(true);
   });
 
+  it('structured per-file-size 413 needs attention; quota and plain 413 stay transient', async () => {
+    tables.get('attachments') ?? tables.set('attachments', new Map());
+    tables.get('attachments')!.set('BIG', {
+      id: 'BIG', taskId: 't1', name: 'big.bin', mime: 'application/octet-stream', byteSize: 3,
+      blob: { size: 3, type: 'application/octet-stream' }, createdAt: 1,
+    });
+    const stub413 = (body: unknown) => vi.stubGlobal('fetch', vi.fn(async (url: string, init?: RequestInit) => {
+      if (String(url).includes('/api/attachments?') && init?.method === 'POST') {
+        return { ok: false, status: 413, json: async () => body } as Response;
+      }
+      throw new Error(`unexpected fetch ${url}`);
+    }));
+    // New server: machine-readable per-file-size refusal needs attention.
+    stub413({ detail: { reason: 'attachment_file_too_large', max_file_mb: 1 } });
+    expect(await uploadAttachmentBlob(tables.get('attachments')!.get('BIG') as never)).toBe('permanent');
+    // Old server: plain-string detail stays transient (no prose parsing).
+    stub413({ detail: 'file exceeds the 1 MB per-file limit' });
+    expect(await uploadAttachmentBlob(tables.get('attachments')!.get('BIG') as never)).toBe('transient');
+    // Quota refusals stay transient even with the new structured shape:
+    // freed space heals them without user attention on this file.
+    stub413({ detail: { reason: 'attachment_quota_exceeded', quota_mb: 200 } });
+    expect(await uploadAttachmentBlob(tables.get('attachments')!.get('BIG') as never)).toBe('transient');
+  });
+
   it('saving sync settings clears stale upload-failure tallies', async () => {
     meta.set('blobfail:X1', { count: 2, lastAt: Date.now(), permanent: true });
     saveSyncSettings(settings);

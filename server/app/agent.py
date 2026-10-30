@@ -1662,7 +1662,10 @@ async def upload_attachment(request: Request, task_id: str, filename: str, id: s
     async for chunk in request.stream():
         chunks += chunk
         if len(chunks) > max_file:
-            raise HTTPException(status_code=413, detail=f"file exceeds the {max_file // (1024 * 1024)} MB per-file limit")
+            # Machine-readable reason: per-file-size refusals need attention
+            # (automatic retry cannot help until server config changes),
+            # unlike storage-quota 413s, which can heal when space frees.
+            raise HTTPException(status_code=413, detail={"reason": "attachment_file_too_large", "max_file_mb": max_file // (1024 * 1024)})
     body = bytes(chunks)
     if not body:
         raise HTTPException(status_code=422, detail="empty upload")
@@ -1694,7 +1697,7 @@ async def upload_attachment(request: Request, task_id: str, filename: str, id: s
             # this upload completes the row the client already announced.
             used = _disk_usage(user_id)
             if used + len(body) > quota:
-                raise HTTPException(status_code=413, detail=f"attachment quota ({quota // (1024 * 1024)} MB) exceeded, including retained deleted files")
+                raise HTTPException(status_code=413, detail={"reason": "attachment_quota_exceeded", "quota_mb": quota // (1024 * 1024)})
             completed = {**existing, "sha256": digest, "byteSize": len(body),
                          "blobOnServer": True,
                          "name": existing.get("name") or filename,
@@ -1713,7 +1716,7 @@ async def upload_attachment(request: Request, task_id: str, filename: str, id: s
         # from real files: client-pushed byteSize metadata is untrusted.
         used = _disk_usage(user_id)
         if used + len(body) > quota:
-            raise HTTPException(status_code=413, detail=f"attachment quota ({quota // (1024 * 1024)} MB) exceeded, including retained deleted files")
+            raise HTTPException(status_code=413, detail={"reason": "attachment_quota_exceeded", "quota_mb": quota // (1024 * 1024)})
         att = {"id": att_id, "taskId": task_id, "name": filename, "mime": mime,
                "byteSize": len(body), "sha256": digest, "createdAt": _now_ms(),
                "blobOnServer": True}

@@ -276,9 +276,16 @@ export async function uploadAttachmentBlob(att: Pick<Attachment, 'id' | 'taskId'
       body: att.blob,
     });
     if (!res.ok) {
-      // Gone task / conflicting bytes / invalid id never heal by retrying;
-      // quota (413), auth hiccups and 5xx can.
-      return (res.status === 404 || res.status === 409 || res.status === 422) ? 'permanent' : 'transient';
+      // Gone task / conflicting bytes / invalid id need attention, not
+      // automatic retry; auth hiccups and 5xx can heal by retrying.
+      if (res.status === 404 || res.status === 409 || res.status === 422) return 'permanent';
+      // 413 splits two ways: quota refusals heal when space frees (stay
+      // transient), while per-file-size refusals need attention until the
+      // server limit changes. Newer servers say which with a structured
+      // reason; older servers send a plain-string detail, which stays
+      // transient - never parse prose.
+      if (res.status === 413 && await isFileTooLargeRefusal(res)) return 'permanent';
+      return 'transient';
     }
     const body = (await res.json()) as { rev?: number };
     if (typeof body.rev === 'number') {
@@ -289,6 +296,16 @@ export async function uploadAttachmentBlob(att: Pick<Attachment, 'id' | 'taskId'
     return 'ok';
   } catch {
     return 'transient';
+  }
+}
+
+/** Structured per-file-size refusal from newer servers; anything else is not. */
+async function isFileTooLargeRefusal(res: Response): Promise<boolean> {
+  try {
+    const body = (await res.json()) as { detail?: unknown };
+    return (body?.detail as { reason?: unknown } | undefined)?.reason === 'attachment_file_too_large';
+  } catch {
+    return false;
   }
 }
 

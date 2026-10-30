@@ -670,7 +670,11 @@ def test_attachments_upload_download_delete_restore(client, monkeypatch, tmp_pat
     # Unknown task / oversized / empty are refused.
     assert client.post("/api/attachments?task_id=ghost&filename=x", content=b"x", headers=h).status_code == 422
     big = b"x" * (1024 * 1024 + 1)
-    assert client.post(f"/api/attachments?task_id={t['id']}&filename=big", content=big, headers=h).status_code == 413
+    r_big = client.post(f"/api/attachments?task_id={t['id']}&filename=big", content=big, headers=h)
+    assert r_big.status_code == 413
+    # Machine-readable reason: per-file-size refusals need attention, unlike
+    # storage-quota 413s which can heal when space frees.
+    assert r_big.json()["detail"] == {"reason": "attachment_file_too_large", "max_file_mb": 1}
     assert client.post(f"/api/attachments?task_id={t['id']}&filename=e", content=b"", headers=h).status_code == 422
     # Delete tombstones the metadata, keeps the blob; restore recovers both.
     client.delete(f"/api/attachments/{att['id']}", headers=h)
@@ -753,6 +757,7 @@ def test_attachment_quota_counts_retained_blobs(client, monkeypatch):
     # Live bytes are 0, but the retained blob still occupies disk: refuse.
     r2 = client.post(f"/api/attachments?task_id={t['id']}&filename=b", content=blob, headers=h)
     assert r2.status_code == 413, r2.text
+    assert r2.json()["detail"] == {"reason": "attachment_quota_exceeded", "quota_mb": 1}
 
 
 def test_task_delete_cascades_attachments_and_restore_recovers(client):
