@@ -1841,6 +1841,16 @@ main.schedule-main { max-width: 1280px; width: 100%; min-width: 0; }
 :root[data-style='playful-geometric'] :is(.btn-primary, .btn-secondary, .mini)[aria-disabled='true'] {
   transform: none; box-shadow: none;
 }
+/* Reduced motion: keep the color/shadow state changes, drop the lift/press travel. */
+@media (prefers-reduced-motion: reduce) {
+  :root[data-style='playful-geometric'] :is(.btn-primary, .btn-secondary, .mini) {
+    transition: background-color 180ms, border-color 180ms;
+  }
+  :root[data-style='playful-geometric'] :is(.btn-primary, .btn-secondary, .mini):hover:not(:disabled):not([aria-disabled='true']),
+  :root[data-style='playful-geometric'] :is(.btn-primary, .btn-secondary, .mini):active:not(:disabled) {
+    transform: none;
+  }
+}
 /* Detail-width (2px) outlined surfaces; selection = pale-violet fill + violet offset (source). */
 :root[data-style='playful-geometric'] .task-row { border-width: 2px; }
 :root[data-style='playful-geometric'] .widget { border-width: 2px; box-shadow: var(--shadow-card); }
@@ -2155,6 +2165,20 @@ main.schedule-main { max-width: 1280px; width: 100%; min-width: 0; }
 :root[data-style='retro'] .app { border: none; }
 
 /* ---- Sketch (designprompts.dev) ---- */
+/* Self-hosted handwriting faces for the Sketch style (MIT license,
+   see app/public/fonts/WORKINGSHEET-LICENSE.txt). Kept inside the Sketch
+   section so section-level splices cannot drop them. Only the Sketch
+   style references these families, so other styles never fetch them. */
+@font-face {
+  font-family: 'Sketch Working Marker';
+  src: url('/fonts/WorkingSheet-Marker.ttf') format('truetype');
+  font-weight: 700; font-style: normal; font-display: swap;
+}
+@font-face {
+  font-family: 'Sketch Working Hand';
+  src: url('/fonts/WorkingSheet-Hand.ttf') format('truetype');
+  font-weight: 400; font-style: normal; font-display: swap;
+}
 /* Source: designprompts.dev/sketch - warm working sheet, pencil ink, ballpoint-blue
    annotations, marker-red actions, highlighter-yellow marks, hard offset shadows.
    Handwriting faces "Sketch Working Marker"/"Sketch Working Hand" come from the shared
