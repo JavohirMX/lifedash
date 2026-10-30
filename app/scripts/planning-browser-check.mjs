@@ -1,0 +1,42 @@
+import {chromium} from 'playwright-core';
+import fs from 'node:fs';
+const b=await chromium.launch({executablePath:'/usr/bin/google-chrome',headless:true,args:['--no-sandbox']});
+const results=[];
+for(const width of [1440,390,320])for(const mode of ['light','dark']){
+ const p=await b.newPage({viewport:{width,height:1000},timezoneId:'Asia/Makassar'});const requests=[];p.on('request',r=>{if(!r.url().startsWith(process.env.BASE_URL??'http://127.0.0.1:4183')&&!r.url().startsWith('data:'))requests.push(r.url())});
+ await p.goto(`${process.env.BASE_URL??'http://127.0.0.1:4183'}/?sample`);await p.getByText('Set up the backup volume',{exact:true}).first().waitFor();
+ await p.evaluate(mode=>document.documentElement.dataset.theme=mode,mode);
+ if(width<500)await p.getByRole('button',{name:'Planner',exact:true}).first().click();else await p.locator('.sidebar').getByRole('button',{name:'Planner',exact:true}).click();
+ const date=await p.getByLabel('Planner date').inputValue();
+ await p.getByRole('button',{name:'Plan Review the weekly budget',exact:true}).click();
+ const form=p.locator('.planner-editor');await form.getByLabel('Planned start',{exact:true}).fill('10:00');await form.getByLabel('Estimate (minutes)',{exact:true}).fill('60');
+ if(!await p.getByText('Not planned · estimate not set',{exact:true}).first().isVisible())throw Error('draft prematurely saved');
+ await p.evaluate(async()=>{const {db}=await import('/src/db.ts');window.failPlan=()=>{throw Error('synthetic write failure')};db.tasks.hook('updating',window.failPlan)});
+ await form.getByRole('button',{name:'Save plan',exact:true}).click();await form.getByRole('alert').waitFor();if(await form.getByLabel('Planned start',{exact:true}).inputValue()!=='10:00')throw Error('failed save lost draft');
+ await p.evaluate(async()=>{const {db}=await import('/src/db.ts');db.tasks.hook('updating').unsubscribe(window.failPlan)});
+ await form.getByRole('button',{name:'Save plan',exact:true}).click();await p.getByText('Work 10:00 · 60m',{exact:true}).waitFor();
+ const read=()=>p.evaluate(async()=>{const {db}=await import('/src/db.ts');return db.tasks.get('sample-task-2')});
+ let saved=await read();if(saved.dueTime!=='18:30'||saved.plannedTime!=='10:00'||saved.durationMinutes!==60)throw Error('deadline changed or plan not saved');
+ await p.getByRole('button',{name:'Plan Review the weekly budget',exact:true}).click();await p.locator('.planner-editor').getByLabel('Planned start',{exact:true}).fill('11:00');await p.locator('.planner-editor').getByRole('button',{name:'Cancel',exact:true}).click();if((await read()).plannedTime!=='10:00')throw Error('cancel wrote');
+ await p.getByRole('button',{name:'Plan Plan meals for the week',exact:true}).click();await p.locator('.planner-editor').getByLabel('Planned start',{exact:true}).fill('10:30');await p.locator('.planner-editor').getByLabel('Estimate (minutes)',{exact:true}).fill('45');await p.locator('.planner-editor').getByRole('button',{name:'Save plan',exact:true}).click();await p.getByText('Overlaps another planned item',{exact:true}).first().waitFor();
+ await p.locator('.planner-calendar summary').click();await p.getByRole('button',{name:'Load / refresh this day',exact:true}).click();await p.getByRole('alert').waitFor();if(requests.length)throw Error('sample network leak '+requests.join(','));
+ await p.locator('.planner-calendar summary').click();await p.evaluate(()=>window.scrollTo(0,0));await p.screenshot({path:`/downloads/planning-${width}-${mode}-agenda.png`,fullPage:true});
+ await p.getByRole('button',{name:'Plan Review the weekly budget',exact:true}).click();await p.screenshot({path:`/downloads/planning-${width}-${mode}-editor.png`,fullPage:true});await p.locator('.planner-editor').getByRole('button',{name:'Cancel',exact:true}).click();
+ const overflow=await p.evaluate(()=>document.documentElement.scrollWidth>innerWidth);if(overflow)throw Error('horizontal overflow');
+ await p.getByRole('button',{name:'Timeline',exact:true}).click();await p.screenshot({path:`/downloads/planning-${width}-${mode}-timeline.png`,fullPage:true});
+ await p.getByLabel('Compact empty past hours today').uncheck();
+ const transfer=await p.evaluateHandle(()=>{const d=new DataTransfer();d.setData('application/x-lifedash-task','sample-task-2');return d});await p.locator('.hour-row').filter({has:p.getByText('15:00',{exact:true})}).dispatchEvent('drop',{dataTransfer:transfer});
+ if((await read()).plannedTime!=='10:00')throw Error('drop silently wrote');
+ await p.locator('.planner-editor').getByLabel('Planned start',{exact:true}).waitFor();if(await p.locator('.planner-editor').getByLabel('Planned start',{exact:true}).inputValue()!=='15:00')throw Error('drop draft missing');
+ await p.locator('.planner-editor').getByRole('button',{name:'Cancel',exact:true}).click();
+ await p.getByRole('button',{name:'Next day',exact:true}).click();if(await p.getByLabel('Planner date').inputValue()===date)throw Error('date navigation failed');
+ const otherDay=await p.getByLabel('Planner date').inputValue();
+ const drop=async hour=>{const d=await p.evaluateHandle(()=>{const x=new DataTransfer();x.setData('application/x-lifedash-task','sample-task-2');return x});await p.locator('.hour-row').filter({has:p.getByText(hour,{exact:true})}).dispatchEvent('drop',{dataTransfer:d})};
+ await drop('14:00');let editor=p.locator('.planner-editor');await editor.getByLabel('Planned work date',{exact:true}).waitFor();if(await editor.getByLabel('Planned work date',{exact:true}).inputValue()!==otherDay)throw Error('cross-day drop kept old work date');
+ await drop('16:00');editor=p.locator('.planner-editor');if(await editor.getByLabel('Planned start',{exact:true}).inputValue()!=='16:00')throw Error('repeated drop ignored new time');
+ if((await read()).plannedDate!==date||(await read()).plannedTime!=='10:00')throw Error('drop committed without save');
+ await editor.getByRole('button',{name:'Save plan',exact:true}).click();await p.getByText('Work 16:00 · 60m',{exact:true}).waitFor();const moved=await read();if(moved.plannedDate!==otherDay||moved.plannedTime!=='16:00'||moved.dueDate!==date||moved.dueTime!=='18:30')throw Error('cross-day confirmation mismatch');
+ 
+ results.push({width,mode,save:true,cancel:true,deadlinePreserved:true,crossDayDrop:true,repeatedDrop:true,overlaps:true,sampleNetworkRequests:requests.length,overflow});await p.close();
+}
+fs.writeFileSync('/downloads/planning-browser-results.json',JSON.stringify(results,null,2));await b.close();

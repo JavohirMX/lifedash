@@ -1,11 +1,14 @@
-import { useMemo, useState } from 'react';
+import './workflow.css';
+import CompletionButton from '../components/CompletionButton';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { Check, ListPlus, Pin, PinOff, Plus, Search, StickyNote, Trash2 } from 'lucide-react';
 
-import { addNote, updateNote, deleteNote, addTask, toggleComplete } from '../repo';
+import { addNote, updateNote, deleteNote, addTasksFromNoteChecklist } from '../repo';
 import { extractChecklistItems, searchNotes } from '../logic';
-import { db, INBOX_ID } from '../db';
+import { db } from '../db';
 import NoteEditor from '../components/NoteEditor';
+import NoteTitle, { discardDeletedNoteTitle } from '../components/NoteTitle';
 
 function excerpt(text: string, n = 90): string {
   const t = text.replace(/\s+/g, ' ').trim();
@@ -27,8 +30,54 @@ function relTime(ts: number): string {
 export default function NotesView(props: { initialOpenId?: string }) {
   const notes = useLiveQuery(() => db.notes.toArray(), []);
   const [openId, setOpenId] = useState<string | null>(props.initialOpenId ?? null);
-  const [extracted, setExtracted] = useState<number | null>(null);
+  const selectedNote = useRef(openId);
+  selectedNote.current = openId;
+  const deleting = useRef(false);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [deleteError, setDeleteError] = useState<{ id: string; text: string } | null>(null);
+  async function removeNote(note: { id: string; title: string }) {
+    if (deleting.current) return;
+    if (!window.confirm(`Delete note ${note.title || 'Untitled'}? This cannot be undone.`)) return;
+    deleting.current = true; setDeletingId(note.id); setDeleteError(null);
+    try {
+      await deleteNote(note.id);
+      discardDeletedNoteTitle(note.id);
+      if (selectedNote.current === note.id) setOpenId(null);
+    } catch { setDeleteError({ id: note.id, text: "Couldn't delete this note. Nothing was deleted. Try Delete note again." }); }
+    finally { deleting.current = false; setDeletingId(null); }
+  }
+  const pinning = useRef(false);
+  const [pinningId, setPinningId] = useState<string | null>(null);
+  const [pinError, setPinError] = useState<{ id: string; text: string } | null>(null);
+  async function togglePin(note: { id: string; pinned: boolean }) {
+    if (pinning.current) return;
+    pinning.current = true; setPinningId(note.id); setPinError(null);
+    try { await updateNote(note.id, { pinned: !note.pinned }); }
+    catch { setPinError({ id: note.id, text: "Couldn't change this note's pin. Try the pin button again." }); }
+    finally { pinning.current = false; setPinningId(null); }
+  }
+  const converting = useRef(false);
+  const [convertingId, setConvertingId] = useState<string | null>(null);
+  const [convertError, setConvertError] = useState<{ id: string; text: string } | null>(null);
+  const [extracted, setExtracted] = useState<{ id: string; count: number } | null>(null);
   const [q, setQ] = useState('');
+  const creating = useRef(false);
+  const [isCreating, setIsCreating] = useState(false);
+  const [createError, setCreateError] = useState('');
+  async function createNote() {
+    if (creating.current) return;
+    creating.current = true; setIsCreating(true); setCreateError('');
+    try { const note = await addNote(); setOpenId(note.id); }
+    catch { setCreateError("Couldn't create a note. No note was added. Try New note again."); }
+    finally { creating.current = false; setIsCreating(false); }
+  }
+  const editorPane = useRef<HTMLDivElement>(null);
+  const noteList = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (openId && window.matchMedia('(max-width: 700px)').matches) {
+      requestAnimationFrame(() => editorPane.current?.scrollIntoView({ block: 'start' }));
+    }
+  }, [openId, notes?.some(n => n.id === openId)]);
 
   const sorted = useMemo(
     () => (notes ?? []).slice().sort((a, b) => Number(b.pinned) - Number(a.pinned) || b.updatedAt - a.updatedAt),
@@ -55,11 +104,14 @@ export default function NotesView(props: { initialOpenId?: string }) {
           className="mini"
           style={{ marginLeft: 'auto' }}
           aria-label="New note"
-          onClick={() => void addNote().then((n) => setOpenId(n.id))}
+          disabled={isCreating}
+          onClick={() => void createNote()}
         >
           <Plus size={14} strokeWidth={2} aria-hidden="true" /> Note
         </button>
       </h1>
+      {isCreating && <p className="workflow-hint" role="status">Creating note…</p>}
+      {createError && <p className="workflow-hint" role="alert">{createError}</p>}
       {sorted.length > 4 && (
         <div className="search-wrap notes-filter">
           <Search size={14} strokeWidth={1.75} aria-hidden="true" className="search-icon" />
@@ -69,7 +121,7 @@ export default function NotesView(props: { initialOpenId?: string }) {
             aria-label="Filter notes"
             value={q}
             onChange={(e) => setQ(e.target.value)}
-            onKeyDown={(e) => { if (e.key === 'Escape') setQ(''); }}
+            onKeyDown={(e) => { if (e.key === 'Escape' && !e.nativeEvent.isComposing) setQ(''); }}
           />
         </div>
       )}
@@ -78,15 +130,15 @@ export default function NotesView(props: { initialOpenId?: string }) {
       ) : sorted.length === 0 ? (
         <div className="empty goals-empty">
           <StickyNote size={28} strokeWidth={1.5} aria-hidden="true" />
-          <p>Free-form notes with rich text - checklists, links, headings. Pin the ones you come back to.</p>
+          <p>No notes yet.</p>
         </div>
       ) : (
-        <div className="notes-layout">
-          <div className="notes-list" role="list">
+        <div className={`notes-layout${open ? ' note-is-open' : ''}`}>
+          <div ref={noteList} className="notes-list" role="group" aria-label="Notes">
             {shown.map((n) => (
               <button
                 key={n.id}
-                role="listitem"
+                aria-current={n.id === openId ? 'true' : undefined}
                 className={`note-item ${n.id === openId ? 'active' : ''}`}
                 onClick={() => setOpenId(n.id)}
               >
@@ -102,40 +154,38 @@ export default function NotesView(props: { initialOpenId?: string }) {
             ))}
           </div>
           {open && (
-            <div className="note-editor-pane">
+            <div ref={editorPane} className="note-editor-pane">
+              <button className="mini note-back-list" onClick={() => { setOpenId(null); requestAnimationFrame(() => noteList.current?.scrollIntoView({ block: 'start' })); }}>Back to notes</button>
               <div className="note-editor-head">
-                <input
-                  className="note-title-input"
-                  value={open.title}
-                  placeholder="Note title"
-                  aria-label="Note title"
-                  onChange={(e) => void updateNote(open.id, { title: e.target.value })}
-                />
+                <NoteTitle id={open.id} title={open.title} />
                 {extractChecklistItems(open.noteDoc).length > 0 && (
                   <button
                     className="icon-btn"
                     aria-label="Turn checklist into tasks"
                     title="Turn checklist into tasks"
-                    onClick={() => {
-                      const items = extractChecklistItems(open.noteDoc);
-                      void items.reduce(
-                        (chain, title) => chain.then(() => addTask({ title, projectId: INBOX_ID, noteId: open.id })),
-                        Promise.resolve<unknown>(null),
-                      ).then(() => {
-                        setExtracted(items.length);
+                    disabled={convertingId !== null}
+                    onClick={() => void (async () => {
+                      if (converting.current) return;
+                      converting.current = true; setConvertingId(open.id); setConvertError(null); setExtracted(null);
+                      try {
+                        const count = await addTasksFromNoteChecklist(open.id);
+                        setExtracted({ id: open.id, count });
                         setTimeout(() => setExtracted(null), 3000);
-                      });
-                    }}
+                      } catch {
+                        setConvertError({ id: open.id, text: "Couldn't create tasks. No new tasks were added. Try Turn checklist into tasks again." });
+                      } finally { converting.current = false; setConvertingId(null); }
+                    })()}
                   >
                     <ListPlus size={15} strokeWidth={2} />
                   </button>
                 )}
-                {extracted !== null && <span className="extracted-note num">{extracted} task{extracted === 1 ? '' : 's'} added</span>}
+                {extracted?.id === open.id && <span className="extracted-note num" role="status">{extracted.count === 0 ? 'Already added' : `${extracted.count} task${extracted.count === 1 ? '' : 's'} added`}</span>}
                 <button
                   className="icon-btn"
                   aria-label={open.pinned ? 'Unpin note' : 'Pin note'}
                   title={open.pinned ? 'Unpin' : 'Pin'}
-                  onClick={() => void updateNote(open.id, { pinned: !open.pinned })}
+                  disabled={pinningId !== null}
+                  onClick={() => void togglePin(open)}
                 >
                   {open.pinned ? <PinOff size={15} strokeWidth={2} /> : <Pin size={15} strokeWidth={2} />}
                 </button>
@@ -143,20 +193,24 @@ export default function NotesView(props: { initialOpenId?: string }) {
                   className="icon-btn"
                   aria-label="Delete note"
                   title="Delete"
-                  onClick={() => {
-                    void deleteNote(open.id);
-                    setOpenId(null);
-                  }}
+                  disabled={deletingId !== null}
+                  onClick={() => void removeNote(open)}
                 >
                   <Trash2 size={15} strokeWidth={2} />
                 </button>
               </div>
-              <NoteEditor
+              {pinningId === open.id && <p className="workflow-hint" role="status">Saving note pin…</p>}
+              {pinError?.id === open.id && <p className="workflow-hint" role="alert">{pinError.text}</p>}
+              {deletingId === open.id && <p className="workflow-hint" role="status">Deleting note…</p>}
+              {deleteError?.id === open.id && <p className="workflow-hint" role="alert">{deleteError.text}</p>}
+              {convertingId === open.id && <p className="workflow-hint" role="status">Creating checklist tasks…</p>}
+              {convertError?.id === open.id && <p className="workflow-hint" role="alert">{convertError.text}</p>}
+              <NoteEditor collection="notes"
                 key={open.id}
                 docKey={open.id}
                 note={open.note}
                 noteDoc={open.noteDoc}
-                onSave={(doc, text) => void updateNote(open.id, { noteDoc: doc, note: text })}
+                onSave={(doc, text) => updateNote(open.id, { noteDoc: doc, note: text })}
               />
               {linkedActive.length > 0 && (
                 <div className="note-linked">
@@ -164,13 +218,11 @@ export default function NotesView(props: { initialOpenId?: string }) {
                   <ul className="widget-list">
                     {linkedActive.map((t) => (
                       <li key={t.id}>
-                        <button
+                        <CompletionButton task={t}
                           className={`checkbox ${t.status === 'done' ? 'checked' : ''}`}
-                          aria-label={t.status === 'done' ? 'Mark not done' : 'Mark done'}
-                          onClick={() => void toggleComplete(t)}
-                        >
+                          label={t.status === 'done' ? 'Mark not done' : 'Mark done'}>
                           {t.status === 'done' ? <Check size={13} strokeWidth={2.5} aria-hidden="true" /> : null}
-                        </button>
+                        </CompletionButton>
                         <span className={`widget-task ${t.status === 'done' ? 'done' : ''}`}>{t.title}</span>
                       </li>
                     ))}

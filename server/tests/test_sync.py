@@ -54,6 +54,24 @@ def test_auth_required(client):
     assert client.post("/api/changes", json={"changes": []}).status_code == 401
 
 
+def test_logout_revokes_only_the_presented_token(client):
+    username, token = register(client)
+    assert client.get("/api/changes", headers=auth(token)).status_code == 200
+    assert client.post("/api/logout", headers=auth(token)).status_code == 204
+    assert client.get("/api/changes", headers=auth(token)).status_code == 401
+    # A fresh login for the same user gets an independent, still-valid token.
+    r = client.post("/api/login", json={"username": username, "password": "correct horse battery staple"})
+    assert r.status_code == 200
+    token2 = r.json()["token"]
+    assert token2 != token
+    assert client.get("/api/changes", headers=auth(token2)).status_code == 200
+
+
+def test_logout_rejects_missing_or_unknown_token(client):
+    assert client.post("/api/logout").status_code == 401
+    assert client.post("/api/logout", headers=auth("no-such-token")).status_code == 401
+
+
 def test_push_and_pull_roundtrip(client):
     _, token = register(client)
     task_id = uuid.uuid4().hex
@@ -187,3 +205,72 @@ def test_notes_conflict_and_journal_tombstone(client):
     changes = client.get("/api/changes?since=0", headers=auth(token)).json()["changes"]
     assert changes[-1]["collection"] == "journal"
     assert changes[-1]["deleted"] is True
+
+
+def test_push_change_limit(client):
+    _, token = register(client)
+    changes = [{"collection": "tasks", "id": f"limit-{i}", "base_rev": 0,
+                "data": {"title": "limit test"}} for i in range(1001)]
+    assert client.post("/api/changes", headers=auth(token), json={"changes": changes}).status_code == 422
+    accepted = client.post("/api/changes", headers=auth(token), json={"changes": changes[:1000]})
+    assert accepted.status_code == 200
+    assert len(accepted.json()["results"]) == 1000
+    assert all(r["status"] == "ok" for r in accepted.json()["results"])
+
+
+def test_same_id_is_scoped_by_user_and_collection(client):
+    _, token1 = register(client)
+    _, token2 = register(client)
+    entity_id = uuid.uuid4().hex
+    for token, title in [(token1, "first user"), (token2, "second user")]:
+        result = client.post("/api/changes", headers=auth(token), json={"changes": [
+            {"collection": collection, "id": entity_id, "data": {"title": f"{title} {collection}"}}
+            for collection in ["tasks", "notes"]
+        ]}).json()["results"]
+        assert [r["rev"] for r in result] == [1, 2]
+        changes = client.get("/api/changes", headers=auth(token)).json()["changes"]
+        assert {(c["collection"], c["data"]["title"]) for c in changes} == {
+            ("tasks", f"{title} tasks"), ("notes", f"{title} notes")}
+
+
+def test_mixed_batch_preserves_conflicts_and_only_advances_applied_revisions(client):
+    _, token = register(client)
+    entity_id = uuid.uuid4().hex
+    existing = {"collection": "tasks", "id": entity_id, "data": {"title": "original"}}
+    client.post("/api/changes", headers=auth(token), json={"changes": [existing]})
+    result = client.post("/api/changes", headers=auth(token), json={"changes": [
+        {**existing, "data": {"title": "stale"}},
+        {"collection": "unsupported", "id": entity_id},
+        {"collection": "notes", "id": entity_id, "data": {"title": "new note"}},
+    ]}).json()["results"]
+    assert [r["status"] for r in result] == ["conflict", "unknown_collection", "ok"]
+    assert result[0]["current"]["data"] == {"title": "original"}
+    assert result[2]["rev"] == 2
+    body = client.get("/api/changes?since=1", headers=auth(token)).json()
+    assert body["rev"] == 2
+    assert [(c["collection"], c["rev"]) for c in body["changes"]] == [("notes", 2)]
+
+
+def test_storage_failure_rolls_back_entire_batch_and_revision_counter(client):
+    import sqlite3
+    from app.db import get_conn
+
+    _, token = register(client)
+    first, failing = uuid.uuid4().hex, uuid.uuid4().hex
+    conn = get_conn()
+    # Disposable test DB only. Fail the second INSERT after the first has run.
+    conn.execute(f"""CREATE TRIGGER fail_test_insert BEFORE INSERT ON entities
+        WHEN NEW.id = '{failing}' BEGIN SELECT RAISE(ABORT, 'synthetic failure'); END""")
+    conn.commit()
+    changes = [{"collection": "tasks", "id": key, "data": {"title": "synthetic"}}
+               for key in [first, failing]]
+    try:
+        with pytest.raises(sqlite3.IntegrityError, match="synthetic failure"):
+            client.post("/api/changes", headers=auth(token), json={"changes": changes})
+        assert client.get("/api/changes", headers=auth(token)).json() == {"rev": 0, "changes": []}
+    finally:
+        conn.execute("DROP TRIGGER fail_test_insert")
+        conn.commit()
+    retried = client.post("/api/changes", headers=auth(token), json={"changes": changes})
+    assert [r["rev"] for r in retried.json()["results"]] == [1, 2]
+    assert len(client.get("/api/changes", headers=auth(token)).json()["changes"]) == 2

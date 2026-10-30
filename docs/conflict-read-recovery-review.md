@@ -1,0 +1,5 @@
+# Conflict notice read recovery
+
+Injected syncmeta.get failure for conflict-notice key at startup previously emitted two uncaught errors under StrictMode with no indication. Now caught read warns that a notice may be waiting and offers Retry check. Keeps any previously read notice/count visible on refresh failure. Latest read generation owns result/error/pending, cleanup invalidates reads. No notice edits or sync/provider actions from Retry check. Six1440/390/320light/dark startup/repeated rejection/retry/refresh failure with known count2/retry groups PASS plus six dismissal groups PASS;315tests/build PASS.390light/320dark pixels inspected readable. No conflict/engine/default/count semantics change, no background polling/retry added. No claim of atomic new-conflict vs acknowledgment or cross-tab coordination.
+
+Additional explicit overlap proof in all six groups: hold older read, finish newer count3 read, release older count1 result or older rejection. Newer count3 retained and no false retry warning. PASS.

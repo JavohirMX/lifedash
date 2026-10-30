@@ -1,0 +1,16 @@
+/* Scoped settings presentation. Keep behavior and global theme tokens intact. */
+.settings-panel .settings-group { min-width: 0; }
+.settings-panel .settings-group h3 { margin: 2px 0 6px; font-size: var(--fs-small); color: var(--muted); font-weight: 600; }
+.settings-panel .settings-group + .settings-group { margin-top: 6px; }
+.settings-panel .settings-row { padding: 14px 0; gap: 12px; color: var(--text); cursor: pointer; }
+.settings-panel .settings-row small { line-height: 1.5; }
+.settings-panel .settings-row > span:last-child { flex: none; }
+.settings-panel .settings-state { min-width: 42px; padding: 4px 7px; border: 1px solid var(--border); border-radius: var(--radius-control); text-align: center; font-weight: 600; background: var(--surface-2); }
+.settings-panel .settings-state[data-active='true'] { color: var(--accent); border-color: var(--accent); }
+.settings-panel .settings-help { margin: 4px 0 0; font-size: var(--fs-small); line-height: 1.5; color: var(--muted); }
+.settings-panel .settings-state-help { margin: 8px 0 12px; }
+@media (max-width: 360px) {
+  .settings-panel .settings-row { gap: 10px; }
+  .settings-panel .settings-row > svg { width: 17px; }
+  .settings-panel .settings-state { min-width: 0; padding: 4px 5px; }
+}

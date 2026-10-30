@@ -1,3 +1,11 @@
+# Test-only deps (pytest + FastAPI TestClient + mocked Google crypto).
+# Not in the base Docker image; Google runtime support remains opt-in.
 -r requirements.txt
-pytest>=8
-httpx>=0.27
+-r requirements-google.txt
+pytest==9.1.1
+httpx==0.28.1
+certifi==2026.10.23
+httpcore==1.0.9
+iniconfig==2.3.1
+packaging==26.3
+pluggy==1.7.0

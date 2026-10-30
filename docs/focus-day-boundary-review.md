@@ -1,0 +1,3 @@
+# Focus local midnight boundary
+
+25hour fallback day undercounted: America/New_York2026-11-01 whole-day expected90000sec, prior86400. Replace fixed24hours with parsed next local calendar midnight. No recorded session/total per-task logic changes. Three actual Chromium timezones(NewYork/Berlin/Makassar), five dates each prove whole-day actual length, nextday firsthour exclusion, crossing midnight only30min previousday. DST expected lengths derived browser Date, not assumed. Unit boundary regression added.317tests/build PASS with independent NoteTitle candidate present; isolate exacthead when landing. Pure calculation change, no layout/pixels affected. No timer/aggregationpolicy feature change.

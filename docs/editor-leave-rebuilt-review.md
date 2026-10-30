@@ -1,0 +1,3 @@
+# Rebuilt body draft lifecycle candidate
+
+Rebuilt after environment reset from recorded production edits, not byte-identical recovered original. Shared session draft registry; leave cancellation outlives editor. Confirmed note/task/project helper transaction cleanup only, exact direct-child IDs already deleted. Failed transaction leaves drafts; unrelated/subproject/Journal drafts retained. External/raw sync deletion excluded. No deletion policy authority inferred from repository comment. No autosave/storage/deletion-policy change or native prompt guarantee. Tests being rebuilt and must be independently reviewed again.

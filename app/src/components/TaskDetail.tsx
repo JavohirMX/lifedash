@@ -1,26 +1,36 @@
-import { Check, StickyNote } from 'lucide-react';
-import { useState } from 'react';
+import './task-detail-flow.css';
+import { editorDrafts } from '../editorDrafts';
+import CompletionButton from './CompletionButton';
+import { X, Check, StickyNote } from 'lucide-react';
+import { useEffect, useRef, useState } from 'react';
 import NoteEditor from './NoteEditor';
 import Attachments from './Attachments';
+import SubtaskAdd from './SubtaskAdd';
+import TaskTitle from './TaskTitle';
+import TaskTags from './TaskTags';
+import TaskBlockers from './TaskBlockers';
+import TaskDelete from './TaskDelete';
+import TaskPriority from './TaskPriority';
+import TaskPin from './TaskPin';
+import TaskLinkField from './TaskLinkField';
+import TaskDateField from './TaskDateField';
+import TaskRecurrence from './TaskRecurrence';
+import TaskSkip from './TaskSkip';
+import TaskFocus from './TaskFocus';
 import { useLiveQuery } from 'dexie-react-hooks';
+import { runningSession, sessionSeconds, focusTotals, formatClock, formatDuration } from '../focus';
 import { db, INBOX_ID } from '../db';
-import { addTask, deleteTask, toggleComplete, updateTask, addBlocker, removeBlocker, addTag, removeTag } from '../repo';
-import { makeRecurrence, describeRecurrence, blockersOf, normalizeTask } from '../logic';
+import { addTask, updateTask } from '../repo';
 import { todayStr } from '../dates';
-import type { Task } from '../types';
-
-type RecChoice = 'none' | 'daily' | 'weekly' | 'monthly' | 'ndays';
-
-function currentChoice(t: Task): RecChoice {
-  const d = describeRecurrence(t.recurrence);
-  if (!d) return 'none';
-  if (d === 'Daily') return 'daily';
-  if (d === 'Weekly') return 'weekly';
-  if (d === 'Monthly') return 'monthly';
-  return 'ndays';
-}
+import { projectTree } from '../projects';
 
 export default function TaskDetail(props: { taskId: string; onClose: () => void; onOpenNote: (noteId: string) => void }) {
+  const panel = useRef<HTMLElement>(null);
+  const opener = useRef<HTMLElement | null>(null);
+  useEffect(() => {
+    opener.current = document.activeElement as HTMLElement;
+    return () => { if (opener.current?.isConnected) opener.current.focus(); };
+  }, []);
   const task = useLiveQuery(() => db.tasks.get(props.taskId), [props.taskId]);
   const projects = useLiveQuery(() => db.projects.orderBy('order').toArray(), []);
   const goals = useLiveQuery(() => db.goals.orderBy('order').toArray(), []);
@@ -29,240 +39,133 @@ export default function TaskDetail(props: { taskId: string; onClose: () => void;
     [props.taskId],
   );
   const allTasks = useLiveQuery(() => db.tasks.toArray(), []);
+  const focusSessions = useLiveQuery(() => db.focusSessions.toArray(), []);
+  const [focusNow, setFocusNow] = useState(() => Date.now());
+  const running = focusSessions ? runningSession(focusSessions) : null;
+  const runningHere = running?.taskId === props.taskId;
+  useEffect(() => {
+    if (!running) return;
+    const id = setInterval(() => setFocusNow(Date.now()), 1000);
+    return () => clearInterval(id);
+  }, [running?.id]);
   const sourceNote = useLiveQuery(
     () => (task?.noteId ? db.notes.get(task.noteId) : undefined),
     [task?.noteId],
   );
-  const [newSub, setNewSub] = useState('');
-  const [nDays, setNDays] = useState(3);
-  const [blockerPick, setBlockerPick] = useState('');
-  const [blockerError, setBlockerError] = useState('');
-  const [newTag, setNewTag] = useState('');
+
+  useEffect(() => {
+    if (task) panel.current?.querySelector<HTMLInputElement>('.detail-title')?.focus();
+  }, [task?.id]);
+
+  // Esc closes the panel - but not when it was pressed inside a dialog or
+  // the palette on top (those handle Escape themselves; by the time the
+  // event reaches window, their React handler may have already unmounted
+  // the overlay, so we check the event target, not the live DOM).
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape' || e.isComposing) return;
+      if (e.target instanceof HTMLElement && e.target.closest('.palette-overlay, [role=dialog], dialog[open]')) return;
+      props.onClose();
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   if (!task || !projects) return null;
-  const choice = currentChoice(task);
 
-  async function setRecurrence(c: RecChoice, interval = nDays) {
-    if (!task) return;
-    if (c === 'none') {
-      await updateTask(task.id, { recurrence: null });
-      return;
-    }
-    const anchor = task.dueDate ?? todayStr();
-    await updateTask(task.id, {
-      dueDate: anchor,
-      recurrence: makeRecurrence(c, anchor, interval),
-    });
-  }
 
   return (
-    <aside className="detail">
+    <aside ref={panel} className="detail" aria-label="Task details">
       <div className="detail-head">
-        <button className="close" aria-label="Close task details" onClick={props.onClose}>×</button>
+        <button className="close" aria-label="Close task details" onClick={props.onClose}><X size={16} strokeWidth={2} /></button>
       </div>
-      <input
-        className="detail-title"
-        aria-label="Task title"
-        value={task.title}
-        onChange={(e) => void updateTask(task.id, { title: e.target.value })}
-      />
-      <NoteEditor key={task.id} docKey={task.id} note={task.note} noteDoc={task.noteDoc} onSave={(doc, text) => void updateTask(task.id, { noteDoc: doc, note: text })} />
+      <TaskTitle id={task.id} title={task.title} />
+      <TaskDateField id={task.id} field="dueDate" value={task.dueDate ?? ''} label="Due date" type="date" />
+      {task.dueDate && <TaskDateField id={task.id} field="dueTime" value={task.dueTime ?? ''} label="Deadline time (optional)" type="time" />}
+      <TaskLinkField id={task.id} field="projectId" value={task.projectId} label="Project">
+          {projectTree(projects).map(({ project: p, depth }) => (
+            <option key={p.id} value={p.id}>{' '.repeat(depth)}{depth > 0 ? '– ' : ''}{p.name}</option>
+          ))}
+      </TaskLinkField>
+      <TaskPriority id={task.id} priority={task.priority} />
+      <TaskFocus id={task.id} runningHere={Boolean(runningHere)} running={Boolean(running)} clock={runningHere && running && <span className="focus-clock num">{formatClock(sessionSeconds(running, focusNow))}</span>}>
+        {focusSessions && focusTotals(focusSessions, todayStr(), focusNow).perTask.get(task.id) ? (
+          <span className="focus-total num">
+            {formatDuration(focusTotals(focusSessions, todayStr(), focusNow).perTask.get(task.id) ?? 0)} total
+          </span>
+        ) : null}
+      </TaskFocus>
+      <details key={`notes-${task.id}`} className="detail-notes" ref={node => {
+        if (node && !node.dataset.initialized) {
+          node.open = Boolean(task.note.trim() || task.noteId || editorDrafts.has(JSON.stringify([db.name, 'tasks', task.id])));
+          node.dataset.initialized = 'true';
+        }
+      }}>
+        <summary>Notes</summary>
+      <NoteEditor collection="tasks" key={task.id} docKey={task.id} note={task.note} noteDoc={task.noteDoc} onSave={(doc, text) => updateTask(task.id, { noteDoc: doc, note: text })} />
       {task.noteId && sourceNote && (
         <button className="note-source" onClick={() => props.onOpenNote(task.noteId!)}>
           <StickyNote size={13} strokeWidth={2} aria-hidden="true" />
           From note: {sourceNote.title || 'Untitled'}
         </button>
       )}
-      <label className="field">
-        <span>Due date</span>
-        <input
-          type="date"
-          value={task.dueDate ?? ''}
-          onChange={(e) => void updateTask(task.id, { dueDate: e.target.value || null })}
-        />
-      </label>
-      {task.dueDate && (
-        <label className="field">
-          <span>Time (optional - shows in Planner)</span>
-          <input
-            type="time"
-            value={task.dueTime ?? ''}
-            onChange={(e) => void updateTask(task.id, { dueTime: e.target.value || null })}
-          />
-        </label>
-      )}
-      <label className="field">
-        <span>Project</span>
-        <select
-          value={task.projectId}
-          onChange={(e) => void updateTask(task.id, { projectId: e.target.value })}
-        >
-          {projects.map((p) => (
-            <option key={p.id} value={p.id}>{p.name}</option>
-          ))}
-        </select>
-      </label>
-      <label className="field">
-        <span>Priority</span>
-        <select
-          aria-label="Priority"
-          value={task.priority}
-          onChange={(e) => void updateTask(task.id, { priority: Number(e.target.value) })}
-        >
-          <option value={0}>None</option>
-          <option value={1}>P1 - high</option>
-          <option value={2}>P2 - medium</option>
-          <option value={3}>P3 - low</option>
-        </select>
-      </label>
-      <label className="field">
-        <span>Goal</span>
-        <select
-          aria-label="Goal"
-          value={task.goalId ?? ''}
-          onChange={(e) => void updateTask(task.id, { goalId: e.target.value || null })}
-        >
+      </details>
+      <details key={`options-${task.id}`} className="detail-options" ref={node => {
+        if (node && !node.dataset.initialized) {
+          node.open = Boolean(task.goalId || task.recurrence || task.pinned || task.tags?.length || task.blockedBy?.length);
+          node.dataset.initialized = 'true';
+        }
+      }}>
+        <summary>More options <span className="detail-summary-hint">Goal, repeat, tags &amp; blockers</span></summary>
+      <TaskLinkField id={task.id} field="goalId" value={task.goalId ?? ''} label="Goal">
           <option value="">No goal</option>
           {(goals ?? []).filter((g) => g.status === 'active').map((g) => (
             <option key={g.id} value={g.id}>{g.title}</option>
           ))}
-        </select>
-      </label>
-      <label className="field">
-        <span>Repeats</span>
-        <select value={choice} onChange={(e) => void setRecurrence(e.target.value as RecChoice)}>
-          <option value="none">Does not repeat</option>
-          <option value="daily">Daily</option>
-          <option value="weekly">Weekly (same weekday)</option>
-          <option value="monthly">Monthly (same day)</option>
-          <option value="ndays">Every N days</option>
-        </select>
-      </label>
-      {choice === 'ndays' && (
-        <label className="field">
-          <span>Every</span>
-          <span className="ndays">
-            <input
-              type="number"
-              min={1}
-              max={365}
-              value={nDays}
-              onChange={(e) => {
-                const v = Math.max(1, Number(e.target.value) || 1);
-                setNDays(v);
-                void setRecurrence('ndays', v);
-              }}
-            />
-            days
-          </span>
-        </label>
+          {task.goalId && !(goals ?? []).some((g) => g.id === task.goalId && g.status === 'active') && (
+            <option value={task.goalId} disabled>
+              {(goals ?? []).find((g) => g.id === task.goalId)?.title ?? 'Linked goal'} (archived)
+            </option>
+          )}
+      </TaskLinkField>
+      <TaskRecurrence task={task} />
+      {task.recurrence && task.dueDate && task.status !== 'done' && <TaskSkip task={task} />}
+      {(task.skippedDates?.length ?? 0) > 0 && (
+        <p className="date-sub">Skipped: {(task.skippedDates ?? []).join(', ')}</p>
       )}
-      <label className="field row">
-        <input
-          type="checkbox"
-          checked={task.pinned}
-          onChange={(e) => void updateTask(task.id, { pinned: e.target.checked })}
-        />
-        <span>Pinned to top</span>
-      </label>
+      <TaskPin id={task.id} pinned={task.pinned} />
 
       <div className="subs">
         <h3>Blocked by</h3>
-        {blockersOf((allTasks ?? []).map(normalizeTask), normalizeTask(task)).map((b) => (
-          <div key={b.id} className={`sub-row ${b.status === 'done' ? 'done' : ''}`}>
-            <span className={`dep-dot ${b.status}`} />
-            <span style={{ flex: 1 }}>{b.title}</span>
-            <button className="mini" onClick={() => void removeBlocker(task.id, b.id)}>×</button>
-          </div>
-        ))}
-        <div className="dep-add">
-          <select aria-label="Add a blocker" value={blockerPick} onChange={(e) => setBlockerPick(e.target.value)}>
-            <option value="">Add a blocker...</option>
-            {(allTasks ?? [])
-              .filter((t) => t.status === 'active' && t.id !== task.id && !(task.blockedBy ?? []).includes(t.id))
-              .slice(0, 200)
-              .map((t) => (
-                <option key={t.id} value={t.id}>{t.title}</option>
-              ))}
-          </select>
-          <button
-            className="mini"
-            disabled={!blockerPick}
-            onClick={() => {
-              void addBlocker(task.id, blockerPick).then((r) => {
-                setBlockerError(r.ok ? '' : (r.reason ?? 'Could not add blocker.'));
-                if (r.ok) setBlockerPick('');
-              });
-            }}
-          >
-            Add
-          </button>
-        </div>
-        {blockerError && <p className="dep-error">{blockerError}</p>}
+        <TaskBlockers task={task} tasks={allTasks ?? []} />
       </div>
 
       <div className="subs">
         <h3>Tags</h3>
-        <div className="chips">
-          {(task.tags ?? []).map((t) => (
-            <span key={t} className="chip">
-              #{t}
-              <button onClick={() => void removeTag(task.id, t)}>×</button>
-            </span>
-          ))}
-          <input
-            className="chip-input"
-            value={newTag}
-            placeholder="Add tag"
-            onChange={(e) => setNewTag(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter' && newTag.trim()) {
-                void addTag(task.id, newTag);
-                setNewTag('');
-              }
-            }}
-          />
-        </div>
+        <TaskTags taskId={task.id} tags={task.tags ?? []} />
       </div>
+
+      </details>
 
       <div className="subs">
         <h3>Subtasks</h3>
         {(subtasks ?? []).map((s) => (
           <div key={s.id} className={`sub-row ${s.status === 'done' ? 'done' : ''}`}>
-            <button
+            <CompletionButton task={s} showFailure
               className={`checkbox ${s.status === 'done' ? 'checked' : ''}`}
-              onClick={() => void toggleComplete(s)}
-            >
+              label={`${s.status === 'done' ? 'Mark incomplete' : 'Complete'} ${s.title}`}>
               {s.status === 'done' ? <Check size={12} strokeWidth={2.5} aria-hidden="true" /> : null}
-            </button>
+            </CompletionButton>
             <span>{s.title}</span>
           </div>
         ))}
-        <div className="sub-add">
-          <input
-            value={newSub}
-            placeholder="Add a subtask..."
-            onChange={(e) => setNewSub(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter' && newSub.trim()) {
-                void addTask({ title: newSub, projectId: task.projectId || INBOX_ID, parentId: task.id, dueDate: task.dueDate });
-                setNewSub('');
-              }
-            }}
-          />
-        </div>
+        <SubtaskAdd task={task} />
       </div>
 
       <Attachments taskId={task.id} />
 
-      <button
-        className="danger"
-        onClick={() => {
-          void deleteTask(task).then(props.onClose);
-        }}
-      >
-        Delete task
-      </button>
+      <TaskDelete task={task} onClose={props.onClose} />
     </aside>
   );
 }

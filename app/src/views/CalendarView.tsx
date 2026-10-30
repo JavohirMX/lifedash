@@ -1,7 +1,8 @@
-import { useMemo, useState } from 'react';
+import './workflow.css';
+import CompletionButton from '../components/CompletionButton';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Check, ChevronLeft, ChevronRight } from 'lucide-react';
 import { todayStr, addDays, friendlyDate, weekdayLabel } from '../dates';
-import { toggleComplete } from '../repo';
 import type { Task } from '../types';
 
 function monthKey(dateStr: string): string {
@@ -13,17 +14,18 @@ function monthLabel(key: string): string {
   return new Date(y, m - 1, 1).toLocaleDateString(undefined, { month: 'long', year: 'numeric' });
 }
 
-function shiftMonth(key: string, n: number): string {
+export function shiftMonth(key: string, n: number): string {
   const [y, m] = key.split('-').map(Number);
   const d = new Date(y, m - 1 + n, 1);
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
 }
 
-// Sunday-first grid cells covering the month, padded with neighbor-month days.
+// Monday-first grid cells covering the month, padded with neighbor-month
+// days - same week start as the Week view.
 export function monthCells(key: string): string[] {
   const [y, m] = key.split('-').map(Number);
   const first = `${key}-01`;
-  const startOffset = new Date(y, m - 1, 1).getDay();
+  const startOffset = (new Date(y, m - 1, 1).getDay() + 6) % 7; // Mon=0
   const daysInMonth = new Date(y, m, 0).getDate();
   const cells: string[] = [];
   for (let i = startOffset; i > 0; i--) cells.push(addDays(first, -i));
@@ -32,12 +34,22 @@ export function monthCells(key: string): string[] {
   return cells;
 }
 
-const WEEKDAYS = ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'];
+const WEEKDAYS = ['Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa', 'Su'];
 
 export default function CalendarView(props: { tasks: Task[]; onOpen: (id: string) => void }) {
   const today = todayStr();
   const [month, setMonth] = useState(monthKey(today));
   const [day, setDay] = useState<string | null>(null);
+
+  function navigateMonth(nextMonth: string) {
+    setMonth(nextMonth);
+    setDay(null);
+  }
+
+  const dayDetails = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (day !== null) dayDetails.current?.scrollIntoView({ block: 'nearest' });
+  }, [day]);
 
   const byDate = useMemo(() => {
     const map = new Map<string, Task[]>();
@@ -57,18 +69,19 @@ export default function CalendarView(props: { tasks: Task[]; onOpen: (id: string
       <h1>
         Calendar
         <span className="date-sub">
-          <button className="icon-btn" aria-label="Previous month" onClick={() => setMonth(shiftMonth(month, -1))}>
+          <button className="icon-btn" aria-label="Previous month" onClick={() => navigateMonth(shiftMonth(month, -1))}>
             <ChevronLeft size={15} strokeWidth={2} />
           </button>
           <strong className="cal-month">{monthLabel(month)}</strong>
-          <button className="icon-btn" aria-label="Next month" onClick={() => setMonth(shiftMonth(month, 1))}>
+          <button className="icon-btn" aria-label="Next month" onClick={() => navigateMonth(shiftMonth(month, 1))}>
             <ChevronRight size={15} strokeWidth={2} />
           </button>
           {month !== monthKey(today) && (
-            <button className="mini" onClick={() => setMonth(monthKey(today))}>Today</button>
+            <button className="mini" onClick={() => navigateMonth(monthKey(today))}>Today</button>
           )}
         </span>
       </h1>
+      <p className="workflow-hint">Top-level tasks, including completed</p>
       <div className="cal-grid" role="grid" aria-label={monthLabel(month)}>
         {WEEKDAYS.map((d) => (
           <div key={d} className="cal-weekday">{d}</div>
@@ -112,7 +125,7 @@ export default function CalendarView(props: { tasks: Task[]; onOpen: (id: string
         })}
       </div>
       {day !== null && (
-        <div className="load-drill cal-drill">
+        <div ref={dayDetails} className="load-drill cal-drill" role="region" aria-label="Selected day tasks">
           <p className="widget-meta num">{weekdayLabel(day)} · {friendlyDate(day, today)} · {(byDate.get(day) ?? []).length} due</p>
           {(byDate.get(day) ?? []).length === 0 ? (
             <p className="widget-empty">Nothing due.</p>
@@ -120,13 +133,11 @@ export default function CalendarView(props: { tasks: Task[]; onOpen: (id: string
             <ul className="widget-list">
               {(byDate.get(day) ?? []).map((t) => (
                 <li key={t.id}>
-                  <button
+                  <CompletionButton task={t}
                     className={`checkbox ${t.status === 'done' ? 'checked' : ''}`}
-                    aria-label={t.status === 'done' ? 'Mark not done' : 'Mark done'}
-                    onClick={() => void toggleComplete(t)}
-                  >
+                    label={t.status === 'done' ? 'Mark not done' : 'Mark done'}>
                     {t.status === 'done' ? <Check size={13} strokeWidth={2.5} aria-hidden="true" /> : null}
-                  </button>
+                  </CompletionButton>
                   <button className={`widget-task ${t.status === 'done' ? 'done' : ''}`} onClick={() => props.onOpen(t.id)}>{t.title}</button>
                 </li>
               ))}

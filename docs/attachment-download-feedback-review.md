@@ -1,0 +1,5 @@
+# Attachment download preparation feedback
+
+Reproduced createObjectURL failure producing uncaught errors with no alert. Existing upload/remove feedback untouched except sharing their existing feedback region. Download now catches preparation/click errors, tells user attachment remains saved, and suggests same Download control. Successful initiation says Download requested and asks to check browser downloads, not disk save completed. Original Blob/filename and10second URL cleanup retained, including cleanup on click throw.
+
+Six1440/390/320light/dark URL failure/retry and anchor click failure/retry groups PASS. Original Blob text/name/count preserved.315tests/checked-exit build PASS.390light/320dark pixels inspected, clear alert above listed file. No asynchronous pending guard added because preparation/click synchronous; browser download event proves initiation only, not completed save. Other upload/remove behavior not changed. Feedback mounted to task only; URL thumbnail effect separate.

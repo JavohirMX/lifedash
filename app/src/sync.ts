@@ -1,3 +1,4 @@
+import { SAMPLE_MODE } from './dev/sampleMode';
 import { db } from './db';
 
 /**
@@ -11,11 +12,20 @@ export interface SyncStatus {
   at: number;
   ok: boolean;
   summary: string;
+  persistenceFailed?: boolean;
 }
 
 const STATUS_KEY = 'lifedash-sync-status';
+const SUCCESS_KEY = 'lifedash-sync-last-success';
+export function loadLastSuccessfulSync(): number | null {
+  if (SAMPLE_MODE) return null;
+  try { const at = Number(localStorage.getItem(SUCCESS_KEY)); return at > 0 && Number.isFinite(at) ? at : null; } catch { return null; }
+}
+let unsavedSyncStatus: SyncStatus | null = null;
 
 export function loadSyncStatus(): SyncStatus | null {
+  if (SAMPLE_MODE) return null;
+  if (unsavedSyncStatus) return unsavedSyncStatus;
   try {
     const raw = localStorage.getItem(STATUS_KEY);
     return raw ? (JSON.parse(raw) as SyncStatus) : null;
@@ -25,7 +35,13 @@ export function loadSyncStatus(): SyncStatus | null {
 }
 
 function saveSyncStatus(s: SyncStatus): void {
-  localStorage.setItem(STATUS_KEY, JSON.stringify(s));
+  try {
+    localStorage.setItem(STATUS_KEY, JSON.stringify(s));
+    if (s.ok) localStorage.setItem(SUCCESS_KEY, String(s.at));
+    unsavedSyncStatus = null;
+  } catch {
+    unsavedSyncStatus = { ...s, persistenceFailed: true };
+  }
   window.dispatchEvent(new Event('lifedash-sync-status'));
 }
 
@@ -40,6 +56,7 @@ const COLLECTIONS = ['tasks', 'projects', 'habits', 'habitLogs', 'goals', 'notes
 type Collection = (typeof COLLECTIONS)[number];
 
 export function loadSyncSettings(): SyncSettings | null {
+  if (SAMPLE_MODE) return null;
   try {
     const raw = localStorage.getItem(SETTINGS_KEY);
     if (!raw) return null;
@@ -51,6 +68,7 @@ export function loadSyncSettings(): SyncSettings | null {
 }
 
 export function saveSyncSettings(s: SyncSettings | null): void {
+  if (SAMPLE_MODE) return;
   if (s) localStorage.setItem(SETTINGS_KEY, JSON.stringify(s));
   else localStorage.removeItem(SETTINGS_KEY);
 }
@@ -64,6 +82,7 @@ export async function login(url: string, username: string, password: string): Pr
 }
 
 async function authCall(url: string, path: string, username: string, password: string): Promise<string> {
+  if (SAMPLE_MODE) throw new Error('Sync is disabled in the sample-data sandbox.');
   const res = await fetch(`${url.replace(/\/$/, '')}/api/${path}`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -72,6 +91,25 @@ async function authCall(url: string, path: string, username: string, password: s
   if (!res.ok) throw new Error(`${path} failed: ${res.status} ${await res.text()}`);
   const body = (await res.json()) as { token: string };
   return body.token;
+}
+
+/** Best-effort server-side token revocation for Disconnect. Returns
+ *  'revoked' only when the server confirmed it; 'unavailable' when the
+ *  endpoint is missing (older server), the token was already invalid, or
+ *  the server could not be reached - callers must still clear local
+ *  settings and must not claim the session was ended. */
+export async function logout(settings: SyncSettings): Promise<'revoked' | 'unavailable'> {
+  if (SAMPLE_MODE) return 'unavailable';
+  try {
+    const res = await fetch(`${settings.url.replace(/\/$/, '')}/api/logout`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${settings.token}` },
+      signal: AbortSignal.timeout(8000),
+    });
+    return res.ok ? 'revoked' : 'unavailable';
+  } catch {
+    return 'unavailable';
+  }
 }
 
 /* ---------- local state (syncmeta table) ---------- */
@@ -90,6 +128,29 @@ async function setMeta(key: string, value: unknown): Promise<void> {
 
 async function getCursor(): Promise<number> {
   return ((await getMeta('cursor')) as number | undefined) ?? 0;
+}
+
+export interface ConflictNotice {
+  count: number;
+  at: number;
+}
+
+const CONFLICT_NOTICE_KEY = 'sync:conflict-notice';
+
+/** Unacknowledged server-wins conflict count, persisted across sessions. */
+export async function getConflictNotice(): Promise<ConflictNotice | null> {
+  return ((await getMeta(CONFLICT_NOTICE_KEY)) as ConflictNotice | undefined) ?? null;
+}
+
+export async function acknowledgeConflictNotice(): Promise<void> {
+  await db.syncmeta.delete(CONFLICT_NOTICE_KEY);
+}
+
+async function recordConflicts(conflicts: number): Promise<void> {
+  if (conflicts <= 0) return;
+  const prior = await getConflictNotice();
+  await setMeta(CONFLICT_NOTICE_KEY, { count: (prior?.count ?? 0) + conflicts, at: Date.now() });
+  if (typeof window !== 'undefined') window.dispatchEvent(new CustomEvent('lifedash:sync-conflict'));
 }
 
 /* ---------- dirty tracking via Dexie hooks ---------- */
@@ -129,6 +190,7 @@ function summaryOf(r: SyncResult): string {
 
 /** Focus/online/interval sync plus debounced push after local edits. */
 export function startAutoSync(): void {
+  if (SAMPLE_MODE) return;
   if (autoSyncStarted) return;
   autoSyncStarted = true;
   installSyncHooks();
@@ -138,6 +200,7 @@ export function startAutoSync(): void {
 }
 
 export function installSyncHooks(): void {
+  if (SAMPLE_MODE) return;
   if (hooksInstalled) return;
   hooksInstalled = true;
   for (const col of COLLECTIONS) {
@@ -180,6 +243,7 @@ export interface SyncResult {
 }
 
 export async function syncNow(settings: SyncSettings): Promise<SyncResult> {
+  if (SAMPLE_MODE) throw new Error('Sync is disabled in the sample-data sandbox.');
   installSyncHooks();
   if (syncing) return { pushed: 0, conflicts: 0, pulled: 0, cursor: await getCursor() };
   syncing = true;
@@ -217,8 +281,11 @@ async function syncNowInner(settings: SyncSettings): Promise<SyncResult> {
   }
   let pushed = 0;
   let conflicts = 0;
-  if (changes.length > 0) {
-    const res = await fetch(`${base}/api/changes`, { method: 'POST', headers, body: JSON.stringify({ changes }) });
+  let replaced = 0;
+  // Stay below the server max of 1000; acknowledge each successful batch.
+  for (let offset = 0; offset < changes.length; offset += 500) {
+    const batch = changes.slice(offset, offset + 500);
+    const res = await fetch(`${base}/api/changes`, { method: 'POST', headers, body: JSON.stringify({ changes: batch }) });
     if (!res.ok) throw new Error(`push failed: ${res.status} ${await res.text()}`);
     const body = (await res.json()) as {
       results: {
@@ -238,6 +305,11 @@ async function syncNowInner(settings: SyncSettings): Promise<SyncResult> {
       } else if (r.status === 'conflict' && r.current) {
         // Server wins: take the server's version, drop our local edit.
         conflicts += 1;
+        // A conflict whose local content is identical to the server's
+        // (e.g. the default Inbox seeded on first join) loses nothing, so
+        // it must not count as a replaced edit in the persistent notice.
+        const ch = changes.find((c) => c.collection === col && c.id === r.id);
+        if (ch && JSON.stringify(ch.data) !== JSON.stringify(r.current.data)) replaced += 1;
         await applyRemote(col, {
           collection: r.collection,
           id: r.id,
@@ -250,6 +322,9 @@ async function syncNowInner(settings: SyncSettings): Promise<SyncResult> {
   }
   // Final pull to settle on anything the server applied.
   const pulled2 = await pull(base, headers);
+  // Server-wins drops the conflicting local edits: keep a persistent notice
+  // so an auto-sync cannot erase awareness before the user sees it.
+  await recordConflicts(replaced);
   return { pushed, conflicts, pulled: pulled1 + pulled2, cursor: await getCursor() };
 }
 
@@ -264,8 +339,11 @@ async function pull(base: string, headers: Record<string, string>): Promise<numb
     if (!COLLECTIONS.includes(col)) continue;
     const isDirty = (await db.syncmeta.get(dirtyKey(col, e.id))) !== undefined;
     if (isDirty) {
-      // Local edit wins until the push resolves it; just refresh base_rev.
-      await setMeta(revKey(col, e.id), e.rev);
+      // Locally edited: keep BOTH the local data and the old base_rev.
+      // The push must go out with the stale base_rev so the server can
+      // answer "conflict" with its version (server-wins MVP). Refreshing
+      // base_rev here would make the push match and silently clobber the
+      // server's newer version - the bug this comment replaces.
       continue;
     }
     await applyRemote(col, e);

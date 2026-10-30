@@ -95,6 +95,19 @@ export function parseNatural(raw: string, now: Date = new Date()): NaturalParse 
     if (lw === 'in' && next && (next === 'a' || next === 'one') && words[i + 2]?.toLowerCase() === 'week') {
       dueDate = addDays(today, 7); i += 3; continue;
     }
+    if (lw === 'in' && next && /^\d+$/.test(next) && (words[i + 2]?.toLowerCase() === 'weeks' || words[i + 2]?.toLowerCase() === 'week')) {
+      dueDate = addDays(today, Number(next) * 7); i += 3; continue;
+    }
+    if (lw === 'eod' || (lw === 'end' && next === 'of' && words[i + 2]?.toLowerCase() === 'day')) {
+      dueDate ??= today; dueTime = '17:00';
+      i += lw === 'eod' ? 1 : 3; continue;
+    }
+    // Time-of-day words only count once a date is set, so a title like
+    // "morning run" keeps its words.
+    if (dueDate && (lw === 'morning' || lw === 'afternoon' || lw === 'evening' || lw === 'night')) {
+      dueTime = { morning: '09:00', afternoon: '13:00', evening: '18:00', night: '21:00' }[lw]!;
+      i++; continue;
+    }
     if (lw === 'next' && next && next in WEEKDAYS) { dueDate = nextWeekday(today, WEEKDAYS[next], true); i += 2; continue; }
     if (lw === 'next' && next === 'week') { dueDate = addDays(today, 7); i += 2; continue; }
     if ((lw === 'on' && next && next in WEEKDAYS) || (lw in WEEKDAYS)) {

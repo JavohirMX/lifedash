@@ -14,7 +14,11 @@ export interface Task {
   priority: number; // 0 none, 1 high, 2 medium, 3 low
   dueDate: string | null; // local YYYY-MM-DD
   dueTime: string | null; // local 'HH:MM', null = anytime
+  plannedDate?: string | null; // local work date, independent of the deadline
+  plannedTime?: string | null; // local work start HH:MM; never a calendar write
+  durationMinutes?: number | null; // explicit estimate, 1..1440; absent means unknown
   recurrence: string | null; // RRULE string with DTSTART
+  skippedDates?: string[]; // occurrences explicitly skipped, kept so series history stays honest
   blockedBy: string[]; // task ids that gate this task
   tags: string[]; // lowercase, no '#'
   order: number;
@@ -42,11 +46,13 @@ export interface HabitLog {
 }
 
 export interface JournalEntry {
+  weeklyReview?: { reflection: string; focus: string; reviewedAt: number };
   id: string;
   date: string; // YYYY-MM-DD, one entry per day
   note: string;
   noteDoc: unknown | null;
   mood: number | null; // 1-5
+  highlight?: string | null; // one-liner shown on the TV surface
   createdAt: number;
   updatedAt: number;
 }
@@ -62,6 +68,8 @@ export interface Note {
 }
 
 export interface Goal {
+  habitIds?: string[];
+  projectIds?: string[];
   id: string;
   title: string;
   note: string;
@@ -88,4 +96,13 @@ export interface Project {
   color: string;
   order: number;
   archived: boolean;
+  parentId?: string | null; // nesting; absent/null = top level
+}
+
+export interface FocusSession {
+  id: string;
+  taskId: string;
+  startedAt: number;
+  endedAt: number | null;
+  seconds: number; // final total once endedAt is set; 0 while running
 }

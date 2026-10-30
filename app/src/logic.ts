@@ -1,5 +1,7 @@
+import { normalizePlan } from './planning';
 import { RRule, Frequency } from 'rrule';
-import type { Task, Note, JournalEntry, Goal } from './types';
+import { projectWithDescendants } from './projects';
+import type { Project, Task, Note, JournalEntry, Goal } from './types';
 import { utcNoon, fromUtcNoon, parseLocalDate, toLocalDateStr, addDays } from './dates';
 
 export type RecurrenceKind = 'daily' | 'weekly' | 'monthly' | 'ndays';
@@ -30,28 +32,92 @@ export function makeRecurrence(kind: RecurrenceKind, dueDate: string, intervalDa
   return rule.toString();
 }
 
-export function describeRecurrence(rule: string | null): string {
-  if (!rule) return '';
-  const o = RRule.fromString(rule).origOptions;
-  const n = o.interval ?? 1;
-  switch (o.freq) {
-    case Frequency.DAILY:
-      return n === 1 ? 'Daily' : `Every ${n} days`;
-    case Frequency.WEEKLY:
-      return n === 1 ? 'Weekly' : `Every ${n} weeks`;
-    case Frequency.MONTHLY:
-      return n === 1 ? 'Monthly' : `Every ${n} months`;
-    default:
-      return 'Repeats';
+export function isRecurrenceValid(rule: string | null): boolean {
+  if (!rule) return true;
+  try {
+    RRule.fromString(rule);
+    return true;
+  } catch {
+    return false;
   }
+}
+
+// Display classification only. Additional constraints must not look like a basic
+// editor-generated schedule. Never normalizes or rewrites the stored rule.
+export function recurrenceChoice(rule: string | null): 'none' | 'daily' | 'weekly' | 'monthly' | 'ndays' | 'invalid' | 'custom' {
+  if (!rule) return 'none';
+  let o: ReturnType<typeof RRule.fromString>['origOptions'];
+  try { o = RRule.fromString(rule).origOptions; } catch { return 'invalid'; }
+  if (!o.dtstart || Object.keys(o).some(key => !['freq', 'interval', 'dtstart', 'byweekday', 'bymonthday'].includes(key))) return 'custom';
+  const n = o.interval ?? 1;
+  if (!Number.isInteger(n) || n < 1) return 'custom';
+  if (o.freq === Frequency.DAILY) {
+    return o.byweekday || o.bymonthday ? 'custom' : n === 1 ? 'daily' : 'ndays';
+  }
+  if (o.freq === Frequency.WEEKLY) {
+    const days = Array.isArray(o.byweekday) ? o.byweekday : o.byweekday != null ? [o.byweekday] : [];
+    const day = days[0];
+    const weekday = typeof day === 'number' ? day : typeof day === 'object' ? day.weekday : undefined;
+    return n !== 1 || o.bymonthday || days.length !== 1 || (typeof day === 'object' && day.n != null) || weekday !== (o.dtstart.getUTCDay() + 6) % 7 ? 'custom' : 'weekly';
+  }
+  if (o.freq === Frequency.MONTHLY) {
+    const days = Array.isArray(o.bymonthday) ? o.bymonthday : o.bymonthday != null ? [o.bymonthday] : [];
+    return n !== 1 || o.byweekday || days.length !== 1 || days[0] !== o.dtstart.getUTCDate() ? 'custom' : 'monthly';
+  }
+  return 'custom';
+}
+
+export function describeRecurrence(rule: string | null): string {
+  switch (recurrenceChoice(rule)) {
+    case 'none': return '';
+    case 'invalid': return 'Invalid repeat rule';
+    case 'custom': return 'Custom repeat';
+    case 'daily': return 'Daily';
+    case 'weekly': return 'Weekly';
+    case 'monthly': return 'Monthly';
+    case 'ndays': return `Every ${RRule.fromString(rule!).origOptions.interval} days`;
+  }
+}
+
+// First date strictly after `base` (local YYYY-MM-DD) on which a monthly rule
+// anchored at `day` fires, clamping to the month's last day when the month is
+// shorter. Without this, a monthly task on the 29th-31st silently skips
+// February (RRule omits months without the day).
+function nextMonthlyClamped(day: number, base: string): string {
+  let [year, month] = base.split('-').map(Number);
+  for (let i = 0; i < 2400; i++) {
+    const dim = new Date(year, month, 0).getDate(); // last day of `month` (local)
+    const cand = `${year}-${String(month).padStart(2, '0')}-${String(Math.min(day, dim)).padStart(2, '0')}`;
+    if (cand > base) return cand;
+    month += 1;
+    if (month === 13) { month = 1; year += 1; }
+  }
+  return base;
 }
 
 // Next occurrence strictly after max(dueDate, today), as a local date string.
 // Skipping missed occurrences is intentional: completing an overdue daily task
 // today schedules it for tomorrow, not for a pile of past days.
 export function nextOccurrenceDate(rule: string, dueDate: string, today: string): string | null {
-  const rr = RRule.fromString(rule);
+  let rr: RRule;
+  try {
+    rr = RRule.fromString(rule);
+  } catch {
+    // A malformed rule (restored backup, synced row) must not block completion.
+    return null;
+  }
   const base = dueDate > today ? dueDate : today;
+  const o = rr.origOptions;
+  // bymonthday comes back as a scalar when the rule names a single day.
+  const mdays = Array.isArray(o.bymonthday) ? o.bymonthday : o.bymonthday != null ? [o.bymonthday] : [];
+  if (
+    o.freq === Frequency.MONTHLY &&
+    (o.interval ?? 1) === 1 &&
+    mdays.length === 1 &&
+    !o.byweekday && !o.bysetpos
+  ) {
+    return nextMonthlyClamped(Number(mdays[0]), base);
+  }
   const next = rr.after(utcNoon(base), false);
   return next ? fromUtcNoon(next) : null;
 }
@@ -59,6 +125,24 @@ export function nextOccurrenceDate(rule: string, dueDate: string, today: string)
 export interface CompletionResult {
   updates: Partial<Task>;
   spawned: Omit<Task, 'id' | 'createdAt' | 'updatedAt'> | null;
+}
+
+/** Explicitly skip the current occurrence of a recurring task: the skipped
+ * date is recorded and the task advances to the next occurrence after today,
+ * mirroring how completion advances. Returns null when skipping is a no-op
+ * (no recurrence, no due date, or the rule yields no next occurrence). */
+export function skipOccurrence(task: Task, today: string, now: number): { updates: Partial<Task> } | null {
+  if (!task.recurrence || !task.dueDate) return null;
+  const nextDate = nextOccurrenceDate(task.recurrence, task.dueDate, today);
+  if (!nextDate) return null;
+  return {
+    updates: {
+      dueDate: nextDate,
+      plannedDate: null, plannedTime: null,
+      skippedDates: [...(task.skippedDates ?? []), task.dueDate],
+      updatedAt: now,
+    },
+  };
 }
 
 export function completeTask(task: Task, today: string, now: number): CompletionResult {
@@ -81,7 +165,9 @@ export function completeTask(task: Task, today: string, now: number): Completion
       priority: task.priority,
       dueDate: nextDate,
       dueTime: task.dueTime ?? null,
+      plannedDate: null, plannedTime: null, durationMinutes: task.durationMinutes ?? null,
       recurrence: task.recurrence,
+      skippedDates: [...(task.skippedDates ?? [])],
       blockedBy: [...(task.blockedBy ?? [])],
       tags: [...(task.tags ?? [])],
       order: task.order,
@@ -122,7 +208,32 @@ export function upcomingTasks(tasks: Task[], today: string, days = 14): Map<stri
     if (!groups.has(key)) groups.set(key, []);
     groups.get(key)!.push(t);
   }
-  return groups;
+  return new Map([...groups.entries()].sort(([a], [b]) => a.localeCompare(b)));
+}
+
+// --- "Up next" suggestions (SPEC Phase 5) ---
+// Plain date/threshold heuristics only - no invented smarts.
+
+export const UPNEXT_STALE_DAYS = 14;
+export const UPNEXT_DUE_SOON_DAYS = 2;
+
+export interface UpNextGroups {
+  overdue: Task[];
+  dueSoon: Task[];
+  staleBacklog: Task[];
+  brokenRules: Task[];
+}
+
+export function upNextGroups(tasks: Task[], today: string, now: number): UpNextGroups {
+  const act = tasks.filter((t) => active(t) && topLevel(t));
+  const staleMs = UPNEXT_STALE_DAYS * 86400000;
+  const soonLimit = addDays(today, UPNEXT_DUE_SOON_DAYS);
+  return {
+    overdue: sortTasks(act.filter((t) => t.dueDate !== null && t.dueDate < today)),
+    dueSoon: sortTasks(act.filter((t) => t.dueDate !== null && t.dueDate > today && t.dueDate <= soonLimit)),
+    staleBacklog: sortTasks(act.filter((t) => t.dueDate === null && now - t.updatedAt >= staleMs)),
+    brokenRules: sortTasks(act.filter((t) => t.recurrence !== null && !isRecurrenceValid(t.recurrence))),
+  };
 }
 
 export function backlogTasks(tasks: Task[]): Task[] {
@@ -131,6 +242,13 @@ export function backlogTasks(tasks: Task[]): Task[] {
 
 export function projectTasks(tasks: Task[], projectId: string): Task[] {
   return sortTasks(tasks.filter((t) => active(t) && topLevel(t) && t.projectId === projectId));
+}
+
+// A project's aggregate view: its own tasks plus every descendant
+// project's tasks, in the same order (John, Oct 27: "show both").
+export function projectTreeTasks(tasks: Task[], projects: Project[], projectId: string): Task[] {
+  const ids = projectWithDescendants(projects, projectId);
+  return sortTasks(tasks.filter((t) => active(t) && topLevel(t) && ids.has(t.projectId)));
 }
 
 export function completedTasks(tasks: Task[]): Task[] {
@@ -180,7 +298,7 @@ export function subtaskProgress(tasks: Task[], parentId: string): { done: number
 // --- Dependencies ---
 
 export function normalizeTask(t: Task): Task {
-  return { ...t, blockedBy: t.blockedBy ?? [], tags: t.tags ?? [], noteDoc: t.noteDoc ?? null };
+  return { ...t, ...normalizePlan(t), blockedBy: t.blockedBy ?? [], tags: t.tags ?? [], noteDoc: t.noteDoc ?? null };
 }
 
 export function blockersOf(tasks: Task[], t: Task): Task[] {
@@ -212,6 +330,13 @@ export function wouldCreateCycle(tasks: Task[], taskId: string, blockerId: strin
     for (const next of t?.blockedBy ?? []) queue.push(next);
   }
   return false;
+}
+
+/** Offers only dependency choices that can actually be added. */
+export function blockerCandidates(tasks: Task[], task: Task): Task[] {
+  return tasks.filter(t => t.status === 'active' && t.id !== task.id
+    && !(task.blockedBy ?? []).includes(t.id)
+    && !wouldCreateCycle(tasks, task.id, t.id));
 }
 
 // --- Tags + search ---
@@ -289,7 +414,7 @@ export function searchNotes(notes: Note[], query: string): Note[] {
 
 export function searchJournal(entries: JournalEntry[], query: string): JournalEntry[] {
   return entries
-    .filter((e) => textMatch(e.note, query))
+    .filter((e) => textMatch(e.note, query) || textMatch(e.highlight ?? '', query))
     .sort((a, b) => (a.date < b.date ? 1 : -1));
 }
 
@@ -317,6 +442,21 @@ export function suggestedTask(tasks: Task[], today: string): { task: Task; reaso
   return { task: top, reason };
 }
 
+// Drop checklist items that would duplicate existing tasks: titles already
+// linked from this note (trimmed, case-insensitive) and repeats within the
+// list itself. Order preserved.
+export function filterNewChecklistItems(items: string[], existingTitles: string[]): string[] {
+  const seen = new Set(existingTitles.map((t) => t.trim().toLowerCase()));
+  const out: string[] = [];
+  for (const raw of items) {
+    const key = raw.trim().toLowerCase();
+    if (!key || seen.has(key)) continue;
+    seen.add(key);
+    out.push(raw.trim());
+  }
+  return out;
+}
+
 // Unchecked checklist items in a ProseMirror doc, as plain-text titles.
 export function extractChecklistItems(doc: unknown): string[] {
   const out: string[] = [];
@@ -334,8 +474,13 @@ export function extractChecklistItems(doc: unknown): string[] {
       if (text) out.push(text);
       return; // don't double-walk children of a task item
     }
-    (n.content ?? []).forEach(walk);
+    if (Array.isArray(n.content)) n.content.forEach(walk);
   };
   walk(doc);
   return out;
+}
+
+/** Rename/merge a tag inside one tag list: swaps `from` for `to`, dedupes. */
+export function renamedTags(tags: string[], from: string, to: string): string[] {
+  return [...new Set(tags.map((t) => (t === from ? to : t)))];
 }

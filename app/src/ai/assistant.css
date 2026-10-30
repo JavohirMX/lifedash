@@ -1,0 +1,24 @@
+.ai-dialog { color: var(--text, #17202a); background: var(--surface, #fff); border: 1px solid var(--border, #cad1d7); border-radius: 16px; padding: 24px; width: min(720px, calc(100vw - 24px)); max-height: calc(100dvh - 32px); overflow: auto; box-sizing: border-box; }
+.ai-dialog::backdrop { background: #11182780; }
+.ai-dialog header { display: flex; justify-content: space-between; align-items: start; gap: 16px; }
+.ai-dialog h2 { margin: 4px 0 12px; }
+.ai-dialog h3 { margin: 20px 0 8px; }
+.ai-eyebrow { font-size: 11px; letter-spacing: .12em; margin: 0; }
+.ai-dialog p { line-height: 1.5; }
+.ai-hint { font-size: 12px; opacity: .8; }
+.ai-dialog fieldset { border: 0; padding: 0; margin: 0; min-width: 0; }
+.ai-dialog label { display: block; font-size: 13px; line-height: 1.5; margin-bottom: 12px; }
+.ai-dialog input:not([type=checkbox]), .ai-dialog textarea { display: block; width: 100%; box-sizing: border-box; margin-top: 5px; padding: 10px; border: 1px solid var(--border, #cad1d7); border-radius: 7px; color: inherit; background: transparent; font: inherit; }
+.ai-dialog button { min-height: 38px; cursor: pointer; }
+.ai-dialog button:disabled { opacity: .5; cursor: default; }
+.ai-dialog :focus-visible { outline: 2px solid var(--accent, #0f766e); outline-offset: 3px; }
+.ai-fields { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.ai-task-picker { max-height: 170px; overflow: auto; border: 1px solid var(--border, #cad1d7); border-radius: 8px; padding: 12px; margin-bottom: 14px; }
+.ai-task-picker label, .ai-dialog .ai-consent { display: flex; gap: 10px; align-items: baseline; }
+.ai-task-picker span { overflow-wrap: anywhere; }
+.ai-dialog pre { white-space: pre-wrap; overflow-wrap: anywhere; font: inherit; font-size: 13px; padding: 12px; background: #80808012; border-radius: 8px; max-height: 240px; overflow: auto; }
+.ai-dialog code { overflow-wrap: anywhere; }
+.ai-error { color: var(--negative, #b91c1c); }
+@media(max-width: 560px) { .ai-dialog { padding: 18px; } .ai-fields { grid-template-columns: 1fr; gap: 0; } }
+.ai-dialog textarea, .ai-dialog input:not([type=checkbox]) { color: var(--text, #17202a) !important; background-color: var(--surface, #fff); }
+.ai-dialog button:not(.btn-primary) { color: var(--text, #17202a); background: var(--surface-2, #f0f0eb); border: 1px solid var(--control, #d2d2cb); border-radius: 6px; padding: 6px 10px; }

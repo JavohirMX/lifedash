@@ -1,0 +1,5 @@
+# Search tag rename feedback
+
+October28,2026. Rejected existing renameTag transaction retained input but emitted uncaught rejection without alert. Extracted tag-keyed form awaits same renameTag, pending guard prevents duplicate submissions, catches error retaining text. Existing normalize/empty/no-op/global merge semantics retained. Origin component mounting check prevents late successful rename from redirecting a newer tag search; success count persists above tag form as before.
+
+Six1440/390/320light/dark failure/unchanged saved records/retained draft/retry/normalization/duplicate/new-query origin groups pass.314tests/checked-exit build pass. Initial inline error squeezed beside controls; caught in pixels, fixed form wrapping/full-width feedback and reran.390light/320dark final pixels inspected: readable error under input/buttons, no clipping/overflow. Original repository transaction unchanged, no external concurrency guarantee. Mounted-only draft, navigation discards it; pending writes continue.

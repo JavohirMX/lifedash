@@ -1,9 +1,10 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { X } from 'lucide-react';
 import type { Project } from '../types';
-import { INBOX_ID } from '../db';
-import { addProject, importTasks } from '../repo';
+import { db, INBOX_ID } from '../db';
+import { addProject, importTasks, importBackup } from '../repo';
 import { detectSource, parse, type ImportSource, type ParseResult } from '../import';
+import { useDialogFocus } from '../hooks/useDialogFocus';
 
 const SOURCES: { id: ImportSource; label: string }[] = [
   { id: 'todoist-csv', label: 'Todoist CSV' },
@@ -12,29 +13,33 @@ const SOURCES: { id: ImportSource; label: string }[] = [
   { id: 'lifedash-json', label: 'Lifedash JSON export' },
 ];
 
-export default function ImportDialog(props: { projects: Project[]; onClose: () => void }) {
+export default function ImportDialog(props: { projects: Project[]; initialSource?: ImportSource | null; onClose: () => void; onRestoreSettled?: () => void }) {
   const [text, setText] = useState('');
   const [filename, setFilename] = useState('');
-  const [source, setSource] = useState<ImportSource | null>(null);
+  const [source, setSource] = useState<ImportSource | null>(props.initialSource ?? null);
   const [result, setResult] = useState<ParseResult | null>(null);
   const [target, setTarget] = useState<string>(INBOX_ID);
   const [imported, setImported] = useState<number | null>(null);
+  const [restored, setRestored] = useState<Record<string, number> | null>(null);
+  const [restoreError, setRestoreError] = useState('');
+  const [importError, setImportError] = useState('');
   const [busy, setBusy] = useState(false);
+  const writing = useRef(false);
   const fileRef = useRef<HTMLInputElement>(null);
   const areaRef = useRef<HTMLTextAreaElement>(null);
 
-  useEffect(() => {
-    areaRef.current?.focus();
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') props.onClose();
-    };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  const panel = useDialogFocus<HTMLDivElement>(props.onClose, 'textarea');
+
+  const fileRead = useRef(0);
+  useEffect(() => () => { fileRead.current++; }, []);
 
   async function loadFile(f: File) {
-    const t = await f.text();
+    const generation = ++fileRead.current;
+    let t: string;
+    try { t = await f.text(); }
+    catch { if (generation === fileRead.current) setImportError("Couldn't read this file. Choose it again or paste the text below."); return; }
+    if (generation !== fileRead.current) return;
+    setImportError('');
     setFilename(f.name);
     setText(t);
     const s = detectSource(f.name, t);
@@ -44,47 +49,92 @@ export default function ImportDialog(props: { projects: Project[]; onClose: () =
   }
 
   function reparse(s: ImportSource) {
+    fileRead.current++;
     setSource(s);
     if (text) setResult(parse(s, text));
   }
 
   const needsPerSource = result?.tasks.some((t) => t.project) ?? false;
 
-  async function run() {
-    if (!result || result.tasks.length === 0) return;
-    setBusy(true);
+  // A Lifedash v2 export is a FULL backup, not just a task list.
+  const fullBackup = useMemo(() => {
+    if (source !== 'lifedash-json' || !text.trim()) return null;
     try {
-      const byName = new Map(props.projects.map((p) => [p.name.toLowerCase(), p.id]));
-      if (target === 'per-source') {
-        for (const t of result.tasks) {
-          const name = t.project?.trim();
-          if (name && !byName.has(name.toLowerCase())) {
-            const p = await addProject(name, '#0f766e');
-            byName.set(name.toLowerCase(), p.id);
+      const d = JSON.parse(text) as Record<string, unknown>;
+      if (![2, 3].includes(d?.version as number) || !Array.isArray(d.tasks)) return null;
+      return d;
+    } catch { return null; }
+  }, [source, text]);
+  const COLL_LABELS: [string, string, string][] = [
+    ['attachments', 'attachment file', 'attachment files'],
+    ['focusSessions', 'focus session', 'focus sessions'],
+    ['habitLogs', 'habit log', 'habit logs'],
+    ['projects', 'project', 'projects'],
+    ['tasks', 'task', 'tasks'],
+    ['habits', 'habit', 'habits'],
+    ['goals', 'goal', 'goals'],
+    ['notes', 'note', 'notes'],
+    ['journal', 'journal entry', 'journal entries'],
+  ];
+  const countText = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
+  const backupCounts = fullBackup
+    ? COLL_LABELS.map(([k, one, many]) => ({ n: Array.isArray(fullBackup[k]) ? (fullBackup[k] as unknown[]).length : 0, text: countText(Array.isArray(fullBackup[k]) ? (fullBackup[k] as unknown[]).length : 0, one, many) }))
+    : [];
+
+  async function runFullRestore() {
+    if (writing.current) return;
+    writing.current = true; fileRead.current++; setBusy(true);
+    setRestoreError('');
+    try { setRestored((await importBackup(text)).restored); }
+    catch (e) { setRestoreError(e instanceof Error ? e.message : 'Restore failed. Nothing was restored.'); }
+    finally { writing.current = false; setBusy(false); props.onRestoreSettled?.(); }
+  }
+
+  async function run() {
+    if (writing.current || !result || result.tasks.length === 0) return;
+    writing.current = true; fileRead.current++; setBusy(true);
+    setImportError('');
+    try {
+      const n = await db.transaction('rw', db.projects, db.tasks, async () => {
+        const byName = new Map(props.projects.map((p) => [p.name.toLowerCase(), p.id]));
+        if (target === 'per-source') {
+          for (const t of result.tasks) {
+            const name = t.project?.trim();
+            if (name && !byName.has(name.toLowerCase())) {
+              const p = await addProject(name, '#0f766e');
+              byName.set(name.toLowerCase(), p.id);
+            }
           }
         }
-      }
-      const n = await importTasks(result.tasks, (sourceName) => {
-        if (target === 'per-source' && sourceName) {
-          return byName.get(sourceName.trim().toLowerCase()) ?? INBOX_ID;
-        }
-        return target;
+        return importTasks(result.tasks, (sourceName) => {
+          if (target === 'per-source' && sourceName) {
+            return byName.get(sourceName.trim().toLowerCase()) ?? INBOX_ID;
+          }
+          return target;
+        });
       });
       setImported(n);
+    } catch {
+      setImportError("Couldn't import tasks. No tasks or projects were added. Your source text is still here; try again.");
     } finally {
-      setBusy(false);
+      writing.current = false; setBusy(false);
     }
   }
 
   return (
     <div className="palette-overlay" onClick={props.onClose}>
-      <div className="import-panel" role="dialog" aria-modal="true" aria-label="Import tasks" onClick={(e) => e.stopPropagation()}>
+      <div ref={panel} className="import-panel" role="dialog" aria-modal="true" aria-label={props.initialSource === 'lifedash-json' ? 'Restore backup' : 'Import tasks'} onClick={(e) => e.stopPropagation()}>
         <div className="import-head">
-          <h2>Import tasks</h2>
+          <h2>{props.initialSource === 'lifedash-json' ? 'Restore backup' : 'Import tasks'}</h2>
           <button className="icon-btn" aria-label="Close" onClick={props.onClose}><X size={18} strokeWidth={1.75} /></button>
         </div>
 
-        {imported !== null ? (
+        {restored !== null ? (
+          <div className="import-done">
+            <p>Backup restored: {COLL_LABELS.filter(([k]) => (restored[k] ?? 0) > 0).map(([k, one, many]) => countText(restored[k], one, many)).join(', ') || 'nothing found'}.</p>
+            <button className="btn-primary" onClick={props.onClose}>Done</button>
+          </div>
+        ) : imported !== null ? (
           <div className="import-done">
             <p>Imported {imported} task{imported === 1 ? '' : 's'}.</p>
             <button className="btn-primary" onClick={props.onClose}>Done</button>
@@ -93,7 +143,7 @@ export default function ImportDialog(props: { projects: Project[]; onClose: () =
           <>
             <div className="field">
               <span>Source file</span>
-              <input aria-label="Source file"
+              <input disabled={busy} aria-label="Source file"
                 ref={fileRef}
                 type="file"
                 accept=".csv,.md,.markdown,.txt,.json"
@@ -102,11 +152,13 @@ export default function ImportDialog(props: { projects: Project[]; onClose: () =
             </div>
             <div className="field">
               <span>or paste text {filename && `(loaded: ${filename})`}</span>
-              <textarea ref={areaRef}
+              <textarea disabled={busy} aria-label="Import source text" ref={areaRef}
                 rows={5}
                 value={text}
-                placeholder={'- [ ] A task\n- [x] A finished one'}
+                placeholder={source === 'lifedash-json' ? '{"version": 2, "tasks": [ ... ], ...}' : '- [ ] A task\n- [x] A finished one'}
                 onChange={(e) => {
+                  fileRead.current++;
+                  setImportError('');
                   setText(e.target.value);
                   setFilename('');
                   const s = source ?? detectSource('', e.target.value);
@@ -117,12 +169,24 @@ export default function ImportDialog(props: { projects: Project[]; onClose: () =
             </div>
             <div className="field">
               <span>Format</span>
-              <select aria-label="Import format" value={source ?? ''} onChange={(e) => reparse(e.target.value as ImportSource)}>
+              <select disabled={busy} aria-label="Import format" value={source ?? ''} onChange={(e) => reparse(e.target.value as ImportSource)}>
                 <option value="" disabled>Pick a format</option>
                 {SOURCES.map((s) => <option key={s.id} value={s.id}>{s.label}</option>)}
               </select>
             </div>
 
+            {importError && <p role="alert" className="import-warnings">{importError}</p>}
+            {fullBackup && (
+              <div className="import-summary">
+                <p className="import-count">Backup data: {backupCounts.filter((c) => c.n > 0).map((c) => c.text).join(', ')}.</p>
+                <p className="import-warnings">Restoring merges by id: items in the backup overwrite matching existing items; nothing is deleted. {fullBackup.version === 3 ? 'Portable backup includes attachment files. File checks run before any records are restored.' : 'Legacy JSON has attachment metadata only; files are not restored.'}</p>
+                <button className="btn-primary" disabled={busy} onClick={() => void runFullRestore()}>
+                  {busy ? 'Restoring...' : 'Restore backup data'}
+                </button>
+                {restoreError && <p role="alert" className="import-warnings">{restoreError}</p>}
+                <p className="import-count" style={{ marginTop: 8 }}>Or import only the tasks:</p>
+              </div>
+            )}
             {result && (
               <div className="import-summary">
                 <p className="import-count">
@@ -149,7 +213,7 @@ export default function ImportDialog(props: { projects: Project[]; onClose: () =
                 {result.tasks.length > 0 && (
                   <div className="field">
                     <span>Add to</span>
-                    <select value={target} onChange={(e) => setTarget(e.target.value)}>
+                    <select disabled={busy} aria-label="Add imported tasks to" value={target} onChange={(e) => setTarget(e.target.value)}>
                       <option value={INBOX_ID}>Inbox</option>
                       {props.projects.filter((p) => p.id !== INBOX_ID).map((p) => (
                         <option key={p.id} value={p.id}>{p.name}</option>

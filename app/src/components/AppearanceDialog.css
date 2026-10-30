@@ -1,0 +1,20 @@
+/* These labels supplement the existing independent style and mode controls. */
+.appearance-panel .appearance-current { margin: 0; padding: 10px 12px; border: 1px solid var(--border); border-radius: var(--radius-control); background: var(--surface-2); color: var(--muted); font-size: var(--fs-small); line-height: 1.5; }
+.appearance-panel .appearance-current strong { color: var(--text); }
+.appearance-panel .appearance-section-title { margin: 0; font-size: var(--fs-body); font-weight: 600; display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 12px; }
+.appearance-panel .appearance-section-title span { font-size: var(--fs-small); font-weight: 400; color: var(--muted); }
+.appearance-panel .mode-seg { margin: 0 0 4px; }
+.appearance-panel .mode-seg button { justify-content: center; flex: 1; min-width: 0; }
+.appearance-panel .style-grid { grid-template-columns: repeat(auto-fill, minmax(min(176px, 100%), 1fr)); padding: 2px; }
+.appearance-panel .appearance-summary { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.appearance-panel .appearance-current { flex: 1; min-width: 140px; }
+.appearance-panel .appearance-reset { flex: none; min-height: 40px; height: auto; padding: 8px 12px; }
+.appearance-panel .style-name { display: flex; justify-content: space-between; gap: 8px; align-items: center; }
+.appearance-panel .style-selected { color: var(--accent); font-weight: 700; }
+@media (max-width: 640px) { .appearance-panel .mode-seg button { min-height: 44px; } }
+.appearance-panel .appearance-sections { display: flex; gap: 4px; padding: 4px; border: 1px solid var(--border); border-radius: var(--radius-control); background: var(--surface-2); flex: none; }
+.appearance-sections button { flex: 1; min-width: 0; min-height: 44px; background: transparent; border: 0; border-radius: var(--radius-control); cursor: pointer; color: var(--muted); }
+.appearance-sections button[aria-selected='true'] { background: var(--surface); color: var(--text); box-shadow: var(--shadow-card); font-weight: 600; }
+.appearance-panel [role='tabpanel'][hidden] { display: none; }
+.appearance-panel [role='tabpanel']:not([hidden]) { display: flex; flex-direction: column; gap: 14px; }
+.appearance-panel .appearance-save-error { margin: 0; padding: 10px 12px; color: var(--negative); background: var(--surface-2); border-left: 3px solid var(--negative); line-height: 1.5; }

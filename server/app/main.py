@@ -9,12 +9,13 @@ import json
 import os
 from contextlib import asynccontextmanager
 
-from fastapi import Depends, FastAPI, HTTPException
+from fastapi import Depends, FastAPI, Header, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 
 from .auth import current_user, hash_password, new_token, verify_password
 from .db import get_conn, init_db
+from .gcal import router as gcal_router
 
 COLLECTIONS = {"tasks", "projects", "tags", "habits", "habitLogs", "goals", "notes", "journal"}
 
@@ -32,6 +33,8 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+app.include_router(gcal_router)
 
 
 class Credentials(BaseModel):
@@ -92,6 +95,19 @@ def login(creds: Credentials):
     conn.execute("INSERT INTO tokens (token, user_id) VALUES (?, ?)", (token, row["id"]))
     conn.commit()
     return {"token": token, "user_id": row["id"]}
+
+
+@app.post("/api/logout", status_code=204)
+def logout(authorization: str = Header(default="")):
+    prefix = "Bearer "
+    if not authorization.startswith(prefix):
+        raise HTTPException(status_code=401, detail="missing bearer token")
+    token = authorization[len(prefix):].strip()
+    conn = get_conn()
+    cur = conn.execute("DELETE FROM tokens WHERE token = ?", (token,))
+    conn.commit()
+    if cur.rowcount == 0:
+        raise HTTPException(status_code=401, detail="invalid token")
 
 
 @app.get("/api/changes")
