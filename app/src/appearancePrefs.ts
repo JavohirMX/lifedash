@@ -1,3 +1,4 @@
+import { SAMPLE_MODE } from './dev/sampleMode';
 export const FONTS = [
   { id: 'style', name: 'Match style', family: '', description: 'Keep each style’s original typography.' },
   { id: 'inter', name: 'Inter', family: "'Inter Variable', ui-sans-serif, system-ui, sans-serif", description: 'Clean, open shapes. A focused everyday choice.' },
@@ -11,7 +12,10 @@ export const FONTS = [
   { id: 'mono', name: 'Monospace', family: 'ui-monospace, SFMono-Regular, Consolas, monospace', description: 'Fixed-width letters and numbers.' },
 ] as const;
 export type FontId = typeof FONTS[number]['id'];
-const PREFIX = typeof window !== 'undefined' && new URLSearchParams(window.location.search).has('sample') ? 'lifedash-sample-' : 'lifedash-';
+// One determination for sample mode (dev-only ?sample), shared with the
+// database and every other prefixed key; a production visit with ?sample is
+// not sample mode.
+const PREFIX = SAMPLE_MODE ? 'lifedash-sample-' : 'lifedash-';
 export const FONT_KEY = `${PREFIX}font`;
 export const WALLPAPER_KEY = `${PREFIX}wallpaper`;
 export const WALLPAPERS = [
