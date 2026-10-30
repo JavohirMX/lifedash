@@ -1585,6 +1585,8 @@ input[type='checkbox'], input[type='radio'], input[type='range'] { accent-color:
 
 /* Restored grouped navigation and approved Settings consolidation. */
 .sidebar .nav-section { margin-top: 14px; margin-bottom: 4px; font-size: 10px; letter-spacing: .08em; text-transform: uppercase; }
+/* Paper (default): sentence-case group labels, near-normal tracking (unslop pass, Oct 30 2026). Themed styles keep their own label treatments. */
+:root[data-style='paper'] .sidebar .nav-section { font-size: 11px; letter-spacing: .02em; text-transform: none; }
 .sidebar .foot-action { min-height: 28px; padding-top: 4px; padding-bottom: 4px; font-size: 12px; }
 .mobile-sheet .nav, .mobile-sheet .foot-action { min-height: 44px; }
 .settings-panel { max-width: 540px; }
