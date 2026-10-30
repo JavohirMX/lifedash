@@ -73,7 +73,16 @@ describe('device identity', () => {
     expect(getDeviceId()).toBe(a);
   });
   it('labels from the user agent', () => {
-    expect(getDeviceLabel()).toMatch(/\w+ on \w+/);
+    // Deterministic stub: node versions differ on whether a global navigator
+    // exists, so never rely on the runner environment here.
+    vi.stubGlobal('navigator', { userAgent: 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36' });
+    expect(getDeviceLabel()).toBe('Chrome on Linux');
+    vi.unstubAllGlobals();
+  });
+  it('falls back honestly when no user agent exists', () => {
+    vi.stubGlobal('navigator', undefined);
+    expect(getDeviceLabel()).toBe('Unknown device');
+    vi.unstubAllGlobals();
   });
 });
 
@@ -95,12 +104,14 @@ describe('collectLocalPrefs', () => {
 
 describe('publishLocalSettings', () => {
   it('mirrors prefs into the deviceSettings table keyed by device id', async () => {
+    vi.stubGlobal('navigator', { userAgent: 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36' });
     publishLocalSettings();
     await new Promise((r) => setTimeout(r, 0));
+    vi.unstubAllGlobals();
     const row = tables.deviceSettings.get(getDeviceId())!;
     expect(row).toBeTruthy();
     expect(row.font).toBe('inter');
-    expect(String(row.label)).toMatch(/\w+ on \w+/);
+    expect(row.label).toBe('Chrome on Linux');
     expect(typeof row.updatedAt).toBe('string');
   });
 });
