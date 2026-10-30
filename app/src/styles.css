@@ -1745,7 +1745,7 @@ main.schedule-main { max-width: 1280px; width: 100%; min-width: 0; }
 }
 :root[data-style='modern-dark'][data-theme='dark'] {
   --ground: #050505; --surface: #0e0e0e; --surface-2: #151515; --active: #1c1c1c;
-  --border: #222222; --rule: #1a1a1a; --control: #303030;
+  --border: #222222; --rule: #1a1a1a; --control: #63666c;
   --text: #f2f2f2; --muted: #a6a9ad; --faint: #8a8d91;
   --accent: #f2f2f2; --accent-strong: #ffffff; --accent-soft: #1c1c1c; --accent-ink: #0a0a0a;
   --primary-btn: #f2f2f2; --primary-btn-ink: #0a0a0a;
@@ -1757,6 +1757,18 @@ main.schedule-main { max-width: 1280px; width: 100%; min-width: 0; }
 :root[data-style='modern-dark'] .btn-primary,
 :root[data-style='modern-dark'] .btn-secondary { border-radius: 999px; }
 :root[data-style='modern-dark'] .task-row { border-radius: 6px; }
+/* Functional control edges use the reference's own control-edge token
+   (--edge-control #63666c, ~3.2-3.4:1 on the dark fills); decorative panel
+   hairlines stay at --border #222222. The three input styles that base CSS
+   ties to --border are lifted to the control edge (invalid state untouched). */
+:root[data-style='modern-dark'][data-theme='dark'] .search-box,
+:root[data-style='modern-dark'][data-theme='dark'] .quick-add-field input:not([aria-invalid='true']),
+:root[data-style='modern-dark'][data-theme='dark'] .capture-options :is(input, select):not([aria-invalid='true']),
+:root[data-style='modern-dark'][data-theme='dark'] .mini,
+:root[data-style='modern-dark'][data-theme='dark'] .widget-toggle { border-color: var(--control); }
+
+:root[data-style='modern-dark'][data-theme='dark'] .home .home-check::before { border-color: #7b7e84; }
+
 /* Mint marks the selected nav item and checked state only. */
 :root[data-style='modern-dark'] .nav.active { background: transparent; box-shadow: inset 2px 0 0 #0d7d72; border-radius: 0; }
 :root[data-style='modern-dark'][data-theme='dark'] .nav.active { box-shadow: inset 2px 0 0 #3fd6c6; }
@@ -1767,7 +1779,8 @@ main.schedule-main { max-width: 1280px; width: 100%; min-width: 0; }
    and the featured focus panel separates with a hairline, not a bright outline
    ("panel and hairline roles separate opaque surfaces without bright outlines"). */
 :root[data-style='modern-dark'] .home .focus-title { font-weight: 400; }
-:root[data-style='modern-dark'] .home .home-focus { border-color: var(--control); }
+:root[data-style='modern-dark'] .home .home-focus { border-color: var(--border); }
+:root[data-style='modern-dark'][data-theme='dark'] .home .home-focus { border-color: #303030; }
 
 /* Source: Geist Mono for labels, dates, numerical values, and short notes (bundled). */
 :root[data-style='modern-dark'] .nav-section,
