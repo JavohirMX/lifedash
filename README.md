@@ -116,7 +116,7 @@ The sync server (`server/`, optional) - needs Python 3.11+:
 ```bash
 cd server
 pip install -r requirements-dev.txt
-SYNC_DB=./dev.db SYNC_OPEN_REGISTRATION=1 uvicorn app.main:app --port 8787
+SYNC_DB=./dev.db SYNC_OPEN_REGISTRATION=1 uvicorn app.main:app --port 8787 --no-proxy-headers
 ```
 
 Or with Docker: `cd server && docker compose up -d --build`.
