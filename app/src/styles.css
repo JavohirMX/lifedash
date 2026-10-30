@@ -1060,6 +1060,7 @@ button.cal-more:hover { color: var(--accent); }
 .note-editor-head { display: flex; align-items: center; gap: 6px; margin-bottom: 8px; }
 .note-title-input { flex: 1; border: none; background: transparent; font-size: var(--fs-section); font-weight: 600; font-family: var(--font); color: var(--text); padding: 4px 0; }
 .note-title-input:focus { outline: none; }
+.ed-content .ProseMirror:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 4px; }
 @media (max-width: 700px) {
   .notes-layout { grid-template-columns: 1fr; }
   .notes-list { max-height: none; }
