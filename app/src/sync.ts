@@ -180,7 +180,7 @@ async function runAutoSync(): Promise<void> {
   if (!settings || syncing || !navigator.onLine) return;
   try {
     const r = await syncNow(settings); // syncNow owns the in-flight guard
-    saveSyncStatus({ at: Date.now(), ok: true, summary: summaryOf(r) });
+    saveSyncStatus({ at: Date.now(), ok: true, summary: await summaryWithNotice(r) });
   } catch (e) {
     saveSyncStatus({ at: Date.now(), ok: false, summary: e instanceof Error ? e.message : String(e) });
     console.warn('auto-sync failed', e);
@@ -191,6 +191,23 @@ function summaryOf(r: SyncResult): string {
   const parts = [`pushed ${r.pushed}`, `pulled ${r.pulled}`];
   if (r.conflicts) parts.push(`${r.conflicts} conflict${r.conflicts === 1 ? '' : 's'} (server won)`);
   return parts.join(', ');
+}
+
+/**
+ * Status-line summary for persisting. A later idle sync reports
+ * "pushed 0, pulled 0"; saving that verbatim would erase awareness of a
+ * still-unacknowledged server-wins conflict, so the summary keeps the
+ * outstanding notice count until the user dismisses the banner. The
+ * outstanding count is worded as earlier activity awaiting review so an
+ * idle run never reads as if the conflict happened in that run
+ * (product decision, 2026-10-30).
+ */
+async function summaryWithNotice(r: SyncResult): Promise<string> {
+  const notice = await getConflictNotice();
+  const outstanding = Math.max(0, (notice?.count ?? 0) - r.conflicts);
+  const base = summaryOf(r);
+  if (!outstanding) return base;
+  return `${base}, ${outstanding} earlier conflict${outstanding === 1 ? '' : 's'} (server won) awaiting review`;
 }
 
 /** Focus/online/interval sync plus debounced push after local edits. */
@@ -338,7 +355,7 @@ export async function syncNow(settings: SyncSettings, opts?: { retryFailedUpload
   syncing = true;
   try {
     const r = await syncNowInner(settings);
-    saveSyncStatus({ at: Date.now(), ok: true, summary: summaryOf(r) });
+    saveSyncStatus({ at: Date.now(), ok: true, summary: await summaryWithNotice(r) });
     return r;
   } finally {
     syncing = false;

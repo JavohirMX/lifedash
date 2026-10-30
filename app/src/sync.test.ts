@@ -200,6 +200,85 @@ describe('sync edit-edit conflicts', () => {
     expect(await getConflictNotice()).toBeNull();
   });
 
+  it('keeps the unacknowledged conflict count in the saved status after a later no-op sync', async () => {
+    tables.get('tasks') ?? tables.set('tasks', new Map());
+    tables.get('tasks')!.set('X', serverTask('X', 'local edit'));
+    meta.set('rev:tasks:X', 1);
+    meta.set('dirty:tasks:X', { deleted: false });
+    mockFetch({
+      changesResponses: [
+        { changes: [{ collection: 'tasks', id: 'X', rev: 2, deleted: false, data: serverTask('X', 'server v2') }], rev: 2 },
+        { changes: [], rev: 2 },
+      ],
+      pushResults: [
+        { id: 'X', collection: 'tasks', status: 'conflict', current: { rev: 2, deleted: false, data: serverTask('X', 'server v2') } },
+      ],
+    });
+    const r1 = await syncNow(settings);
+    expect(r1.conflicts).toBe(1);
+    // The run that resolved the conflict reports it as this-run activity.
+    expect(loadSyncStatus()?.summary).toBe('pushed 0, pulled 0, 1 conflict (server won)');
+
+    // A later idle auto-sync (nothing dirty, nothing new) must not erase
+    // awareness of the still-unacknowledged conflict from the status line,
+    // and must not present it as activity of that idle run.
+    mockFetch({ changesResponses: [{ changes: [], rev: 2 }, { changes: [], rev: 2 }] });
+    const r2 = await syncNow(settings);
+    expect(r2).toMatchObject({ pushed: 0, pulled: 0, conflicts: 0 });
+    expect(loadSyncStatus()?.summary).toBe('pushed 0, pulled 0, 1 earlier conflict (server won) awaiting review');
+  });
+
+  it('distinguishes this-run conflicts from still-outstanding earlier ones in one summary', async () => {
+    tables.get('tasks') ?? tables.set('tasks', new Map());
+    tables.get('tasks')!.set('X', serverTask('X', 'local edit'));
+    meta.set('rev:tasks:X', 1);
+    meta.set('dirty:tasks:X', { deleted: false });
+    mockFetch({
+      changesResponses: [
+        { changes: [{ collection: 'tasks', id: 'X', rev: 2, deleted: false, data: serverTask('X', 'server v2') }], rev: 2 },
+        { changes: [], rev: 2 },
+      ],
+      pushResults: [
+        { id: 'X', collection: 'tasks', status: 'conflict', current: { rev: 2, deleted: false, data: serverTask('X', 'server v2') } },
+      ],
+    });
+    await syncNow(settings);
+    // Second conflict on Y while X's notice is still unacknowledged.
+    tables.get('tasks')!.set('Y', serverTask('Y', 'local edit Y'));
+    meta.set('rev:tasks:Y', 2);
+    meta.set('dirty:tasks:Y', { deleted: false });
+    mockFetch({
+      changesResponses: [{ changes: [], rev: 3 }, { changes: [], rev: 3 }],
+      pushResults: [
+        { id: 'Y', collection: 'tasks', status: 'conflict', current: { rev: 3, deleted: false, data: serverTask('Y', 'server v3') } },
+      ],
+    });
+    const r2 = await syncNow(settings);
+    expect(r2.conflicts).toBe(1);
+    expect(loadSyncStatus()?.summary).toBe('pushed 0, pulled 0, 1 conflict (server won), 1 earlier conflict (server won) awaiting review');
+  });
+
+  it('drops the conflict count from the status once the notice is acknowledged', async () => {
+    tables.get('tasks') ?? tables.set('tasks', new Map());
+    tables.get('tasks')!.set('X', serverTask('X', 'local edit'));
+    meta.set('rev:tasks:X', 1);
+    meta.set('dirty:tasks:X', { deleted: false });
+    mockFetch({
+      changesResponses: [
+        { changes: [{ collection: 'tasks', id: 'X', rev: 2, deleted: false, data: serverTask('X', 'server v2') }], rev: 2 },
+        { changes: [], rev: 2 },
+      ],
+      pushResults: [
+        { id: 'X', collection: 'tasks', status: 'conflict', current: { rev: 2, deleted: false, data: serverTask('X', 'server v2') } },
+      ],
+    });
+    await syncNow(settings);
+    await acknowledgeConflictNotice();
+    mockFetch({ changesResponses: [{ changes: [], rev: 2 }, { changes: [], rev: 2 }] });
+    await syncNow(settings);
+    expect(loadSyncStatus()?.summary).toBe('pushed 0, pulled 0');
+  });
+
   it('does not record a notice when a sync has no conflicts', async () => {
     mockFetch({ changesResponses: [{ changes: [], rev: 0 }, { changes: [], rev: 0 }], pushResults: [] });
     const r = await syncNow(settings);

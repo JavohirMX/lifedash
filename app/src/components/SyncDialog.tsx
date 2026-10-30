@@ -12,7 +12,6 @@ import {
   register,
   saveSyncSettings,
   syncNow,
-  type SyncResult,
   type SyncSettings,
 } from '../sync';
 
@@ -74,10 +73,12 @@ export default function SyncDialog(props: { onClose: () => void; onBack?: () => 
     setBusy(true);
     setFeedback('status');setStatus('Syncing...');
     try {
-      const r: SyncResult = await syncNow(settings, { retryFailedUploads: true });
-      const parts = [`pushed ${r.pushed}`, `pulled ${r.pulled}`];
-      if (r.conflicts) parts.push(`${r.conflicts} conflict${r.conflicts === 1 ? '' : 's'} (server won)`);
-      setStatus(`Done: ${parts.join(', ')}.`);
+      await syncNow(settings, { retryFailedUploads: true });
+      // syncNow persists the notice-aware summary: it keeps the
+      // unacknowledged server-wins conflict count even when this run
+      // itself pushed/pulled nothing. Show exactly what was saved.
+      const saved = loadSyncStatus();
+      setStatus(saved && saved.ok ? `Done: ${saved.summary}.` : 'Done.');
     } catch (e) {
       fail(e,'sync');
     } finally {
