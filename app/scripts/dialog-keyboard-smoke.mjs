@@ -28,7 +28,7 @@ try {
     const styleGroup = page.getByRole('radiogroup', { name: 'Style', exact: true });
     await styleGroup.getByRole('radio', { name: /^Paper / }).focus();
     await page.keyboard.press('ArrowLeft');
-    await page.waitForFunction(() => document.documentElement.dataset.style === 'polar');
+    await page.waitForFunction(() => document.documentElement.dataset.style === 'monochrome');
     assert.equal(await page.evaluate(() => document.activeElement?.getAttribute('aria-checked')), 'true');
     await page.keyboard.press('Home');
     await page.waitForFunction(() => document.documentElement.dataset.style === 'paper');
