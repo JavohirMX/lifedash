@@ -245,7 +245,7 @@ export function projectTasks(tasks: Task[], projectId: string): Task[] {
 }
 
 // A project's aggregate view: its own tasks plus every descendant
-// project's tasks, in the same order (John, Oct 27: "show both").
+// project's tasks, in the same order (product decision, Oct 27).
 export function projectTreeTasks(tasks: Task[], projects: Project[], projectId: string): Task[] {
   const ids = projectWithDescendants(projects, projectId);
   return sortTasks(tasks.filter((t) => active(t) && topLevel(t) && ids.has(t.projectId)));

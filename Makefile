@@ -47,7 +47,7 @@ dev-app: ## Run just the app dev server
 	cd app && npm run dev
 
 dev-server: ## Run just the sync server
-	cd server && .venv/bin/uvicorn app.main:app --host 127.0.0.1 --port 8787
+	cd server && .venv/bin/uvicorn app.main:app --host 127.0.0.1 --port 8787 --no-proxy-headers
 
 docker-up: ## Build and start the full stack (app on :8080, sync on :8787)
 	docker compose up --build -d

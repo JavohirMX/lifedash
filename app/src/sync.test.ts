@@ -16,10 +16,11 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 // In-memory stand-in for the Dexie db. sync.ts only uses:
 // syncmeta.get/put/delete/where('key').startsWith(...).toArray()/count(),
 // and table(col).get/put/delete/hook.
-const { meta, tables } = vi.hoisted(() => {
+const { meta, tables, hooks } = vi.hoisted(() => {
   const meta = new Map<string, unknown>();
   const tables = new Map<string, Map<string, unknown>>();
-  return { meta, tables };
+  const hooks = {} as Record<string, (...args: unknown[]) => void>;
+  return { meta, tables, hooks };
 });
 
 vi.mock('./db', () => ({
@@ -42,15 +43,36 @@ vi.mock('./db', () => ({
         get: async (id: string) => t.get(id),
         put: async (obj: { id: string }) => { t.set(obj.id, obj); return obj.id; },
         delete: async (id: string) => { t.delete(id); },
-        hook: () => {},
+        hook: (name: string, cb: (...args: unknown[]) => void) => { hooks[`${col}:${name}`] = cb; },
       };
+    },
+    attachments: {
+      filter: (fn: (a: unknown) => boolean) => ({
+        sortBy: async () => [...(tables.get('attachments')?.values() ?? [])].filter(fn),
+      }),
+      update: async (id: string, mods: Record<string, unknown>) => {
+        const t = tables.get('attachments');
+        const row = t?.get(id);
+        if (t && row) t.set(id, { ...(row as object), ...mods });
+      },
     },
   },
 }));
 
-import { acknowledgeConflictNotice, getConflictNotice, loadSyncStatus, logout, syncNow } from './sync';
+import { acknowledgeConflictNotice, getConflictNotice, loadSyncStatus, logout, saveSyncSettings, syncNow, uploadAttachmentBlob } from './sync';
 
 const settings = { url: 'http://test', username: 'u', token: 'tok' };
+
+// Node test env: localStorage shim so loadSyncSettings resolves.
+const lsStore = new Map<string, string>();
+globalThis.localStorage = {
+  getItem: (k: string) => (lsStore.has(k) ? lsStore.get(k)! : null),
+  setItem: (k: string, v: string) => void lsStore.set(k, v),
+  removeItem: (k: string) => void lsStore.delete(k),
+  clear: () => lsStore.clear(),
+  key: () => null,
+  get length() { return lsStore.size; },
+} as Storage;
 
 interface PushChange { collection: string; id: string; base_rev: number; deleted: boolean; data: unknown }
 
@@ -66,16 +88,25 @@ function mockFetch(script: { changesResponses: object[]; pushResults?: object[] 
       pushes.push((JSON.parse(String(init.body)) as { changes: PushChange[] }).changes);
       return { ok: true, json: async () => ({ results: script.pushResults ?? [] }) } as Response;
     }
+    if (String(url).includes('/api/attachments?') && init?.method === 'POST') {
+      const u = new URL(String(url));
+      blobUploads.push({ id: u.searchParams.get('id'), taskId: u.searchParams.get('task_id'), size: Number(init.body ? (init.body as { size?: number }).size ?? 0 : 0) });
+      return { ok: true, json: async () => ({ id: u.searchParams.get('id'), rev: 7 }) } as Response;
+    }
     throw new Error(`unexpected fetch ${url}`);
   }));
   return pushes;
 }
+const blobUploads: { id: string | null; taskId: string | null; size: number }[] = [];
 
 const serverTask = (id: string, title: string) => ({ id, title, projectId: 'inbox' });
 
 beforeEach(() => {
   meta.clear();
   tables.clear();
+  blobUploads.length = 0;
+  lsStore.clear();
+  lsStore.set('lifedash-sync', JSON.stringify(settings));
   vi.unstubAllGlobals();
 });
 
@@ -250,6 +281,158 @@ describe('sync edit-edit conflicts', () => {
     expect((pushes[0][0].data as { habitId: string }).habitId).toBe('h1');
   });
 
+  it('metadata push precedes blob upload: backfill still delivers the bytes', async () => {
+    tables.get('attachments') ?? tables.set('attachments', new Map());
+    tables.get('attachments')!.set('A9', {
+      id: 'A9', taskId: 't1', name: 'race.txt', mime: 'text/plain', byteSize: 5,
+      blob: { size: 5, type: 'text/plain' }, createdAt: 1,
+    });
+    meta.set('dirty:attachments:A9', { deleted: false });
+
+    const pushes = mockFetch({
+      changesResponses: [{ changes: [], rev: 0 }, { changes: [], rev: 1 }],
+      pushResults: [{ id: 'A9', collection: 'attachments', status: 'ok', rev: 1 }],
+    });
+
+    await syncNow(settings);
+    expect(pushes.flat().some((c) => c.id === 'A9')).toBe(true); // metadata went first
+    expect(blobUploads).toEqual([{ id: 'A9', taskId: 't1', size: 5 }]); // bytes followed
+    const row = tables.get('attachments')!.get('A9') as { blobOnServer?: boolean };
+    expect(row.blobOnServer).toBe(true);
+    expect(meta.get('rev:attachments:A9')).toBe(7); // upload rev grounds the row
+  });
+
+  it('a permanently failing blob stops blocking the backfill queue', async () => {
+    tables.get('attachments') ?? tables.set('attachments', new Map());
+    tables.get('attachments')!.set('BAD', {
+      id: 'BAD', taskId: 'gone', name: 'bad.txt', mime: 'text/plain', byteSize: 1,
+      blob: { size: 1, type: 'text/plain' }, createdAt: 1,
+    });
+    tables.get('attachments')!.set('OK1', {
+      id: 'OK1', taskId: 't1', name: 'ok.txt', mime: 'text/plain', byteSize: 2,
+      blob: { size: 2, type: 'text/plain' }, createdAt: 2,
+    });
+    meta.set('blobfail:BAD', { count: 1, lastAt: Date.now(), permanent: true }); // refused for good
+
+    mockFetch({ changesResponses: [{ changes: [], rev: 0 }, { changes: [], rev: 1 }] });
+    await syncNow(settings);
+    expect(blobUploads.map((u) => u.id)).toEqual(['OK1']); // BAD skipped, OK1 delivered
+  });
+
+  it('a permanent refusal expires after a day and the blob is retried', async () => {
+    tables.get('attachments') ?? tables.set('attachments', new Map());
+    tables.get('attachments')!.set('OLD', {
+      id: 'OLD', taskId: 't1', name: 'old.txt', mime: 'text/plain', byteSize: 2,
+      blob: { size: 2, type: 'text/plain' }, createdAt: 1,
+    });
+    // Recent permanent refusal: still skipped.
+    meta.set('blobfail:OLD', { count: 1, lastAt: Date.now(), permanent: true });
+    mockFetch({ changesResponses: [{ changes: [], rev: 0 }, { changes: [], rev: 1 }] });
+    await syncNow(settings);
+    expect(blobUploads).toEqual([]);
+    // Same refusal, older than a day: retried (task may exist now, proxy healed).
+    meta.set('blobfail:OLD', { count: 1, lastAt: Date.now() - 25 * 60 * 60 * 1000, permanent: true });
+    mockFetch({ changesResponses: [{ changes: [], rev: 0 }, { changes: [], rev: 1 }] });
+    await syncNow(settings);
+    expect(blobUploads.map((u) => u.id)).toEqual(['OLD']);
+    expect(meta.get('blobfail:OLD')).toBeUndefined();
+  });
+
+  it('manual sync with retryFailedUploads clears tallies and retries in the same pass', async () => {
+    tables.get('attachments') ?? tables.set('attachments', new Map());
+    tables.get('attachments')!.set('STUCK', {
+      id: 'STUCK', taskId: 't1', name: 's.txt', mime: 'text/plain', byteSize: 2,
+      blob: { size: 2, type: 'text/plain' }, createdAt: 1,
+    });
+    meta.set('blobfail:STUCK', { count: 3, lastAt: Date.now(), permanent: true });
+    mockFetch({ changesResponses: [{ changes: [], rev: 0 }, { changes: [], rev: 1 }] });
+    await syncNow(settings, { retryFailedUploads: true });
+    expect(blobUploads.map((u) => u.id)).toEqual(['STUCK']);
+    expect(meta.get('blobfail:STUCK')).toBeUndefined();
+  });
+
+  it('saving sync settings clears stale upload-failure tallies', async () => {
+    meta.set('blobfail:X1', { count: 2, lastAt: Date.now(), permanent: true });
+    saveSyncSettings(settings);
+    await new Promise((r) => setTimeout(r, 5));
+    expect(meta.get('blobfail:X1')).toBeUndefined();
+  });
+
+  it('no sync account is unconfigured, never a failure', async () => {
+    lsStore.clear();
+    const fetchSpy = vi.fn();
+    vi.stubGlobal('fetch', fetchSpy);
+    const outcome = await uploadAttachmentBlob({ id: 'A1', taskId: 't1', name: 'f.txt', blob: new Blob(['x']) });
+    expect(outcome).toBe('unconfigured');
+    expect(fetchSpy).not.toHaveBeenCalled();
+    expect(meta.get('blobfail:A1')).toBeUndefined();
+  });
+
+  it('a blobOnServer-only write does not mark the attachment dirty again', async () => {
+    const updating = hooks['attachments:updating'];
+    expect(updating).toBeTypeOf('function');
+    mockFetch({ changesResponses: [{ changes: [], rev: 0 }] });
+    // A real edit schedules the auto-sync debounce; the node env has no
+    // window timers, so stub them (the debounce itself is not under test).
+    const realWindow = (globalThis as { window?: unknown }).window;
+    (globalThis as { window?: unknown }).window = { dispatchEvent: () => true, setTimeout: () => 0, clearTimeout: () => {} };
+    try {
+      updating({ blobOnServer: true }, 'A1');
+      await new Promise((r) => setTimeout(r, 5));
+      expect(meta.get('dirty:attachments:A1')).toBeUndefined();
+      // A real edit still marks and still clears the failure tally.
+      meta.set('blobfail:A1', { count: 1, lastAt: Date.now(), permanent: true });
+      updating({ name: 'renamed.txt' }, 'A1');
+      await new Promise((r) => setTimeout(r, 5));
+      expect(meta.get('dirty:attachments:A1')).toEqual({ deleted: false });
+      expect(meta.get('blobfail:A1')).toBeUndefined();
+    } finally {
+      (globalThis as { window?: unknown }).window = realWindow;
+    }
+  });
+
+  it('transient failures back off, then retry after the backoff elapses', async () => {
+    tables.get('attachments') ?? tables.set('attachments', new Map());
+    const row = {
+      id: 'FLAKY', taskId: 't1', name: 'f.txt', mime: 'text/plain', byteSize: 2,
+      blob: { size: 2, type: 'text/plain' }, createdAt: 1,
+    };
+    tables.get('attachments')!.set('FLAKY', row);
+    // Two recent transient failures: still inside the backoff window, skipped.
+    meta.set('blobfail:FLAKY', { count: 2, lastAt: Date.now() });
+    mockFetch({ changesResponses: [{ changes: [], rev: 0 }, { changes: [], rev: 1 }] });
+    await syncNow(settings);
+    expect(blobUploads).toEqual([]);
+    // Backoff elapsed: retried and delivered.
+    meta.set('blobfail:FLAKY', { count: 2, lastAt: Date.now() - 10 * 60 * 1000 });
+    mockFetch({ changesResponses: [{ changes: [], rev: 0 }, { changes: [], rev: 1 }] });
+    await syncNow(settings);
+    expect(blobUploads.map((u) => u.id)).toEqual(['FLAKY']);
+    expect(meta.get('blobfail:FLAKY')).toBeUndefined(); // tally cleared on success
+  });
+
+  it('attachment pushes carry metadata only, never the blob', async () => {
+    tables.get('attachments') ?? tables.set('attachments', new Map());
+    tables.get('attachments')!.set('A1', {
+      id: 'A1', taskId: 't1', name: 'f.txt', mime: 'text/plain', byteSize: 3,
+      blob: { size: 3, type: 'text/plain' }, createdAt: 1,
+    });
+    meta.set('dirty:attachments:A1', { deleted: false });
+
+    const pushes = mockFetch({
+      changesResponses: [{ changes: [], rev: 0 }, { changes: [], rev: 1 }],
+      pushResults: [{ id: 'A1', collection: 'attachments', status: 'ok', rev: 1 }],
+    });
+
+    await syncNow(settings);
+    const sent = pushes.flat().find((c) => c.id === 'A1');
+    expect(sent).toBeDefined();
+    expect(sent!.collection).toBe('attachments');
+    const data = sent!.data as Record<string, unknown>;
+    expect('blob' in data).toBe(false);
+    expect(data.name).toBe('f.txt');
+  });
+
   it('never-synced local create pushes with base_rev 0', async () => {
     tables.set('tasks', new Map([['N', serverTask('N', 'brand new')]]));
     meta.set('dirty:tasks:N', { deleted: false });
@@ -262,6 +445,62 @@ describe('sync edit-edit conflicts', () => {
     expect(r.pushed).toBe(1);
     expect(pushes[0][0].base_rev).toBe(0);
     expect(meta.get('rev:tasks:N')).toBe(1);
+  });
+});
+
+  it('round-trips focus sessions through pull and push', async () => {
+    // Pull: a session logged via the agent API on another device lands in the local table.
+    meta.set('cursor', 0);
+    const session = { id: 'fs1', taskId: 't1', startedAt: 1761724800000, endedAt: 1761727500000, seconds: 2400 };
+    mockFetch({
+      changesResponses: [
+        { changes: [{ collection: 'focusSessions', id: 'fs1', rev: 1, deleted: false, data: session }], rev: 1 },
+        { changes: [], rev: 1 },
+      ],
+    });
+    const r1 = await syncNow(settings);
+    expect(r1.pulled).toBe(1);
+    expect(tables.get('focusSessions')!.get('fs1')).toMatchObject({ taskId: 't1', seconds: 2400 });
+    expect(meta.get('rev:focusSessions:fs1')).toBe(1);
+    // Push: a locally recorded session goes out as a never-synced create (base_rev 0).
+    tables.get('focusSessions')!.set('fs2', { id: 'fs2', taskId: 't1', startedAt: 1761730000000, endedAt: 1761730900000, seconds: 900 });
+    meta.set('dirty:focusSessions:fs2', { deleted: false });
+    const pushes = mockFetch({
+      changesResponses: [{ changes: [], rev: 1 }, { changes: [], rev: 1 }],
+      pushResults: [{ id: 'fs2', collection: 'focusSessions', status: 'ok', rev: 2 }],
+    });
+    const r2 = await syncNow(settings);
+    expect(r2.pushed).toBe(1);
+    expect(pushes[0][0]).toMatchObject({ collection: 'focusSessions', id: 'fs2', base_rev: 0, deleted: false });
+    expect((pushes[0][0].data as { seconds: number }).seconds).toBe(900);
+    expect(meta.has('dirty:focusSessions:fs2')).toBe(false);
+    // Tombstone: a deleted session pushes deleted:true with an empty body.
+    meta.set('dirty:focusSessions:fs1', { deleted: true });
+    const pushes2 = mockFetch({
+      changesResponses: [{ changes: [], rev: 2 }, { changes: [], rev: 2 }],
+      pushResults: [{ id: 'fs1', collection: 'focusSessions', status: 'ok', rev: 3 }],
+    });
+    const r3 = await syncNow(settings);
+    expect(r3.pushed).toBe(1);
+    expect(pushes2[0][0]).toMatchObject({ collection: 'focusSessions', id: 'fs1', deleted: true, data: {} });
+  });
+
+describe('attachment metadata sync', () => {
+  it('pulled attachment metadata preserves the local blob', async () => {
+    const blob = new Blob(['bytes']);
+    tables.set('attachments', new Map([['a1', { id: 'a1', taskId: 't1', name: 'f.txt', mime: 'text/plain', byteSize: 5, blob }]]));
+    meta.set('cursor', 0);
+    mockFetch({
+      changesResponses: [
+        { changes: [{ collection: 'attachments', id: 'a1', rev: 1, deleted: false, data: { id: 'a1', taskId: 't1', name: 'f.txt', mime: 'text/plain', byteSize: 5, sha256: 'abc' } }], rev: 1 },
+        { changes: [], rev: 1 },
+      ],
+    });
+    const r = await syncNow(settings);
+    expect(r.pulled).toBe(1);
+    const row = tables.get('attachments')!.get('a1') as { sha256?: string; blob?: Blob };
+    expect(row.sha256).toBe('abc');
+    expect(row.blob).toBe(blob);
   });
 });
 

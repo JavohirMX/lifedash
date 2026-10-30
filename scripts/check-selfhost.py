@@ -46,7 +46,7 @@ def serve(db, directory):
         url = f'http://127.0.0.1:{listener.getsockname()[1]}'
         env = {**os.environ, 'SYNC_DB': str(db), 'SYNC_OPEN_REGISTRATION': '0'}
         process = subprocess.Popen(
-            [sys.executable, '-m', 'uvicorn', 'app.main:app', '--fd', str(listener.fileno())],
+            [sys.executable, '-m', 'uvicorn', 'app.main:app', '--fd', str(listener.fileno()), '--no-proxy-headers'],
             cwd=SERVER, env=env, pass_fds=(listener.fileno(),), stdout=log, stderr=log,
         )
         try:

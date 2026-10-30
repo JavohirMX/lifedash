@@ -1,5 +1,11 @@
 import { SAMPLE_MODE } from './dev/sampleMode';
+import { db } from './db';
 import type { Task } from './types';
+
+/** UI listens for this to re-read automation config after a sync pull. */
+export const AUTOMATION_CHANGED_EVENT = 'lifedash-automation-changed';
+
+const SETTINGS_ROW_ID = 'settings';
 
 export interface AutomationRules {
   rollover: boolean;
@@ -22,6 +28,10 @@ export function loadRules(): AutomationRules {
 
 export function saveRules(rules: AutomationRules): void {
   localStorage.setItem(KEY, JSON.stringify(rules));
+  // Mirror into Dexie so sync carries the config to other devices and the
+  // agent API sees it. Fire-and-forget: localStorage stays the synchronous
+  // read cache, Dexie is the transport.
+  void Promise.resolve(db.automationRules?.put({ id: SETTINGS_ROW_ID, ...rules })).catch(() => {});
 }
 
 /** Active tasks due before today that the rollover rule moves into Today. */
@@ -72,6 +82,14 @@ export function loadUserRules(): UserRule[] {
 
 export function saveUserRules(rules: UserRule[]): void {
   localStorage.setItem(USER_KEY, JSON.stringify(rules));
+  void (async () => {
+    try {
+      await db.userRules?.clear();
+      if (rules.length) await db.userRules?.bulkPut(rules);
+    } catch {
+      /* Dexie unavailable (tests); localStorage mirror already updated. */
+    }
+  })();
 }
 
 /** An open task with the same title blocks every rule - rules never duplicate. */
@@ -88,6 +106,53 @@ export function tagRulesFor(rules: UserRule[], task: Task): UserRule[] {
 /** Weekly rules due on app open: matching weekday, not already fired today. */
 export function weeklyRulesDue(rules: UserRule[], today: string, weekday: number): UserRule[] {
   return rules.filter((r) => r.trigger.kind === 'weekly' && r.trigger.weekday === weekday && r.lastFired !== today);
+}
+
+
+/**
+ * Startup migration: copy legacy localStorage-only config into Dexie once so
+ * it joins sync; afterwards Dexie (via sync) is the cross-device source and
+ * localStorage stays the fast cache. Safe to call on every app start.
+ */
+export async function hydrateAutomation(): Promise<void> {
+  try {
+    const existing = await db.automationRules?.get(SETTINGS_ROW_ID);
+    if (existing) {
+      const rules = { rollover: !!existing.rollover, completeParent: !!existing.completeParent };
+      localStorage.setItem(KEY, JSON.stringify(rules));
+    } else {
+      await db.automationRules?.put({ id: SETTINGS_ROW_ID, ...loadRules() });
+    }
+    const rows = await db.userRules?.toArray();
+    if (rows && rows.length > 0) {
+      localStorage.setItem(USER_KEY, JSON.stringify(rows));
+    } else {
+      const legacy = loadUserRules();
+      if (legacy.length) await db.userRules?.bulkPut(legacy);
+    }
+  } catch {
+    /* Dexie unavailable (tests): localStorage config still works locally. */
+  }
+}
+
+/**
+ * Called by sync after remote automationRules/userRules rows were applied:
+ * refresh the localStorage cache from Dexie and tell the UI to re-read.
+ */
+export async function refreshAutomationFromSync(): Promise<void> {
+  try {
+    const row = await db.automationRules?.get(SETTINGS_ROW_ID);
+    if (row) {
+      localStorage.setItem(KEY, JSON.stringify({ rollover: !!row.rollover, completeParent: !!row.completeParent }));
+    }
+    const rows = await db.userRules?.toArray();
+    if (rows) localStorage.setItem(USER_KEY, JSON.stringify(rows));
+  } catch {
+    return;
+  }
+  if (typeof window !== 'undefined' && typeof CustomEvent !== 'undefined') {
+    window.dispatchEvent(new CustomEvent(AUTOMATION_CHANGED_EVENT));
+  }
 }
 
 const WEEKDAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];

@@ -74,7 +74,7 @@ Data lives in the `lifedash-data` volume. The container listens on
 ```bash
 cd server
 python3 -m venv .venv && .venv/bin/pip install -r requirements.txt
-SYNC_DB=./lifedash.db .venv/bin/uvicorn app.main:app --host 127.0.0.1 --port 8787
+SYNC_DB=./lifedash.db .venv/bin/uvicorn app.main:app --host 127.0.0.1 --port 8787 --no-proxy-headers
 ```
 
 Run it under systemd (example unit below) so it restarts on boot.
@@ -91,7 +91,7 @@ After=network.target
 StateDirectory=lifedash
 WorkingDirectory=/opt/lifedash/server
 Environment=SYNC_DB=/var/lib/lifedash/lifedash.db
-ExecStart=/opt/lifedash/server/.venv/bin/uvicorn app.main:app --host 127.0.0.1 --port 8787
+ExecStart=/opt/lifedash/server/.venv/bin/uvicorn app.main:app --host 127.0.0.1 --port 8787 --no-proxy-headers
 Restart=always
 User=lifedash
 
