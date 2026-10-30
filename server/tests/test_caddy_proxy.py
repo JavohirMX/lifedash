@@ -80,6 +80,20 @@ def start_caddy(tmp_path, upstream_port):
         if proc.poll() is not None or time.monotonic() >= deadline:
             raise RuntimeError("caddy did not initialize its local CA")
         time.sleep(0.1)
+    # The CA file appears before the TLS listener accepts: certificate
+    # obtain and bind finish after the root cert is written. Wait for the
+    # port itself, or a fast test connects into the gap (ConnectionRefused).
+    import socket
+    listen_deadline = time.monotonic() + 20
+    while True:
+        try:
+            probe = socket.create_connection(("127.0.0.1", port), timeout=1)
+            probe.close()
+            break
+        except OSError:
+            if proc.poll() is not None or time.monotonic() >= listen_deadline:
+                raise RuntimeError("caddy did not start its TLS listener")
+            time.sleep(0.1)
     ctx = ssl.create_default_context(cafile=str(root_ca))
     return proc, port, ctx
 
