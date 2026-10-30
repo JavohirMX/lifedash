@@ -8,7 +8,7 @@ export default defineConfig({
     react(),
     VitePWA({
       registerType: 'autoUpdate',
-      workbox: { globPatterns: ['**/*.{js,css,html,ico,png,svg,woff2}'] },
+      workbox: { globPatterns: ['**/*.{js,css,html,ico,png,svg,woff2,ttf}'] },
       includeAssets: ['icon.svg', 'pwa-192.png', 'pwa-512.png', 'maskable-512.png'],
       manifest: {
         name: 'LifeDash',
