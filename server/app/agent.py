@@ -540,7 +540,7 @@ def agent_put_automation(body: dict = Body(...), ctx: AgentCtx = Depends(agent_a
 
 DEVICE_ID_RE = re.compile(r"^[A-Za-z0-9_-]{8,64}$")
 _THEMES = {"light", "dark", "system"}
-_STYLES = {"paper", "terminal", "editorial", "soft", "contrast", "nexus", "compact", "polar"}
+_STYLES = {"paper", "terminal", "editorial", "soft", "contrast", "nexus", "compact", "polar", "modern-dark", "playful-geometric", "cyberpunk", "luxury", "professional", "retro", "sketch", "monochrome"}
 _FONTS = {"style", "inter", "manrope", "geist", "source-sans", "dm-sans", "plex", "system", "serif", "mono"}
 _WALLPAPERS = {"none", "aurora", "sand", "blue", "custom"}
 _DEVICE_FIELDS = ("theme", "style", "font", "wallpaper", "remindersEnabled", "journalPromptEnabled")
