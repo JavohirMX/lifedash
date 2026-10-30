@@ -1,0 +1,3 @@
+Source: https://www.designprompts.dev/fonts/sketch/ (served as site assets for the Sketch style preview)
+License: MIT (declared in each font name table: "Original generated glyph drawings for the Acme Sketch preview, 2026. MIT license.")
+Bindings used by the source CSS and the sketch style block: font-family "Sketch Working Marker" weight 700; font-family "Sketch Working Hand" weight 400; font-display swap.

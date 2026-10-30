@@ -1912,8 +1912,8 @@ main.schedule-main { max-width: 1280px; width: 100%; min-width: 0; }
 
 /* ---- Luxury (designprompts.dev) ---- */
 :root[data-style='luxury'] {
-  --font: 'Source Sans 3 Variable', 'Helvetica Neue', Arial, ui-sans-serif, system-ui, sans-serif;
-  --font-display: 'EB Garamond Variable', Garamond, Georgia, 'Times New Roman', serif;
+  --font: 'Instrument Sans Variable', 'Instrument Sans', 'Helvetica Neue', Arial, ui-sans-serif, system-ui, sans-serif;
+  --font-display: 'EB Garamond Variable', 'EB Garamond', Garamond, Georgia, 'Times New Roman', serif;
   --ground: #f3eee4; --surface: #fbf8f1; --surface-2: #e4dbcc; --active: #ddd2bd;
   --border: #c6b89f; --rule: #d5cab8; --control: #8a7a5f;
   --text: #262321; --muted: #5f5750; --faint: #74695c;
@@ -1922,9 +1922,10 @@ main.schedule-main { max-width: 1280px; width: 100%; min-width: 0; }
   --positive: #4a6b41; --negative: #8c3a2a; --warning: #8a6a1a;
   --radius-card: 0; --radius-control: 0; --radius-panel: 0;
   --fs-title: 30px; --fs-section: 17px; --fs-body: 15px; --fs-small: 12.5px;
-  --row-h: 50px; --ls-title: -0.01em; --h-weight: 500;
+  --row-h: 50px; --ls-title: -0.01em; --h-weight: 400;
   --shadow-float: 0 20px 50px rgba(60, 48, 24, 0.25);
 }
+/* Luxury is light-only in the source (alabaster ground); this dark pairing is a deliberate Lifedash adaptation, not source-provided. */
 :root[data-style='luxury'][data-theme='dark'] {
   --ground: #1b1815; --surface: #262321; --surface-2: #302c29; --active: #3a352f;
   --border: #46403a; --rule: #332e29; --control: #7a6c58;
@@ -1933,13 +1934,24 @@ main.schedule-main { max-width: 1280px; width: 100%; min-width: 0; }
   --primary-btn: #f3eee4; --primary-btn-ink: #262321;
   --positive: #9ec28f; --negative: #e08f7a; --warning: #d2b071;
 }
-:root[data-style='luxury'] h1 { font-weight: 500; }
-:root[data-style='luxury'] h1 { padding-bottom: 10px; border-bottom: 1px solid #b69355; }
+/* Major serif statements stay regular weight with tight leading and oldstyle proportional figures; smaller item titles take medium. */
+:root[data-style='luxury'] h1 { font-weight: 400; line-height: 1.05; font-feature-settings: 'onum' 1, 'pnum' 1; padding-bottom: 10px; border-bottom: 1px solid #b69355; }
+:root[data-style='luxury'] h2 { font-weight: 500; font-feature-settings: 'onum' 1, 'pnum' 1; }
+:root[data-style='luxury'][data-theme='dark'] h1 { border-bottom-color: #d2b071; }
 :root[data-style='luxury'] .nav-section, :root[data-style='luxury'] .settings-row small:first-child { letter-spacing: 0.16em; text-transform: uppercase; }
 :root[data-style='luxury'] .nav.active { background: transparent; box-shadow: inset 0 -1px 0 #b69355; border-radius: 0; }
+:root[data-style='luxury'][data-theme='dark'] .nav.active { box-shadow: inset 0 -1px 0 #d2b071; }
 :root[data-style='luxury'] .task-row { border-width: 0 0 1px 0; border-radius: 0; background: transparent; margin-bottom: 0; padding: 9px 4px; }
 :root[data-style='luxury'] .task-row:hover { background: var(--surface-2); }
 :root[data-style='luxury'] main { max-width: 780px; }
+/* Tracked uppercase sans labels on primary actions; secondary actions read as text links with a fine gold underline. Pressing a button moves it down 1px. */
+:root[data-style='luxury'] .btn-primary { text-transform: uppercase; letter-spacing: 0.16em; font-size: 12px; }
+:root[data-style='luxury'] .btn-secondary { border: 0; border-bottom: 1px solid #b69355; border-radius: 0; color: var(--accent); padding-left: 2px; padding-right: 2px; }
+:root[data-style='luxury'][data-theme='dark'] .btn-secondary { border-bottom-color: #d2b071; }
+:root[data-style='luxury'] .btn-secondary:hover:not(:disabled) { background: transparent; color: var(--accent-strong); }
+:root[data-style='luxury'] .btn-primary:active:not(:disabled), :root[data-style='luxury'] .btn-secondary:active:not(:disabled) { transform: translateY(1px); }
+/* Corners remain square, including the focus outline. */
+:root[data-style='luxury'] :focus-visible { border-radius: 0; }
 
 /* ---- Professional (designprompts.dev) ---- */
 :root[data-style='professional'] {
@@ -2011,38 +2023,108 @@ main.schedule-main { max-width: 1280px; width: 100%; min-width: 0; }
 :root[data-style='retro'] .sidebar { background: var(--surface); border-right: 2px solid var(--border); box-shadow: inset -1px -1px 0 var(--border), inset 1px 1px 0 var(--surface); }
 :root[data-style='retro'] .mobile-topbar { background: var(--surface); border-bottom: 2px solid var(--border); }
 
+/* Self-hosted handwriting faces for the Sketch style (MIT license,
+   see app/public/fonts/WORKINGSHEET-LICENSE.txt). Loaded globally; only
+   the Sketch style references them, so other styles never fetch them. */
+@font-face {
+  font-family: 'Sketch Working Marker';
+  src: url('/fonts/WorkingSheet-Marker.ttf') format('truetype');
+  font-weight: 700; font-style: normal; font-display: swap;
+}
+@font-face {
+  font-family: 'Sketch Working Hand';
+  src: url('/fonts/WorkingSheet-Hand.ttf') format('truetype');
+  font-weight: 400; font-style: normal; font-display: swap;
+}
+
 /* ---- Sketch (designprompts.dev) ---- */
+/* Source: designprompts.dev/sketch - warm working sheet, pencil ink, ballpoint-blue
+   annotations, marker-red actions, highlighter-yellow marks, hard offset shadows.
+   Handwriting faces "Sketch Working Marker"/"Sketch Working Hand" come from the shared
+   self-hosted font plumbing (WorkingSheet-*.ttf, MIT-licensed); the handwritten system
+   fallbacks below cover environments where they are not bundled.
+   The source style is light-only; the dark block is a deliberate adaptation. */
 :root[data-style='sketch'] {
-  --font: 'Caveat Variable', 'Segoe Print', 'Bradley Hand', 'Comic Sans MS', cursive;
-  --font-display: var(--font);
+  --font: 'Sketch Working Hand', 'Segoe Print', 'Bradley Hand', 'Comic Sans MS', cursive;
+  --font-display: 'Sketch Working Marker', 'Sketch Working Hand', 'Segoe Print', 'Bradley Hand', cursive;
   --ground: #f7f2e7; --surface: #fcf8ef; --surface-2: #efe8d8; --active: #e8dfc9;
   --border: #b3ac9d; --rule: #d8d0bd; --control: #8d8574;
   --text: #38352f; --muted: #514d44; --faint: #6b655a;
   --accent: #9e3a2e; --accent-strong: #7e2c22; --accent-soft: #f0dfa0; --accent-ink: #ffffff;
-  --primary-btn: #38352f; --primary-btn-ink: #fcf8ef;
-  --positive: #3e6b45; --negative: #9e3a2e; --warning: #8a6a1a;
+  --primary-btn: #9e3a2e; --primary-btn-ink: #ffffff;
+  --positive: #3e6b45; --negative: #b01e14; --warning: #8a6a1a;
+  --sk-annotation: #344c69;
   --radius-card: 9px 4px 17px 5px / 4px 12px 5px 9px;
-  --radius-control: 7px 3px 11px 4px / 4px 9px 3px 8px;
+  --radius-control: 9px 4px 17px 5px / 4px 12px 5px 9px;
   --radius-panel: 12px 5px 20px 6px / 5px 15px 6px 12px;
-  --fs-title: 26px; --fs-section: 17px; --fs-body: 15px; --fs-small: 13px;
-  --row-h: 48px; --ls-title: 0; --h-weight: 600;
-  --shadow-card: 2px 3px 0 rgba(56, 53, 47, 0.15);
-  --shadow-float: 4px 6px 0 rgba(56, 53, 47, 0.25);
+  --fs-title: 27px; --fs-section: 17px; --fs-body: 16px; --fs-small: 13.5px;
+  --row-h: 50px; --ls-title: 0; --h-weight: 700;
+  --shadow-card: 3px 4px 0 #d8cfb8;
+  --shadow-float: 5px 7px 0 #c8bda2;
+  --btn-border: 1.5px;
 }
 :root[data-style='sketch'][data-theme='dark'] {
   --ground: #2b2822; --surface: #353128; --surface-2: #3f3a2e; --active: #4a4436;
   --border: #5c5546; --rule: #453f32; --control: #8d8471;
   --text: #ece5d5; --muted: #c9c0ab; --faint: #a89e88;
   --accent: #e08f7a; --accent-strong: #eda892; --accent-soft: #4a3b26; --accent-ink: #2e150e;
-  --primary-btn: #ece5d5; --primary-btn-ink: #353128;
+  --primary-btn: #c86a55; --primary-btn-ink: #241009;
   --positive: #8fc48b; --negative: #e08f7a; --warning: #d8b46a;
+  --sk-annotation: #9db4d4;
+  --shadow-card: 3px 4px 0 #1a1712;
+  --shadow-float: 5px 7px 0 #12100c;
 }
+/* Faint paper grain, matching the source's layered pin-dot gradients. */
+:root[data-style='sketch'] body {
+  background-image:
+    radial-gradient(at 20% 40%, #84735a1c 0.45px, #0000 0.8px),
+    radial-gradient(at 72% 65%, #85755b16 0.5px, #0000 0.9px),
+    radial-gradient(at 30% 10%, #ffffffa0 0.5px, #0000 0.85px);
+  background-size: 4px 5px, 7px 8px, 5px 3px;
+}
+:root[data-style='sketch'][data-theme='dark'] body {
+  background-image:
+    radial-gradient(at 20% 40%, #00000026 0.45px, #0000 0.8px),
+    radial-gradient(at 72% 65%, #0000001f 0.5px, #0000 0.9px),
+    radial-gradient(at 30% 10%, #fff8e714 0.5px, #0000 0.85px);
+}
+:root[data-style='sketch'] h1 { font-weight: 700; transform: rotate(-0.6deg); }
+:root[data-style='sketch'] .brand { transform: rotate(-1.5deg); }
+:root[data-style='sketch'] .nav-section { font-family: var(--font-display); letter-spacing: 0.02em; }
 :root[data-style='sketch'] .task-row { border-width: 1.5px; border-style: solid; }
+/* Buttons: pencil-outlined with a small hard offset; hover tilts and compresses
+   the shadow, press settles flat onto the page (100ms, per source motion). */
+:root[data-style='sketch'] .btn-primary {
+  border: 2px solid var(--accent-strong);
+  box-shadow: 3px 4px 0 var(--accent-strong);
+  font-family: var(--font-display);
+  transition: transform 100ms ease, box-shadow 100ms ease;
+}
+:root[data-style='sketch'] .btn-primary:hover:not(:disabled) { opacity: 1; transform: rotate(0.6deg) translate(1px, 1px); box-shadow: 2px 2px 0 var(--accent-strong); }
+:root[data-style='sketch'] .btn-primary:active:not(:disabled) { box-shadow: none; transform: translate(3px, 4px); }
+:root[data-style='sketch'] .btn-secondary {
+  border: 1.5px solid var(--text);
+  box-shadow: 2px 3px 0 var(--border);
+  transition: transform 100ms ease, box-shadow 100ms ease, background 160ms ease;
+}
+:root[data-style='sketch'] .btn-secondary:hover:not(:disabled) { transform: rotate(0.6deg) translate(1px, 1px); box-shadow: 1px 2px 0 var(--border); }
+:root[data-style='sketch'] .btn-secondary:active:not(:disabled) { box-shadow: none; transform: translate(2px, 3px); }
+/* Active nav item reads as a highlighter mark on the sheet. */
 :root[data-style='sketch'] .nav { border-radius: var(--radius-control); }
-:root[data-style='sketch'] .nav.active { background: var(--accent-soft); color: var(--text); }
+:root[data-style='sketch'] .nav.active { background: var(--accent-soft); color: var(--text); transform: rotate(-0.4deg); box-shadow: 2px 2px 0 var(--rule); }
 :root[data-style='sketch'] .nav.active svg { color: var(--text); }
-:root[data-style='sketch'] .checkbox { border-radius: 3px 6px 4px 7px / 6px 3px 7px 4px; border-width: 1.5px; }
-:root[data-style='sketch'] h1 { font-weight: 600; }
+/* Checkbox ticks are ballpoint-blue strokes, like the source's blue check marks. */
+:root[data-style='sketch'] .checkbox { border-radius: 3px 6px 4px 7px / 6px 3px 7px 4px; border-width: 1.5px; border-color: var(--text); }
+:root[data-style='sketch'] .checkbox.checked { background: var(--sk-annotation); border-color: var(--sk-annotation); }
+:root[data-style='sketch'][data-theme='dark'] .checkbox.checked { color: #2b2822; }
+:root[data-style='sketch'] .chip { border-width: 1.5px; }
+/* Editor links use the ballpoint-blue annotation color. */
+:root[data-style='sketch'] .ed-content .ProseMirror a { color: var(--sk-annotation); }
+/* Clear dashed blue focus outline, per source. */
+:root[data-style='sketch'] :is(a, button, summary, input, select, textarea, [role='button'], [role='checkbox']):focus-visible {
+  outline: 2.5px dashed var(--sk-annotation);
+  outline-offset: 2px;
+}
 
 /* ---- Monochrome (designprompts.dev) ---- */
 /* Source is Light Mode only; the dark pairing below is a deliberate adaptation
