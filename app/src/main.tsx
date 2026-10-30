@@ -7,6 +7,7 @@ import { createRoot } from 'react-dom/client';
 import App from './App';
 import { initTheme } from './theme';
 import { initAppearancePrefs } from './appearancePrefs';
+import { registerSW } from 'virtual:pwa-register';
 import '@fontsource-variable/inter';
 import '@fontsource-variable/manrope';
 import '@fontsource-variable/geist';
@@ -30,6 +31,9 @@ import './controls.css';
 
 initTheme();
 initAppearancePrefs();
+
+// Activate the generated service worker so the app shell works offline and updates reach installed copies.
+registerSW({ immediate: true });
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
