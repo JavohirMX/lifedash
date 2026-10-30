@@ -1,5 +1,5 @@
 export type Theme = 'light' | 'dark' | 'system';
-export type StyleId = 'paper' | 'terminal' | 'editorial' | 'soft' | 'contrast' | 'nexus' | 'compact' | 'polar';
+export type StyleId = 'paper' | 'terminal' | 'editorial' | 'soft' | 'contrast' | 'nexus' | 'compact' | 'polar' | 'modern-dark' | 'playful-geometric' | 'cyberpunk' | 'luxury' | 'professional' | 'retro' | 'sketch' | 'monochrome';
 
 export const STYLES: { id: StyleId; name: string; blurb: string }[] = [
   { id: 'paper', name: 'Paper', blurb: 'Calm and neutral. The default.' },
@@ -10,6 +10,14 @@ export const STYLES: { id: StyleId; name: string; blurb: string }[] = [
   { id: 'nexus', name: 'Nexus', blurb: 'Dark-first glass panels, glow accents, TV-kiosk kin.' },
   { id: 'compact', name: 'Compact', blurb: 'Dense rows, small type, maximum tasks per screen.' },
   { id: 'polar', name: 'Polar', blurb: 'Cool, crisp and airy. Steel blue on snow.' },
+  { id: 'modern-dark', name: 'Modern Dark', blurb: 'Near-black ground, hairline grids, one mint live signal.' },
+  { id: 'playful-geometric', name: 'Playful Geometric', blurb: 'Outlined shapes, hard offset shadows, activity-book color.' },
+  { id: 'cyberpunk', name: 'Cyberpunk', blurb: 'Black field, green signal rail, magenta and cyan fractures.' },
+  { id: 'luxury', name: 'Luxury', blurb: 'Warm alabaster, gilt rules, Garamond statements.' },
+  { id: 'professional', name: 'Professional', blurb: 'Ivory ground, fine gold rules, quiet hierarchy.' },
+  { id: 'retro', name: 'Retro', blurb: 'Nineties desktop: bevelled grey windows on teal.' },
+  { id: 'sketch', name: 'Sketch', blurb: 'Warm working sheet, hand-drawn lines, pencil annotations.' },
+  { id: 'monochrome', name: 'Monochrome', blurb: 'Pure black and white, oversized serif, square edges.' },
 ];
 
 const KEY = 'lifedash-theme';
@@ -23,6 +31,14 @@ const META_COLORS: Record<StyleId, [string, string]> = {
   nexus: ['#e8eaf6', '#0b0d1a'],
   compact: ['#f4f6f8', '#101418'],
   polar: ['#f6f9fc', '#0d1420'],
+  'modern-dark': ['#f4f4f2', '#050505'],
+  'playful-geometric': ['#fffdf5', '#1b1f2e'],
+  cyberpunk: ['#eef4ef', '#020303'],
+  luxury: ['#f3eee4', '#1b1815'],
+  professional: ['#f7f4ec', '#191712'],
+  retro: ['#008080', '#002b2b'],
+  sketch: ['#f7f2e7', '#2b2822'],
+  monochrome: ['#ffffff', '#000000'],
 };
 
 export function getTheme(): Theme {
