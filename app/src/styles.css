@@ -1852,7 +1852,7 @@ main.schedule-main { max-width: 1280px; width: 100%; min-width: 0; }
   --ground: #f7f4ec; --surface: #fcfaf5; --surface-2: #efe9dc; --active: #e7e0d3;
   --border: #d4ccbd; --rule: #e7e0d3; --control: #8f8672;
   --text: #29271f; --muted: #514d44; --faint: #665f52;
-  --accent: #68501f; --accent-strong: #503c14; --accent-soft: #f0e8d2; --accent-ink: #ffffff;
+  --accent: #8b713a; --accent-strong: #68501f; --accent-soft: #f0e8d2; --accent-ink: #ffffff;
   --primary-btn: #29271f; --primary-btn-ink: #fcfaf5;
   --positive: #3b6b3a; --negative: #96362c; --warning: #77590f;
   --radius-card: 3px; --radius-control: 3px; --radius-panel: 3px;
@@ -1860,6 +1860,7 @@ main.schedule-main { max-width: 1280px; width: 100%; min-width: 0; }
   --row-h: 46px; --ls-title: -0.01em; --h-weight: 500;
   --shadow-float: 0 14px 40px rgba(50, 42, 20, 0.2);
 }
+/* Professional is light-only in the source; this dark pairing is a deliberate Lifedash adaptation, not source-provided. */
 :root[data-style='professional'][data-theme='dark'] {
   --ground: #191712; --surface: #221f18; --surface-2: #2b271e; --active: #332e23;
   --border: #3d372a; --rule: #2e2920; --control: #7d7461;
