@@ -117,13 +117,13 @@ export const THEME_PREVIEWS = {
       "--p-ground": "#f4f4f2",
       "--p-surf": "#ffffff",
       "--p-rule": "#d8d8d4",
-      "--p-acc": "#0d7d72"
+      "--p-acc": "#0a0a0a"
     },
     "dark": {
       "--p-ground": "#050505",
       "--p-surf": "#0e0e0e",
       "--p-rule": "#222222",
-      "--p-acc": "#3fd6c6"
+      "--p-acc": "#f2f2f2"
     }
   },
   "playful-geometric": {
@@ -173,7 +173,7 @@ export const THEME_PREVIEWS = {
       "--p-ground": "#f7f4ec",
       "--p-surf": "#fcfaf5",
       "--p-rule": "#d4ccbd",
-      "--p-acc": "#68501f"
+      "--p-acc": "#8b713a"
     },
     "dark": {
       "--p-ground": "#191712",
@@ -192,7 +192,7 @@ export const THEME_PREVIEWS = {
     "dark": {
       "--p-ground": "#002b2b",
       "--p-surf": "#3a3a3a",
-      "--p-rule": "#1a1a1a",
+      "--p-rule": "#161616",
       "--p-acc": "#b48cff"
     }
   },
