@@ -1961,6 +1961,11 @@ main.schedule-main { max-width: 1280px; width: 100%; min-width: 0; }
 :root[data-style='luxury'] .btn-secondary:hover:not(:disabled) { background: transparent; color: var(--accent-strong); }
 :root[data-style='luxury'] .btn-primary:active:not(:disabled), :root[data-style='luxury'] .btn-secondary:active:not(:disabled) { transform: translateY(1px); }
 /* Corners remain square, including the focus outline. */
+/* Featured card: the source marks major emphasis with a charcoal field and fine
+   gold edges, not a dark-olive fill (product fix, 2026-10-30). */
+:root[data-style='luxury'][data-theme='dark'] .home .home-focus {
+  background: #262321; border: 1px solid var(--accent); box-shadow: none;
+}
 :root[data-style='luxury'] :focus-visible { border-radius: 0; }
 /* Fields focus with a visible solid outline instead of the soft ring; checkboxes keep the square-corner limit. */
 :root[data-style='luxury'] .search-box:focus, :root[data-style='luxury'] .quick-add input:focus { outline: 2px solid var(--accent); outline-offset: 2px; box-shadow: none; }
@@ -1999,6 +2004,11 @@ main.schedule-main { max-width: 1280px; width: 100%; min-width: 0; }
 :root[data-style='professional'] .nav-section { letter-spacing: 0.14em; font-weight: 600; }
 :root[data-style='professional'] .count { font-family: var(--font-display); font-variant-numeric: lining-nums tabular-nums; }
 :root[data-style='professional'] .nav.active { background: var(--accent-soft); color: var(--accent-strong); border-radius: 3px; }
+/* Featured card: the source's featured surface is a modest raise, never a dark
+   luxury field, so the dark adaptation uses the raised neutral, not olive. */
+:root[data-style='professional'][data-theme='dark'] .home .home-focus {
+  background: var(--surface-2);
+}
 :root[data-style='professional'] .nav.active svg { color: var(--accent-strong); }
 
 /* ---- Retro (designprompts.dev) ---- */
