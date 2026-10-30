@@ -32,9 +32,9 @@ export function parseWallpaper(value: string | null): WallpaperPrefs {
     return {id:p.id, intensity:typeof p.intensity==='number' && Number.isFinite(p.intensity) ? Math.max(0,Math.min(35,Math.round(p.intensity))) :20, ...(p.id==='custom'?{image:p.image}:{})};
   } catch {return {...DEFAULT_WALLPAPER};}
 }
-// No saved choice renders the style's own typography; only an explicit saved
-// preference pins a font across styles. Blocked storage falls back the same way.
-export function getFont(): FontId {try{const v=localStorage.getItem(FONT_KEY);return v===null?'style':parseFont(v);}catch{return 'style';}}
+// Product decision 2026-10-27: Inter is the default font; the style's own
+// typography renders only when the user explicitly picks "Match style".
+export function getFont(): FontId {try{return parseFont(localStorage.getItem(FONT_KEY));}catch{return 'inter';}}
 export function getWallpaper(): WallpaperPrefs {try{return parseWallpaper(localStorage.getItem(WALLPAPER_KEY));}catch{return {...DEFAULT_WALLPAPER};}}
 function renderFont(id:FontId) {
   const font=FONTS.find(f=>f.id===id) ?? FONTS.find(f=>f.id==='inter')!;

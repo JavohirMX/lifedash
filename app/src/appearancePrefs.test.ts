@@ -32,9 +32,18 @@ describe('font rendering defaults', () => {
     } as unknown as Document;
   });
 
-  it('renders the style typography when no font was ever chosen', async () => {
+  it('renders Inter when no font was ever chosen (product default, 2026-10-27)', async () => {
     const { getFont, initAppearancePrefs } = await import('./appearancePrefs');
-    expect(getFont()).toBe('style');
+    expect(getFont()).toBe('inter');
+    initAppearancePrefs();
+    expect(styleProps.get('--font')).toContain('Inter Variable');
+    expect(styleProps.get('--font-display')).toContain('Inter Variable');
+    expect(document.documentElement.dataset.font).toBe('inter');
+  });
+
+  it('renders the style typography only for an explicit Match style choice', async () => {
+    const { applyFont, initAppearancePrefs } = await import('./appearancePrefs');
+    applyFont('style');
     initAppearancePrefs();
     expect(styleProps.has('--font')).toBe(false);
     expect(styleProps.has('--font-display')).toBe(false);

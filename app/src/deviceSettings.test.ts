@@ -89,7 +89,7 @@ describe('device identity', () => {
 describe('collectLocalPrefs', () => {
   it('reads the six prefs from the localStorage cache', () => {
     expect(collectLocalPrefs()).toEqual({
-      theme: 'system', style: 'paper', font: 'style', // no saved font = style typography
+      theme: 'system', style: 'paper', font: 'inter',
       wallpaper: { id: 'none', intensity: 20 },
       remindersEnabled: false, journalPromptEnabled: false,
     });
@@ -110,7 +110,7 @@ describe('publishLocalSettings', () => {
     vi.unstubAllGlobals();
     const row = tables.deviceSettings.get(getDeviceId())!;
     expect(row).toBeTruthy();
-    expect(row.font).toBe('style');
+    expect(row.font).toBe('inter');
     expect(row.label).toBe('Chrome on Linux');
     expect(typeof row.updatedAt).toBe('string');
   });
@@ -138,7 +138,7 @@ describe('applyRemoteSettings', () => {
       wallpaper: { id: 'mars', intensity: 99 }, remindersEnabled: 'yes' });
     expect(getTheme()).toBe('system');
     expect(getStyle()).toBe('paper');
-    expect(getFont()).toBe('style');
+    expect(getFont()).toBe('inter');
     expect(getWallpaper()).toEqual({ id: 'none', intensity: 20 });
     expect(remindersEnabled()).toBe(false);
   });
