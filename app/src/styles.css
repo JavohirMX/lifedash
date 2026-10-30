@@ -772,6 +772,9 @@ h2 { font-family: var(--font-display); font-size: var(--fs-section); font-weight
 }
 .palette-input-wrap input {
   flex: 1;
+  /* Shrink below the intrinsic ~20ch width so the row fits 320px dialogs
+     (overflow fix, 2026-10-30). */
+  min-width: 0;
   height: 46px;
   background: none;
   border: 0;
