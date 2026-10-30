@@ -2109,6 +2109,11 @@ main.schedule-main { max-width: 1280px; width: 100%; min-width: 0; }
   background: #1c1c1c; color: #f0f0f0;
   box-shadow: inset 1px 1px 0 #000000, inset -1px -1px 0 #5a5a5a;
 }
+/* Error wells keep the inset bevel and add the shared negative border (the
+   well rule above removes borders, so the shared aria-invalid rule loses). */
+:root[data-style='retro'] input[aria-invalid='true']:not([type='checkbox']):not([type='radio']):not([type='range']), :root[data-style='retro'] textarea[aria-invalid='true'], :root[data-style='retro'] select[aria-invalid='true'] {
+  border: 2px solid var(--negative);
+}
 /* Task rows read as white wells set into the grey frame. */
 :root[data-style='retro'] .task-row { border: none; border-radius: 0; background: #ffffff; box-shadow: inset 1px 1px 0 #808080, inset -1px -1px 0 #dfdfdf; }
 :root[data-style='retro'][data-theme='dark'] .task-row { background: #1c1c1c; box-shadow: inset 1px 1px 0 #000000, inset -1px -1px 0 #5a5a5a; }
