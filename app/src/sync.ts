@@ -307,6 +307,33 @@ export async function resetAttachmentUploadFailure(id: string): Promise<void> {
   await db.syncmeta.delete(BLOB_FAIL_KEY(id));
 }
 
+/**
+ * Persist one refused upload attempt's classification. The backfill loop
+ * and the manual per-file Retry both call this so a refused retry cannot
+ * leave the row looking queued for guaranteed upload (product decision,
+ * 2026-10-30).
+ */
+export async function recordAttachmentUploadFailure(id: string, outcome: 'transient' | 'permanent'): Promise<void> {
+  const st = await blobFailState(id);
+  await setMeta(BLOB_FAIL_KEY(id), {
+    count: st.count + 1, lastAt: Date.now(), permanent: outcome === 'permanent' || undefined,
+  });
+}
+
+/**
+ * Manual per-file retry: clear the tally, re-attempt the upload, and
+ * record a refusal so the row keeps its truthful failure state.
+ * 'missing' means the row or its bytes are gone locally.
+ */
+export async function retryAttachmentUpload(id: string): Promise<BlobUploadOutcome | 'missing'> {
+  await resetAttachmentUploadFailure(id);
+  const row = await db.attachments.get(id);
+  if (!row?.blob) return 'missing';
+  const outcome = await uploadAttachmentBlob(row as Attachment & { blob: Blob });
+  if (outcome !== 'ok' && outcome !== 'unconfigured') await recordAttachmentUploadFailure(id, outcome);
+  return outcome;
+}
+
 /** User-initiated retry: manual Sync now clears every upload-failure tally. */
 export async function resetAllAttachmentUploadFailures(): Promise<void> {
   const rows = await db.syncmeta.where('key').startsWith('blobfail:').toArray();
@@ -451,10 +478,7 @@ async function syncNowInner(settings: SyncSettings): Promise<SyncResult> {
       if (outcome === 'ok') {
         await db.syncmeta.delete(BLOB_FAIL_KEY(a.id));
       } else if (outcome !== 'unconfigured') {
-        const st = await blobFailState(a.id);
-        await setMeta(BLOB_FAIL_KEY(a.id), {
-          count: st.count + 1, lastAt: Date.now(), permanent: outcome === 'permanent' || undefined,
-        });
+        await recordAttachmentUploadFailure(a.id, outcome);
       }
     }
   } catch {

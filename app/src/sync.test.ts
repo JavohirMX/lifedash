@@ -47,6 +47,7 @@ vi.mock('./db', () => ({
       };
     },
     attachments: {
+      get: async (id: string) => tables.get('attachments')?.get(id),
       filter: (fn: (a: unknown) => boolean) => ({
         sortBy: async () => [...(tables.get('attachments')?.values() ?? [])].filter(fn),
       }),
@@ -59,7 +60,7 @@ vi.mock('./db', () => ({
   },
 }));
 
-import { acknowledgeConflictNotice, getConflictNotice, loadSyncStatus, logout, saveSyncSettings, syncNow, uploadAttachmentBlob } from './sync';
+import { acknowledgeConflictNotice, attachmentUploadFailures, getConflictNotice, loadSyncStatus, logout, retryAttachmentUpload, saveSyncSettings, syncNow, uploadAttachmentBlob } from './sync';
 
 const settings = { url: 'http://test', username: 'u', token: 'tok' };
 
@@ -428,6 +429,35 @@ describe('sync edit-edit conflicts', () => {
     await syncNow(settings, { retryFailedUploads: true });
     expect(blobUploads.map((u) => u.id)).toEqual(['STUCK']);
     expect(meta.get('blobfail:STUCK')).toBeUndefined();
+  });
+
+  it('a refused manual retry re-records the failure classification so the file does not look queued', async () => {
+    tables.get('attachments') ?? tables.set('attachments', new Map());
+    tables.get('attachments')!.set('R1', {
+      id: 'R1', taskId: 't1', name: 'empty.txt', mime: 'text/plain', byteSize: 0,
+      blob: { size: 0, type: 'text/plain' }, createdAt: 1,
+    });
+    // Server refuses this file for good (422 empty upload).
+    vi.stubGlobal('fetch', vi.fn(async (url: string, init?: RequestInit) => {
+      if (String(url).includes('/api/attachments?') && init?.method === 'POST') {
+        return { ok: false, status: 422 } as Response;
+      }
+      throw new Error(`unexpected fetch ${url}`);
+    }));
+    // Behavior fail-first through the actual manual-retry caller: removing
+    // the refusal recording from retryAttachmentUpload fails this test even
+    // though the recording helper still exists.
+    const outcome = await retryAttachmentUpload('R1');
+    expect(outcome).toBe('permanent');
+    const failures = await attachmentUploadFailures();
+    expect(failures['R1']?.permanent).toBe(true);
+    // A further refused retry keeps the classification (the retry path
+    // clears the old tally first, so the count restarts at 1 by design).
+    const outcome2 = await retryAttachmentUpload('R1');
+    expect(outcome2).toBe('permanent');
+    const tally = meta.get('blobfail:R1') as { count: number; permanent?: boolean };
+    expect(tally.count).toBe(1);
+    expect(tally.permanent).toBe(true);
   });
 
   it('saving sync settings clears stale upload-failure tallies', async () => {

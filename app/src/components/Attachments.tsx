@@ -3,7 +3,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db } from '../db';
 import { addAttachment, deleteAttachment } from '../repo';
-import { loadSyncSettings, attachmentUploadFailures, resetAttachmentUploadFailure, uploadAttachmentBlob } from '../sync';
+import { loadSyncSettings, attachmentUploadFailures, retryAttachmentUpload } from '../sync';
 import { SAMPLE_MODE } from '../dev/sampleMode';
 import type { Attachment } from '../types';
 
@@ -79,13 +79,13 @@ function TaskAttachments(props: { taskId: string }) {
 
   async function retryUpload(id: string) {
     setError(''); setStatus('Retrying upload…');
-    await resetAttachmentUploadFailure(id);
-    const row = await db.attachments.get(id);
-    if (!row?.blob) { setStatus(''); setError('The file is not saved on this device.'); return; }
-    const outcome = await uploadAttachmentBlob(row as typeof row & { blob: Blob });
-    if (outcome === 'ok') setStatus(`Uploaded ${row.name} to your sync server.`);
+    const name = (await db.attachments.get(id))?.name ?? 'file';
+    // retryAttachmentUpload owns reset + re-attempt + refusal recording.
+    const outcome = await retryAttachmentUpload(id);
+    if (outcome === 'missing') { setStatus(''); setError('The file is not saved on this device.'); }
+    else if (outcome === 'ok') setStatus(`Uploaded ${name} to your sync server.`);
     else if (outcome === 'unconfigured') { setStatus(''); setError('Set up sync in Settings to upload this file.'); }
-    else { setStatus(''); setError(`Couldn't upload ${row.name} yet. It is still saved on this device; Sync now retries.`); }
+    else { setStatus(''); setError(`Couldn't upload ${name} yet. It is still saved on this device; Sync now retries.`); }
   }
 
   async function remove(id: string, name: string) {
