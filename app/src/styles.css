@@ -1736,7 +1736,7 @@ main.schedule-main { max-width: 1280px; width: 100%; min-width: 0; }
 }
 :root[data-style='modern-dark'][data-theme='dark'] {
   --ground: #050505; --surface: #0e0e0e; --surface-2: #151515; --active: #1c1c1c;
-  --border: #222222; --rule: #1a1a1a; --control: #303030;
+  --border: #222222; --rule: #1a1a1a; --control: #666666;
   --text: #f2f2f2; --muted: #a6a9ad; --faint: #8a8d91;
   --accent: #f2f2f2; --accent-strong: #ffffff; --accent-soft: #1c1c1c; --accent-ink: #0a0a0a;
   --primary-btn: #f2f2f2; --primary-btn-ink: #0a0a0a;
@@ -1810,14 +1810,14 @@ main.schedule-main { max-width: 1280px; width: 100%; min-width: 0; }
 }
 :root[data-style='cyberpunk'] h1, :root[data-style='cyberpunk'] .brand { text-transform: uppercase; letter-spacing: 0.06em; }
 :root[data-style='cyberpunk'] .nav.active { background: transparent; box-shadow: inset 3px 0 0 var(--accent); border-radius: 0; }
-:root[data-style='cyberpunk'] .nav-section, :root[data-style='cyberpunk'] .count { font-family: ui-monospace, 'IBM Plex Mono', SFMono-Regular, Menlo, monospace; text-transform: uppercase; letter-spacing: 0.1em; }
+:root[data-style='cyberpunk'] .nav-section, :root[data-style='cyberpunk'] .count, :root[data-style='cyberpunk'] .chip { font-family: 'IBM Plex Mono', ui-monospace, SFMono-Regular, Menlo, monospace; text-transform: uppercase; letter-spacing: 0.1em; }
 :root[data-style='cyberpunk'] .checkbox, :root[data-style='cyberpunk'] .chip { border-radius: 0; }
 :root[data-style='cyberpunk'] .task-row { border-radius: 0; }
 
 /* ---- Luxury (designprompts.dev) ---- */
 :root[data-style='luxury'] {
-  --font: 'Helvetica Neue', Arial, ui-sans-serif, system-ui, sans-serif;
-  --font-display: 'EB Garamond', Garamond, Georgia, 'Times New Roman', serif;
+  --font: 'Source Sans 3 Variable', 'Helvetica Neue', Arial, ui-sans-serif, system-ui, sans-serif;
+  --font-display: 'EB Garamond Variable', Garamond, Georgia, 'Times New Roman', serif;
   --ground: #f3eee4; --surface: #fbf8f1; --surface-2: #e4dbcc; --active: #ddd2bd;
   --border: #c6b89f; --rule: #d5cab8; --control: #8a7a5f;
   --text: #262321; --muted: #5f5750; --faint: #74695c;
@@ -1847,8 +1847,8 @@ main.schedule-main { max-width: 1280px; width: 100%; min-width: 0; }
 
 /* ---- Professional (designprompts.dev) ---- */
 :root[data-style='professional'] {
-  --font: 'Source Sans 3 Variable', Arial, ui-sans-serif, system-ui, sans-serif;
-  --font-display: 'EB Garamond', Georgia, 'Times New Roman', serif;
+  --font: 'Instrument Sans Variable', Arial, ui-sans-serif, system-ui, sans-serif;
+  --font-display: 'EB Garamond Variable', Georgia, 'Times New Roman', serif;
   --ground: #f7f4ec; --surface: #fcfaf5; --surface-2: #efe9dc; --active: #e7e0d3;
   --border: #d4ccbd; --rule: #e7e0d3; --control: #8f8672;
   --text: #29271f; --muted: #514d44; --faint: #665f52;
@@ -1879,7 +1879,7 @@ main.schedule-main { max-width: 1280px; width: 100%; min-width: 0; }
   --font: 'IBM Plex Sans', Tahoma, ui-sans-serif, system-ui, sans-serif;
   --font-display: var(--font);
   --ground: #008080; --surface: #d4d4d4; --surface-2: #c0c0c0; --active: #b8b8b8;
-  --border: #808080; --rule: #a8a8a8; --control: #5a5a5a;
+  --border: #808080; --rule: #a8a8a8; --control: #404040;
   --text: #000000; --muted: #2a2a2a; --faint: #3d3d3d;
   --accent: #000080; --accent-strong: #000066; --accent-soft: #ffff00; --accent-ink: #ffffff;
   --primary-btn: #000080; --primary-btn-ink: #ffffff;
@@ -1910,10 +1910,12 @@ main.schedule-main { max-width: 1280px; width: 100%; min-width: 0; }
 :root[data-style='retro'] .brand { background: #000080; color: #ffffff; padding: 1px 8px; box-shadow: 3px 3px 0 #ff00b8; }
 :root[data-style='retro'][data-theme='dark'] .brand { background: #000080; color: #ffffff; box-shadow: 3px 3px 0 #ff00b8; }
 :root[data-style='retro'] .app { border: none; }
+:root[data-style='retro'] .sidebar { background: var(--surface); border-right: 2px solid var(--border); box-shadow: inset -1px -1px 0 var(--border), inset 1px 1px 0 var(--surface); }
+:root[data-style='retro'] .mobile-topbar { background: var(--surface); border-bottom: 2px solid var(--border); }
 
 /* ---- Sketch (designprompts.dev) ---- */
 :root[data-style='sketch'] {
-  --font: 'Segoe Print', 'Bradley Hand', 'Comic Sans MS', cursive;
+  --font: 'Caveat Variable', 'Segoe Print', 'Bradley Hand', 'Comic Sans MS', cursive;
   --font-display: var(--font);
   --ground: #f7f2e7; --surface: #fcf8ef; --surface-2: #efe8d8; --active: #e8dfc9;
   --border: #b3ac9d; --rule: #d8d0bd; --control: #8d8574;
@@ -1947,7 +1949,7 @@ main.schedule-main { max-width: 1280px; width: 100%; min-width: 0; }
 /* ---- Monochrome (designprompts.dev) ---- */
 :root[data-style='monochrome'] {
   --font: 'Iowan Old Style', Georgia, ui-serif, serif;
-  --font-display: 'EB Garamond', Garamond, Georgia, serif;
+  --font-display: 'EB Garamond Variable', 'Iowan Old Style', Garamond, Georgia, serif;
   --ground: #ffffff; --surface: #ffffff; --surface-2: #f2f2f2; --active: #e8e8e8;
   --border: #000000; --rule: #cfcfcf; --control: #4d4d4d;
   --text: #000000; --muted: #4d4d4d; --faint: #666666;
