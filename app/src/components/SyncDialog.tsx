@@ -74,7 +74,7 @@ export default function SyncDialog(props: { onClose: () => void; onBack?: () => 
     setBusy(true);
     setFeedback('status');setStatus('Syncing...');
     try {
-      const r: SyncResult = await syncNow(settings);
+      const r: SyncResult = await syncNow(settings, { retryFailedUploads: true });
       const parts = [`pushed ${r.pushed}`, `pulled ${r.pulled}`];
       if (r.conflicts) parts.push(`${r.conflicts} conflict${r.conflicts === 1 ? '' : 's'} (server won)`);
       setStatus(`Done: ${parts.join(', ')}.`);

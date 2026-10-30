@@ -34,10 +34,12 @@ import SyncDialog from './components/SyncDialog';
 import AppearanceDialog from './components/AppearanceDialog';
 import GoogleCalendarDialog from './components/GoogleCalendarDialog';
 import SettingsDialog from './components/SettingsDialog';
+import AgentKeysDialog from './components/AgentKeysDialog';
 import { cycleTheme } from './theme';
 import { projectWithDescendants } from './projects';
-import { loadRules, saveRules, loadUserRules, saveUserRules, type AutomationRules, type UserRule } from './automation';
-import { remindersEnabled, setRemindersEnabled, journalPromptEnabled, setJournalPromptEnabled, startReminders } from './reminders';
+import { loadRules, saveRules, loadUserRules, saveUserRules, hydrateAutomation, AUTOMATION_CHANGED_EVENT, type AutomationRules, type UserRule } from './automation';
+import { publishLocalSettings, ensureDeviceSettingsPublished, DEVICE_SETTINGS_CHANGED_EVENT } from './deviceSettings';
+import { remindersEnabled, setRemindersEnabled, journalPromptEnabled, setJournalPromptEnabled, startReminders, reminderGate } from './reminders';
 import { applyRollover, applyWeeklyUserRules } from './repo';
 import { startAutoSync } from './sync';
 import { SyncConflictBanner } from './components/SyncConflictBanner';
@@ -120,11 +122,24 @@ export default function App() {
   const [appearanceOpen, setAppearanceOpen] = useState(false);
   const [googleCalendarOpen,setGoogleCalendarOpen]=useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [agentKeysOpen, setAgentKeysOpen] = useState(false);
   const [dataBackupOpen, setDataBackupOpen] = useState(false);
   const [settingsChild, setSettingsChild] = useState<'appearance' | 'sync' | null>(null);
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
   const [rules, setRules] = useState<AutomationRules>(loadRules);
   const [userRules, setUserRules] = useState<UserRule[]>(loadUserRules);
+
+  useEffect(() => {
+    const onAutomationChanged = () => { setRules(loadRules()); setUserRules(loadUserRules()); };
+    window.addEventListener(AUTOMATION_CHANGED_EVENT, onAutomationChanged);
+    return () => window.removeEventListener(AUTOMATION_CHANGED_EVENT, onAutomationChanged);
+  }, []);
+
+  useEffect(() => {
+    const onDeviceSettings = () => { setRemindOn(remindersEnabled()); setNudgeOn(journalPromptEnabled()); };
+    window.addEventListener(DEVICE_SETTINGS_CHANGED_EVENT, onDeviceSettings);
+    return () => window.removeEventListener(DEVICE_SETTINGS_CHANGED_EVENT, onDeviceSettings);
+  }, []);
   const [remindOn, setRemindOn] = useState(remindersEnabled);
   const [nudgeOn, setNudgeOn] = useState(journalPromptEnabled);
   const [notificationError, setNotificationError] = useState('');
@@ -134,18 +149,20 @@ export default function App() {
     if (notificationWriting.current || typeof Notification === 'undefined') return;
     notificationWriting.current = true; setNotificationBusy(true); setNotificationError('');
     try {
-      if (remindOn) { setRemindersEnabled(false); setRemindOn(false); return; }
+      // On + granted toggles off. On + never-asked (e.g. enabled remotely)
+      // makes this tap the permission ask, not a silent disable.
+      if (remindOn && Notification.permission === 'granted') { setRemindersEnabled(false); setRemindOn(false); publishLocalSettings(); return; }
       let permission: NotificationPermission;
       try { permission = Notification.permission === 'granted' ? 'granted' : await Notification.requestPermission(); }
       catch { setNotificationError("Couldn't request notification permission. Your reminder preference is unchanged. Try Reminders again."); return; }
-      if (permission === 'granted') { setRemindersEnabled(true); setRemindOn(true); }
+      if (permission === 'granted') { setRemindersEnabled(true); setRemindOn(true); publishLocalSettings(); }
     } catch { setNotificationError("Couldn't save Reminders. Your previous preference is unchanged. Try Reminders again."); }
     finally { notificationWriting.current = false; setNotificationBusy(false); }
   }
   function toggleJournalNudge() {
     if (notificationWriting.current) return;
     setNotificationError('');
-    try { const next = !nudgeOn; setJournalPromptEnabled(next); setNudgeOn(next); }
+    try { const next = !nudgeOn; setJournalPromptEnabled(next); setNudgeOn(next); publishLocalSettings(); }
     catch { setNotificationError("Couldn't save Journal nudge. Your previous preference is unchanged. Try Journal nudge again."); }
   }
 
@@ -161,10 +178,17 @@ export default function App() {
   });
 
   useEffect(() => {
-    void ensureSeed();
-    startAutoSync();
-    if (loadRules().rollover) void runRollover();
-    void runWeeklyRules();
+    void ensureSeed().then(async () => {
+      // Move legacy localStorage automation config into Dexie (once), adopt
+      // any config sync already delivered, then re-read the cache.
+      await hydrateAutomation();
+    ensureDeviceSettingsPublished();
+      setRules(loadRules());
+      setUserRules(loadUserRules());
+      startAutoSync();
+      if (loadRules().rollover) void runRollover();
+      void runWeeklyRules();
+    });
   }, []);
 
   tasksRef.current = tasks ?? [];
@@ -433,7 +457,7 @@ export default function App() {
       <Sidebar projects={projects} selection={selection} onSelect={setSelection} counts={counts} activeByProject={activeByProject}
         onCapture={quickAddFocus}
         onPalette={() => setPaletteOpen(true)}
-        reminders={typeof Notification === 'undefined' ? 'unsupported' : Notification.permission === 'denied' ? 'blocked' : remindOn ? 'on' : 'off'}
+        reminders={reminderGate(remindOn)}
         journalNudge={nudgeOn}
         onToggleJournalNudge={toggleJournalNudge}
         onToggleReminders={() => void toggleReminders()}
@@ -474,13 +498,15 @@ export default function App() {
       {syncOpen && <SyncDialog onClose={() => setSyncOpen(false)} onBack={settingsChild === 'sync' ? () => { setSyncOpen(false); setSettingsOpen(true); } : undefined} />}
       {googleCalendarOpen && <GoogleCalendarDialog onClose={()=>setGoogleCalendarOpen(false)} onBack={()=>{setGoogleCalendarOpen(false);setSettingsOpen(true);}}/>}
       {dataBackupOpen && <DataBackupDialog onClose={() => { setDataBackupOpen(false); setSettingsOpen(true); }} />}
+      {agentKeysOpen && <AgentKeysDialog onClose={() => { setAgentKeysOpen(false); setSettingsOpen(true); }} />}
       {settingsOpen && <SettingsDialog
         onDataBackup={() => { setSettingsOpen(false); setDataBackupOpen(true); }}
         onClose={() => setSettingsOpen(false)}
         onGoogleCalendar={()=>{setSettingsOpen(false);setGoogleCalendarOpen(true);}}
+        onAgentKeys={() => { setSettingsOpen(false); setAgentKeysOpen(true); }}
         onSync={() => { setSettingsChild('sync'); setSettingsOpen(false); setSyncOpen(true); }}
         onAppearance={() => { setSettingsChild('appearance'); setSettingsOpen(false); setAppearanceOpen(true); }}
-        reminders={typeof Notification === 'undefined' ? 'unsupported' : Notification.permission === 'denied' ? 'blocked' : remindOn ? 'on' : 'off'}
+        reminders={reminderGate(remindOn)}
         onToggleReminders={() => void toggleReminders()}
         journalNudge={nudgeOn}
         onToggleJournalNudge={toggleJournalNudge}

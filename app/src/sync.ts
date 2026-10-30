@@ -1,5 +1,8 @@
 import { SAMPLE_MODE } from './dev/sampleMode';
 import { db } from './db';
+import { refreshAutomationFromSync } from './automation';
+import { applyRemoteSettings, getDeviceId } from './deviceSettings';
+import type { Attachment } from './types';
 
 /**
  * Sync client for the Lifedash self-hosted server (protocol v1,
@@ -52,7 +55,7 @@ export interface SyncSettings {
 }
 
 const SETTINGS_KEY = 'lifedash-sync';
-const COLLECTIONS = ['tasks', 'projects', 'habits', 'habitLogs', 'goals', 'notes', 'journal'] as const;
+const COLLECTIONS = ['tasks', 'projects', 'habits', 'habitLogs', 'goals', 'notes', 'journal', 'focusSessions', 'attachments', 'automationRules', 'userRules', 'deviceSettings'] as const;
 type Collection = (typeof COLLECTIONS)[number];
 
 export function loadSyncSettings(): SyncSettings | null {
@@ -71,6 +74,8 @@ export function saveSyncSettings(s: SyncSettings | null): void {
   if (SAMPLE_MODE) return;
   if (s) localStorage.setItem(SETTINGS_KEY, JSON.stringify(s));
   else localStorage.removeItem(SETTINGS_KEY);
+  // A new or removed sync account makes old upload-failure tallies stale.
+  void resetAllAttachmentUploadFailures();
 }
 
 export async function register(url: string, username: string, password: string): Promise<string> {
@@ -193,6 +198,8 @@ export function startAutoSync(): void {
   if (SAMPLE_MODE) return;
   if (autoSyncStarted) return;
   autoSyncStarted = true;
+  // A fresh launch is a natural retry point for stranded uploads.
+  void resetAllAttachmentUploadFailures();
   installSyncHooks();
   window.addEventListener('focus', () => void runAutoSync());
   window.addEventListener('online', () => void runAutoSync());
@@ -212,17 +219,98 @@ export function installSyncHooks(): void {
       // the syncmeta store. Escape the zone, then write.
       setTimeout(() => {
         void setMeta(dirtyKey(col, id), { deleted });
+        if (col === 'attachments') void resetAttachmentUploadFailure(id);
         scheduleSync();
       }, 0);
     };
     table.hook('creating', (_pk, obj) => mark((obj as { id: string }).id));
-    table.hook('updating', (_mods, pk) => mark(String(pk)));
+    table.hook('updating', (mods, pk) => {
+      // uploadAttachmentBlob's blobOnServer:true write is bookkeeping; the
+      // server already knows. Marking it dirty would push a redundant row.
+      if (col === 'attachments' && Object.keys(mods as object).every((k) => k === 'blobOnServer')) return;
+      mark(String(pk));
+    });
     table.hook('deleting', (pk) => mark(String(pk), true));
   }
 }
 
 export async function dirtyCount(): Promise<number> {
   return db.syncmeta.where('key').startsWith('dirty:').count();
+}
+
+/**
+ * Upload one attachment's blob to the server blob API, keyed by the Dexie
+ * row id so both sides converge on one identity. Safe to retry: the server
+ * answers an identical re-upload idempotently. Returns false offline or on
+ * refusal; the row stays local and the next sync's backfill retries.
+ */
+export type BlobUploadOutcome = 'ok' | 'transient' | 'permanent' | 'unconfigured';
+
+export async function uploadAttachmentBlob(att: Pick<Attachment, 'id' | 'taskId' | 'name'> & { blob: Blob }): Promise<BlobUploadOutcome> {
+  if (SAMPLE_MODE) return 'unconfigured';
+  try {
+    const settings = loadSyncSettings();
+    if (!settings) return 'unconfigured';
+    const base = settings.url.replace(/\/$/, '');
+    const q = `task_id=${encodeURIComponent(att.taskId)}&filename=${encodeURIComponent(att.name)}&id=${encodeURIComponent(att.id)}`;
+    const res = await fetch(`${base}/api/attachments?${q}`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${settings.token}`, 'Content-Type': att.blob.type || 'application/octet-stream' },
+      body: att.blob,
+    });
+    if (!res.ok) {
+      // Gone task / conflicting bytes / invalid id never heal by retrying;
+      // quota (413), auth hiccups and 5xx can.
+      return (res.status === 404 || res.status === 409 || res.status === 422) ? 'permanent' : 'transient';
+    }
+    const body = (await res.json()) as { rev?: number };
+    if (typeof body.rev === 'number') {
+      await setMeta(revKey('attachments', att.id), body.rev);
+      await db.syncmeta.delete(dirtyKey('attachments', att.id));
+    }
+    await db.attachments.update(att.id, { blobOnServer: true });
+    return 'ok';
+  } catch {
+    return 'transient';
+  }
+}
+
+interface BlobFailState { count: number; lastAt: number; permanent?: boolean }
+const PERMANENT_RETRY_AFTER_MS = 24 * 60 * 60 * 1000;
+const BLOB_FAIL_KEY = (id: string) => `blobfail:${id}`;
+/** Transient failures back off exponentially up to this gap between tries. */
+const BLOB_BACKOFF_MAX_MS = 6 * 60 * 60 * 1000;
+
+async function blobFailState(id: string): Promise<BlobFailState> {
+  return ((await getMeta(BLOB_FAIL_KEY(id))) as BlobFailState | undefined) ?? { count: 0, lastAt: 0 };
+}
+
+/** Explicit retry path: a fresh local edit of the row clears its failure tally. */
+export async function resetAttachmentUploadFailure(id: string): Promise<void> {
+  await db.syncmeta.delete(BLOB_FAIL_KEY(id));
+}
+
+/** User-initiated retry: manual Sync now clears every upload-failure tally. */
+export async function resetAllAttachmentUploadFailures(): Promise<void> {
+  const rows = await db.syncmeta.where('key').startsWith('blobfail:').toArray();
+  for (const r of rows) await db.syncmeta.delete(r.key);
+}
+
+/** Per-attachment upload state for honest UI (never trusted to the server). */
+export async function attachmentUploadFailures(): Promise<Record<string, { permanent?: boolean }>> {
+  const rows = await db.syncmeta.where('key').startsWith('blobfail:').toArray();
+  const out: Record<string, { permanent?: boolean }> = {};
+  for (const r of rows) out[r.key.slice('blobfail:'.length)] = (r.value as { permanent?: boolean }) ?? {};
+  return out;
+}
+
+/** Blobs never ride the JSON sync protocol; metadata only. */
+function pushData(col: Collection, data: unknown): unknown {
+  if (col === 'attachments' && data && typeof data === 'object') {
+    const { blob: _blob, ...rest } = data as Record<string, unknown>;
+    return rest;
+  }
+  return data;
 }
 
 /* ---------- push / pull ---------- */
@@ -242,9 +330,10 @@ export interface SyncResult {
   cursor: number;
 }
 
-export async function syncNow(settings: SyncSettings): Promise<SyncResult> {
+export async function syncNow(settings: SyncSettings, opts?: { retryFailedUploads?: boolean }): Promise<SyncResult> {
   if (SAMPLE_MODE) throw new Error('Sync is disabled in the sample-data sandbox.');
   installSyncHooks();
+  if (opts?.retryFailedUploads) await resetAllAttachmentUploadFailures();
   if (syncing) return { pushed: 0, conflicts: 0, pulled: 0, cursor: await getCursor() };
   syncing = true;
   try {
@@ -277,7 +366,7 @@ async function syncNowInner(settings: SyncSettings): Promise<SyncResult> {
       changes.push({ collection: col, id, base_rev: baseRev, deleted: true, data: {} });
       continue;
     }
-    changes.push({ collection: col, id, base_rev: baseRev, deleted: tomb, data: tomb ? {} : data });
+    changes.push({ collection: col, id, base_rev: baseRev, deleted: tomb, data: tomb ? {} : pushData(col, data) });
   }
   let pushed = 0;
   let conflicts = 0;
@@ -322,6 +411,38 @@ async function syncNowInner(settings: SyncSettings): Promise<SyncResult> {
   }
   // Final pull to settle on anything the server applied.
   const pulled2 = await pull(base, headers);
+  // Blob backfill: locally created attachments carry bytes only in Dexie.
+  // Upload a few per sync so agents and other devices can download them.
+  // Failure handling: permanent refusals stop retrying (until the row is
+  // edited, which clears the tally); transient failures back off
+  // exponentially instead of burning every sync, and never strand the blob.
+  try {
+    const pending = await db.attachments
+      .filter((a) => !!a.blob && a.blobOnServer !== true)
+      .sortBy('createdAt');
+    const eligible: (Attachment & { blob: Blob })[] = [];
+    for (const a of pending) {
+      const st = await blobFailState(a.id);
+      if (st.permanent && Date.now() - st.lastAt < PERMANENT_RETRY_AFTER_MS) continue;
+      const wait = Math.min(2 ** st.count * 60 * 1000, BLOB_BACKOFF_MAX_MS);
+      if (st.count > 0 && Date.now() - st.lastAt < wait) continue;
+      eligible.push(a as Attachment & { blob: Blob });
+      if (eligible.length >= 5) break;
+    }
+    for (const a of eligible) {
+      const outcome = await uploadAttachmentBlob(a);
+      if (outcome === 'ok') {
+        await db.syncmeta.delete(BLOB_FAIL_KEY(a.id));
+      } else if (outcome !== 'unconfigured') {
+        const st = await blobFailState(a.id);
+        await setMeta(BLOB_FAIL_KEY(a.id), {
+          count: st.count + 1, lastAt: Date.now(), permanent: outcome === 'permanent' || undefined,
+        });
+      }
+    }
+  } catch {
+    /* older test doubles without an attachments table */
+  }
   // Server-wins drops the conflicting local edits: keep a persistent notice
   // so an auto-sync cannot erase awareness before the user sees it.
   await recordConflicts(replaced);
@@ -358,9 +479,26 @@ async function applyRemote(col: Collection, e: ServerEntity): Promise<void> {
   try {
     const table = db.table(col);
     if (e.deleted) await table.delete(e.id);
-    else await table.put(e.data as never);
+    else {
+      // Attachment metadata syncs without its blob; never let a pulled row
+      // wipe the blob this device already holds.
+      let data = e.data as Record<string, unknown>;
+      if (col === 'attachments' && data.blob === undefined) {
+        const existing = (await table.get(e.id)) as { blob?: unknown } | undefined;
+        if (existing?.blob !== undefined) data = { ...data, blob: existing.blob };
+      }
+      await table.put(data as never);
+    }
     await setMeta(revKey(col, e.id), e.rev);
     await db.syncmeta.delete(dirtyKey(col, e.id));
+    if (col === 'automationRules' || col === 'userRules') {
+      // Config lives in the localStorage cache the UI reads synchronously.
+      await refreshAutomationFromSync();
+    }
+    if (col === 'deviceSettings' && !e.deleted && e.id === getDeviceId()) {
+      // An agent (or another session) changed THIS device's settings.
+      applyRemoteSettings(e.data as Record<string, unknown>);
+    }
   } finally {
     applyingRemote = false;
   }

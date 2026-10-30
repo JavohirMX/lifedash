@@ -6,6 +6,7 @@ import { hasProjectCycle, wouldCycle } from './projects';
 import type { FocusSession } from './types';
 import { parseLocalDate } from './dates';
 import { db, newId, INBOX_ID } from './db';
+import { uploadAttachmentBlob } from './sync';
 import type { Task, Project, Goal, Note, JournalEntry } from './types';
 import { completeTask, skipOccurrence, subtasksOf, wouldCreateCycle, normalizeTag, normalizeTask, reorderedPosition, renamedTags, extractChecklistItems, filterNewChecklistItems } from './logic';
 import { todayStr } from './dates';
@@ -231,11 +232,20 @@ export async function togglePin(task: Task): Promise<void> {
 export async function deleteTask(task: Task): Promise<void> {
   let deletedIds: string[] = [];
   await db.transaction('rw', db.tasks, db.attachments, async () => {
-    const childIds = (await db.tasks.where('parentId').equals(task.id).primaryKeys()) as string[];
-    const gone = new Set([task.id, ...childIds]);
+    // Subtasks go too, at every depth - the same cascade the sync server
+    // applies, so a local delete and an API delete converge identically.
+    const gone = new Set([task.id]);
+    let frontier = [task.id];
+    while (frontier.length) {
+      const next: string[] = [];
+      for (const id of frontier) {
+        next.push(...((await db.tasks.where('parentId').equals(id).primaryKeys()) as string[]));
+      }
+      frontier = next.filter((id) => !gone.has(id));
+      for (const id of frontier) gone.add(id);
+    }
     deletedIds = [...gone];
-    await db.tasks.where('parentId').equals(task.id).delete();
-    await db.tasks.delete(task.id);
+    for (const id of deletedIds) await db.tasks.delete(id);
     await db.attachments.where('taskId').anyOf([...gone]).delete();
     // Strip dead dependency references so they don't linger and sync forever.
     await db.tasks
@@ -285,7 +295,7 @@ export async function deleteProject(project: Project): Promise<void> {
     deletedIds = [...new Set([...ids, ...childIds])] as string[];
     await db.tasks.where('parentId').anyOf([...idSet]).delete();
     await db.tasks.where('projectId').equals(project.id).delete();
-    // Approved policy (John, Oct 27): subprojects move up one level
+    // Product decision (Oct 27): subprojects move up one level
     // and stay intact; only this project's own tasks are deleted.
     await db.projects.filter((p) => (p.parentId ?? null) === project.id).modify({ parentId: project.parentId ?? null });
     await db.projects.delete(project.id);
@@ -328,7 +338,7 @@ export async function exportJson(): Promise<string> {
 }
 
 export async function addAttachment(taskId: string, file: File): Promise<void> {
-  await db.attachments.add({
+  const row = {
     id: newId(),
     taskId,
     name: file.name,
@@ -336,7 +346,11 @@ export async function addAttachment(taskId: string, file: File): Promise<void> {
     byteSize: file.size,
     blob: file,
     createdAt: Date.now(),
-  });
+  };
+  await db.attachments.add(row);
+  // Best-effort blob upload so agents and other devices can download it;
+  // offline stays local and the next sync backfills.
+  void uploadAttachmentBlob(row);
 }
 
 export async function deleteAttachment(id: string): Promise<void> {

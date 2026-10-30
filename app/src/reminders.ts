@@ -104,3 +104,18 @@ export function startReminders(
   const id = setInterval(tick, intervalMs);
   return () => clearInterval(id);
 }
+
+export type ReminderGate = 'on' | 'off' | 'blocked' | 'unsupported' | 'needs-permission';
+
+/**
+ * Honest gate state for the settings UI. A synced-on preference only shows
+ * 'on' when the browser would actually fire: permission must be granted.
+ * Enabled-but-never-asked is 'needs-permission' (the next tap is a user
+ * gesture that can ask). Nothing here prompts by itself.
+ */
+export function reminderGate(prefOn: boolean): ReminderGate {
+  if (typeof Notification === 'undefined') return 'unsupported';
+  if (Notification.permission === 'denied') return 'blocked';
+  if (!prefOn) return 'off';
+  return Notification.permission === 'granted' ? 'on' : 'needs-permission';
+}

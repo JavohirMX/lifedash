@@ -86,7 +86,11 @@ export interface Attachment {
   name: string;
   mime: string;
   byteSize: number;
-  blob: Blob;
+  /** Local bytes. Absent when the row synced from another device or an
+   *  agent and the blob has not been downloaded to this device. */
+  blob?: Blob;
+  /** True once the server holds the blob (set by upload / server pull). */
+  blobOnServer?: boolean;
   createdAt: number;
 }
 

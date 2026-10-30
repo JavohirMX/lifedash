@@ -2107,3 +2107,13 @@ main.tv-grid { max-width: none; width: 100%; }
 /* Keep detail completion failures below their checkbox/title pair. */
 .sub-row:has(.completion-error) { display: grid; grid-template-columns: 20px minmax(0, 1fr); }
 .sub-row > .completion-error { grid-column: 1 / -1; order: 3; color: var(--negative); font-size: var(--fs-small); overflow-wrap: anywhere; }
+
+.att-row { flex-wrap: wrap; }
+.att-state {
+  flex-basis: 100%;
+  font-size: 12px;
+  color: var(--muted, #64748b);
+  padding-left: 26px;
+}
+.att-state-warn { color: var(--danger, #b91c1c); }
+.att-state .mini { margin-left: 6px; }

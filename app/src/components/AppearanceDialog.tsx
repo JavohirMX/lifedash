@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, type KeyboardEvent, type CSSProperties } f
 import { radioKeyIndex } from '../radioKeys';
 import { ArrowLeft, Monitor, Moon, Sun, X } from 'lucide-react';
 import { STYLES, applyStyle, applyTheme, getStyle, getTheme, type StyleId, type Theme } from '../theme';
+import { publishLocalSettings } from '../deviceSettings';
 import { useDialogFocus } from '../hooks/useDialogFocus';
 import './AppearanceDialog.css';
 import PersonalizationControls from './PersonalizationControls';
@@ -17,9 +18,9 @@ export default function AppearanceDialog(props: { onClose: () => void; onBack?: 
   const [saveError,setSaveError]=useState('');
   const errorNotice=useRef<HTMLParagraphElement>(null);
   useEffect(()=>{if(saveError)errorNotice.current?.scrollIntoView({block:'nearest'});},[saveError]);
-  const chooseMode=(next:Theme)=>{try{applyTheme(next);setMode(next);setSaveError('');}catch{setSaveError('Could not save this mode on this device. Your previous mode is unchanged. Free some browser storage and try again.');}};
-  const chooseStyle=(next:StyleId)=>{try{applyStyle(next);setStyle(next);setSaveError('');}catch{setSaveError('Could not save this style on this device. Your previous style is unchanged. Free some browser storage and try again.');}};
-  const resetStyleMode=()=>{try{applyStyle('paper');setStyle('paper');applyTheme('system');setMode('system');setSaveError('');}catch{setStyle(getStyle());setMode(getTheme());setSaveError('Could not finish resetting style and mode. The current choices are shown below. Free some browser storage and try again.');}};
+  const chooseMode=(next:Theme)=>{try{applyTheme(next);setMode(next);setSaveError('');publishLocalSettings();}catch{setSaveError('Could not save this mode on this device. Your previous mode is unchanged. Free some browser storage and try again.');}};
+  const chooseStyle=(next:StyleId)=>{try{applyStyle(next);setStyle(next);setSaveError('');publishLocalSettings();}catch{setSaveError('Could not save this style on this device. Your previous style is unchanged. Free some browser storage and try again.');}};
+  const resetStyleMode=()=>{try{applyStyle('paper');setStyle('paper');applyTheme('system');setMode('system');setSaveError('');publishLocalSettings();}catch{setStyle(getStyle());setMode(getTheme());setSaveError('Could not finish resetting style and mode. The current choices are shown below. Free some browser storage and try again.');}};
   const [section, setSection] = useState<'style' | 'font' | 'wallpaper'>('style');
   const [style, setStyle] = useState<StyleId>(getStyle());
   const [mode, setMode] = useState<Theme>(getTheme());
