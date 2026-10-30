@@ -2162,7 +2162,7 @@ main.schedule-main { max-width: 1280px; width: 100%; min-width: 0; }
   --radius-card: 9px 4px 17px 5px / 4px 12px 5px 9px;
   --radius-control: 9px 4px 17px 5px / 4px 12px 5px 9px;
   --radius-panel: 12px 5px 20px 6px / 5px 15px 6px 12px;
-  --fs-title: 27px; --fs-section: 17px; --fs-body: 16px; --fs-small: 13.5px;
+  --fs-title: 27px; --fs-section: 17px; --fs-body: 16px; --fs-small: 14px;
   --row-h: 50px; --ls-title: 0; --h-weight: 700;
   --shadow-card: 3px 4px 0 #d8cfb8;
   --shadow-float: 5px 7px 0 #c8bda2;
@@ -2229,6 +2229,15 @@ main.schedule-main { max-width: 1280px; width: 100%; min-width: 0; }
 :root[data-style='sketch'] :is(a, button, summary, input, select, textarea, [role='button'], [role='checkbox']):focus-visible {
   outline: 2.5px dashed var(--sk-annotation);
   outline-offset: 2px;
+}
+
+/* Reduced motion: no tilt/press transforms; shadow changes remain as state feedback. */
+@media (prefers-reduced-motion: reduce) {
+  :root[data-style='sketch'] .btn-primary, :root[data-style='sketch'] .btn-secondary { transition: none; }
+  :root[data-style='sketch'] .btn-primary:hover:not(:disabled),
+  :root[data-style='sketch'] .btn-primary:active:not(:disabled),
+  :root[data-style='sketch'] .btn-secondary:hover:not(:disabled),
+  :root[data-style='sketch'] .btn-secondary:active:not(:disabled) { transform: none; }
 }
 
 /* ---- Monochrome (designprompts.dev) ---- */
