@@ -1985,57 +1985,162 @@ main.schedule-main { max-width: 1280px; width: 100%; min-width: 0; }
 :root[data-style='professional'] .nav.active svg { color: var(--accent-strong); }
 
 /* ---- Retro (designprompts.dev) ---- */
+/* Win95 desktop: grey bevelled windows on a teal dithered desktop, navy title bars,
+   a bright yellow launch window, purple keys and links, magenta echo on heavy
+   display type. Source tokens: desktop #008080, window #d4d4d4, titlebar #000080,
+   highlight #ffff00, accent #6600ff, emphasis #ff00b8, bevel-light #ffffff,
+   bevel-dark #808080. Source typography: Host Grotesk display / IBM Plex Sans
+   interface / IBM Plex Mono metadata; Host Grotesk and IBM Plex Mono are
+   unbundled and fall back per the existing unbundled-face precedent.
+   The source is light-only; the dark pairing is a deliberate dimmed-desktop adaptation. */
 :root[data-style='retro'] {
   --font: 'IBM Plex Sans', Tahoma, ui-sans-serif, system-ui, sans-serif;
-  --font-display: var(--font);
+  --font-display: 'Host Grotesk', 'IBM Plex Sans', Tahoma, ui-sans-serif, sans-serif;
   --ground: #008080; --surface: #d4d4d4; --surface-2: #c0c0c0; --active: #b8b8b8;
-  --border: #808080; --rule: #a8a8a8; --control: #404040;
+  --border: #808080; --rule: #a8a8a8; --control: #5a5a5a;
   --text: #000000; --muted: #2a2a2a; --faint: #3d3d3d;
-  --accent: #000080; --accent-strong: #000066; --accent-soft: #ffff00; --accent-ink: #ffffff;
-  --primary-btn: #000080; --primary-btn-ink: #ffffff;
+  --accent: #6600ff; --accent-strong: #4d00bf; --accent-soft: #ffff00; --accent-ink: #ffffff;
+  --primary-btn: #6600ff; --primary-btn-ink: #ffffff;
   --positive: #005f00; --negative: #a00000; --warning: #7a5c00;
   --radius-card: 0; --radius-control: 0; --radius-panel: 0;
-  --fs-title: 20px; --fs-section: 14px; --fs-body: 14px; --fs-small: 12px;
-  --row-h: 38px; --ls-title: 0; --h-weight: 700;
-  --shadow-card: inset -1px -1px 0 #808080, inset 1px 1px 0 #ffffff;
-  --shadow-float: inset -1px -1px 0 #808080, inset 1px 1px 0 #ffffff, 8px 8px 0 rgba(0, 0, 0, 0.35);
+  --fs-title: 28px; --fs-section: 14px; --fs-body: 14px; --fs-small: 12px;
+  --row-h: 38px; --ls-title: -0.02em; --h-weight: 800;
+  --shadow-card: inset 1px 1px 0 #ffffff, inset -1px -1px 0 #808080, 4px 4px 0 rgba(0, 0, 0, 0.45);
+  --shadow-float: inset 1px 1px 0 #ffffff, inset -1px -1px 0 #808080, 8px 8px 0 rgba(0, 0, 0, 0.5);
 }
 :root[data-style='retro'][data-theme='dark'] {
   --ground: #002b2b; --surface: #3a3a3a; --surface-2: #2e2e2e; --active: #4a4a4a;
-  --border: #1a1a1a; --rule: #2a2a2a; --control: #8a8a8a;
+  --border: #161616; --rule: #2a2a2a; --control: #8a8a8a;
   --text: #f0f0f0; --muted: #c8c8c8; --faint: #a8a8a8;
-  --accent: #7db4ff; --accent-strong: #a8ccff; --accent-soft: #5c5c14; --accent-ink: #001030;
-  --primary-btn: #c0c0c0; --primary-btn-ink: #000000;
+  --accent: #b48cff; --accent-strong: #cfb3ff; --accent-soft: #5c5800; --accent-ink: #1a0033;
+  --primary-btn: #b48cff; --primary-btn-ink: #1a0033;
   --positive: #5ad75a; --negative: #ff6b6b; --warning: #ffd75a;
-  --shadow-card: inset -1px -1px 0 #1a1a1a, inset 1px 1px 0 #5a5a5a;
-  --shadow-float: inset -1px -1px 0 #1a1a1a, inset 1px 1px 0 #5a5a5a, 8px 8px 0 rgba(0, 0, 0, 0.5);
+  --shadow-card: inset 1px 1px 0 #5a5a5a, inset -1px -1px 0 #161616, 4px 4px 0 rgba(0, 0, 0, 0.6);
+  --shadow-float: inset 1px 1px 0 #5a5a5a, inset -1px -1px 0 #161616, 8px 8px 0 rgba(0, 0, 0, 0.65);
 }
-:root[data-style='retro'] .task-row { border-radius: 0; box-shadow: inset -1px -1px 0 var(--border), inset 1px 1px 0 var(--surface); border: none; }
+/* Fine tiled dither on the desktop between the windows. */
+:root[data-style='retro'] body {
+  background-image: repeating-conic-gradient(rgba(0, 0, 0, 0.16) 0% 25%, transparent 0% 50%);
+  background-size: 3px 3px;
+}
+:root[data-style='retro'][data-theme='dark'] body {
+  background-image: repeating-conic-gradient(rgba(0, 0, 0, 0.35) 0% 25%, transparent 0% 50%);
+}
+/* Display type: heavy contemporary sans, uppercase, tightly tracked, magenta offset echo. */
+:root[data-style='retro'] h1 { text-transform: uppercase; text-shadow: 3px 3px 0 #ff00b8; }
+:root[data-style='retro'] h1 .date-sub { text-transform: none; text-shadow: none; }
+/* Compact metadata in the mono face. */
+:root[data-style='retro'] .num, :root[data-style='retro'] .widget-meta, :root[data-style='retro'] .focus-reason, :root[data-style='retro'] .home-date, :root[data-style='retro'] .date-sub {
+  font-family: 'IBM Plex Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+/* Window furniture: every widget gets a navy title bar with decorative min/max/close glyphs. */
+:root[data-style='retro'] .widget { padding-top: 0; }
+:root[data-style='retro'] .widget-head {
+  margin: 0 -16px 4px; padding: 6px 10px;
+  background: #000080; color: #ffffff;
+  font-family: 'IBM Plex Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+  text-transform: uppercase; letter-spacing: 0.08em;
+}
+:root[data-style='retro'] .widget-head h2 { color: #ffffff; font-size: 12px; font-weight: 700; }
+:root[data-style='retro'] .widget-head .focus-icon { color: #ffff00; }
+:root[data-style='retro'] .widget-head .focus-reason { color: #ffff00; }
+:root[data-style='retro'] .widget-head .widget-link { color: #ffff00; }
+:root[data-style='retro'] .widget-head .widget-link:hover { color: #ffffff; }
+:root[data-style='retro'] .widget-head::after {
+  content: ''; flex: none; width: 30px; height: 10px; margin-left: 10px;
+  background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='30' height='10'%3E%3Cg stroke='white' stroke-width='1.2' fill='none'%3E%3Cpath d='M1 8h6'/%3E%3Crect x='12' y='2' width='6' height='6'/%3E%3Cpath d='M22 2l6 6M28 2l-6 6'/%3E%3C/g%3E%3C/svg%3E") no-repeat center;
+}
+/* The launch window: flat bright yellow field, black ink. */
+:root[data-style='retro'] .home-focus {
+  background: #ffff00; color: #000000; border-color: #000000;
+  box-shadow: inset 1px 1px 0 #ffffff, inset -1px -1px 0 #808080, 5px 5px 0 rgba(0, 0, 0, 0.5);
+}
+:root[data-style='retro'] .home-focus .focus-title { color: #000000; }
+:root[data-style='retro'] .home-focus .focus-title:hover { color: #6600ff; }
+:root[data-style='retro'] .home-focus .widget-empty, :root[data-style='retro'] .home-focus > p { color: #2a2a2a; }
+:root[data-style='retro'] .home-focus > h2 {
+  color: #000000; font-size: 12px; letter-spacing: 0.08em; text-transform: uppercase;
+  font-family: 'IBM Plex Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+:root[data-style='retro'][data-theme='dark'] .home-focus { background: #b8ad00; color: #101000; border-color: #000000; }
+:root[data-style='retro'][data-theme='dark'] .home-focus .focus-title, :root[data-style='retro'][data-theme='dark'] .home-focus > h2 { color: #101000; }
+:root[data-style='retro'][data-theme='dark'] .home-focus .focus-title:hover { color: #4d00bf; }
+:root[data-style='retro'][data-theme='dark'] .home-focus .widget-empty, :root[data-style='retro'][data-theme='dark'] .home-focus > p { color: #2e2b00; }
+/* Raised keys with squared bevels; pressing moves the key and reverses its depth. */
+:root[data-style='retro'] .btn-primary {
+  font-weight: 600;
+  box-shadow: inset 1px 1px 0 rgba(255, 255, 255, 0.55), inset -1px -1px 0 rgba(0, 0, 0, 0.5), 2px 2px 0 #000000;
+}
+:root[data-style='retro'] .btn-secondary, :root[data-style='retro'] .mini, :root[data-style='retro'] .chip {
+  background: #d4d4d4; color: #000000; border: none;
+  box-shadow: inset 1px 1px 0 #ffffff, inset -1px -1px 0 #808080, 2px 2px 0 #000000;
+}
+:root[data-style='retro'] .chip.active {
+  background: #6600ff; color: #ffffff;
+  box-shadow: inset 1px 1px 0 #2d0073, inset -1px -1px 0 #b380ff, 2px 2px 0 #000000;
+}
+:root[data-style='retro'] .chip.tag { color: #000000; background: #ffff00; }
+:root[data-style='retro'] .btn-primary:active:not(:disabled), :root[data-style='retro'] .btn-secondary:active:not(:disabled), :root[data-style='retro'] .mini:active:not(:disabled), :root[data-style='retro'] .chip:active:not(:disabled) {
+  transform: translate(2px, 2px);
+  box-shadow: inset 1px 1px 0 #808080, inset -1px -1px 0 #ffffff;
+}
+:root[data-style='retro'][data-theme='dark'] .btn-secondary, :root[data-style='retro'][data-theme='dark'] .mini, :root[data-style='retro'][data-theme='dark'] .chip {
+  background: #4a4a4a; color: #f0f0f0;
+  box-shadow: inset 1px 1px 0 #6a6a6a, inset -1px -1px 0 #161616, 2px 2px 0 #000000;
+}
+:root[data-style='retro'][data-theme='dark'] .chip.active {
+  background: #b48cff; color: #1a0033;
+  box-shadow: inset 1px 1px 0 #5a2da0, inset -1px -1px 0 #dcccff, 2px 2px 0 #000000;
+}
+:root[data-style='retro'][data-theme='dark'] .chip.tag { color: #fff9c4; background: #5c5800; }
+/* White inset reading wells; the edge treatment reverses. */
+:root[data-style='retro'] input:not([type='checkbox']):not([type='radio']):not([type='range']), :root[data-style='retro'] textarea, :root[data-style='retro'] select {
+  background: #ffffff; color: #000000; border: none; border-radius: 0;
+  box-shadow: inset 1px 1px 0 #808080, inset -1px -1px 0 #dfdfdf;
+}
+:root[data-style='retro'][data-theme='dark'] input:not([type='checkbox']):not([type='radio']):not([type='range']), :root[data-style='retro'][data-theme='dark'] textarea, :root[data-style='retro'][data-theme='dark'] select {
+  background: #1c1c1c; color: #f0f0f0;
+  box-shadow: inset 1px 1px 0 #000000, inset -1px -1px 0 #5a5a5a;
+}
+/* Task rows read as white wells set into the grey frame. */
+:root[data-style='retro'] .task-row { border: none; border-radius: 0; background: #ffffff; box-shadow: inset 1px 1px 0 #808080, inset -1px -1px 0 #dfdfdf; }
+:root[data-style='retro'][data-theme='dark'] .task-row { background: #1c1c1c; box-shadow: inset 1px 1px 0 #000000, inset -1px -1px 0 #5a5a5a; }
+/* Square checkbox wells; checked fills purple. */
+:root[data-style='retro'] .checkbox { border-radius: 0; background: #ffffff; border-color: #808080; }
+:root[data-style='retro'] .checkbox.checked { background: #6600ff; border-color: #6600ff; color: #ffffff; }
+:root[data-style='retro'][data-theme='dark'] .checkbox { background: #1c1c1c; border-color: #5a5a5a; }
+:root[data-style='retro'][data-theme='dark'] .checkbox.checked { background: #b48cff; border-color: #b48cff; color: #1a0033; }
+:root[data-style='retro'] .chip { border-radius: 0; }
+/* Navigation: flat navy selection, brand block with magenta offset. */
 :root[data-style='retro'] .nav { border-radius: 0; }
 :root[data-style='retro'] .nav.active { background: #000080; color: #ffffff; }
 :root[data-style='retro'] .nav.active svg { color: #ffffff; }
-:root[data-style='retro'][data-theme='dark'] .nav.active { background: #7db4ff; color: #001030; }
-:root[data-style='retro'][data-theme='dark'] .nav.active svg { color: #001030; }
-:root[data-style='retro'] .checkbox, :root[data-style='retro'] .chip { border-radius: 0; }
+:root[data-style='retro'][data-theme='dark'] .nav.active { background: #000080; color: #ffffff; }
+:root[data-style='retro'][data-theme='dark'] .nav.active svg { color: #ffffff; }
 :root[data-style='retro'] .brand { background: #000080; color: #ffffff; padding: 1px 8px; box-shadow: 3px 3px 0 #ff00b8; }
 :root[data-style='retro'][data-theme='dark'] .brand { background: #000080; color: #ffffff; box-shadow: 3px 3px 0 #ff00b8; }
+/* The sidebar is the desktop's grey window frame; icon buttons are raised keys. */
+:root[data-style='retro'] .sidebar { background: #d4d4d4; border-right: 2px solid #808080; }
+:root[data-style='retro'][data-theme='dark'] .sidebar { background: #2e2e2e; border-right: 2px solid #161616; }
+:root[data-style='retro'] .icon-btn { background: #d4d4d4; color: #000000; border-radius: 0; box-shadow: inset 1px 1px 0 #ffffff, inset -1px -1px 0 #808080, 2px 2px 0 #000000; }
+:root[data-style='retro'][data-theme='dark'] .icon-btn { background: #4a4a4a; color: #f0f0f0; box-shadow: inset 1px 1px 0 #6a6a6a, inset -1px -1px 0 #161616, 2px 2px 0 #000000; }
+:root[data-style='retro'] .bottombar, :root[data-style='retro'] .mobile-topbar { background: #d4d4d4; border-top: 2px solid #808080; }
+:root[data-style='retro'] .mobile-topbar { border-top: none; border-bottom: 2px solid #808080; }
+:root[data-style='retro'][data-theme='dark'] .bottombar, :root[data-style='retro'][data-theme='dark'] .mobile-topbar { background: #2e2e2e; border-top: 2px solid #161616; }
+:root[data-style='retro'][data-theme='dark'] .mobile-topbar { border-top: none; border-bottom: 2px solid #161616; }
+/* Desktop labels: small text that sits directly on the teal desktop gets the
+   classic white icon-label treatment with a dark echo. Panel text is untouched. */
+:root[data-style='retro'] .home-greeting, :root[data-style='retro'] .home-date, :root[data-style='retro'] .home-extra-widgets > summary, :root[data-style='retro'] .search-query, :root[data-style='retro'] h1 .date-sub, :root[data-style='retro'] .quick-add-hint {
+  color: #ffffff; text-shadow: 1px 1px 0 rgba(0, 0, 0, 0.6);
+}
+:root[data-style='retro'] .search-query strong { color: #ffffff; }
+:root[data-style='retro'] .capture-panel .quick-add-hint { color: var(--muted); text-shadow: none; }
+/* Real clearance under the brand block so its magenta offset never abuts the next control. */
+:root[data-style='retro'] .brand { margin-bottom: 8px; }
+/* Keys on the yellow launch window get an explicit ink edge: the grey-on-yellow
+   fill pair alone is 1.38:1, so the boundary is carried by a black frame. */
+:root[data-style='retro'] .home-focus .btn-secondary, :root[data-style='retro'] .home-focus .mini { border: 1px solid #000000; }
 :root[data-style='retro'] .app { border: none; }
-:root[data-style='retro'] .sidebar { background: var(--surface); border-right: 2px solid var(--border); box-shadow: inset -1px -1px 0 var(--border), inset 1px 1px 0 var(--surface); }
-:root[data-style='retro'] .mobile-topbar { background: var(--surface); border-bottom: 2px solid var(--border); }
-
-/* Self-hosted handwriting faces for the Sketch style (MIT license,
-   see app/public/fonts/WORKINGSHEET-LICENSE.txt). Loaded globally; only
-   the Sketch style references them, so other styles never fetch them. */
-@font-face {
-  font-family: 'Sketch Working Marker';
-  src: url('/fonts/WorkingSheet-Marker.ttf') format('truetype');
-  font-weight: 700; font-style: normal; font-display: swap;
-}
-@font-face {
-  font-family: 'Sketch Working Hand';
-  src: url('/fonts/WorkingSheet-Hand.ttf') format('truetype');
-  font-weight: 400; font-style: normal; font-display: swap;
-}
 
 /* ---- Sketch (designprompts.dev) ---- */
 /* Source: designprompts.dev/sketch - warm working sheet, pencil ink, ballpoint-blue

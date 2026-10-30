@@ -15,7 +15,7 @@ export const STYLES: { id: StyleId; name: string; blurb: string }[] = [
   { id: 'cyberpunk', name: 'Cyberpunk', blurb: 'Black field, green signal rail, magenta and cyan fractures.' },
   { id: 'luxury', name: 'Luxury', blurb: 'Warm alabaster, gilt rules, Garamond statements.' },
   { id: 'professional', name: 'Professional', blurb: 'Ivory ground, fine gold rules, quiet hierarchy.' },
-  { id: 'retro', name: 'Retro', blurb: 'Nineties desktop: bevelled grey windows on teal.' },
+  { id: 'retro', name: 'Retro', blurb: 'Nineties desktop: bevelled windows, navy title bars, yellow panels on teal.' },
   { id: 'sketch', name: 'Sketch', blurb: 'Warm working sheet, hand-drawn lines, pencil annotations.' },
   { id: 'monochrome', name: 'Monochrome', blurb: 'Pure black and white, oversized serif, square edges.' },
 ];

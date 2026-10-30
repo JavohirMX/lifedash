@@ -187,13 +187,13 @@ export const THEME_PREVIEWS = {
       "--p-ground": "#008080",
       "--p-surf": "#d4d4d4",
       "--p-rule": "#808080",
-      "--p-acc": "#000080"
+      "--p-acc": "#6600ff"
     },
     "dark": {
       "--p-ground": "#002b2b",
       "--p-surf": "#3a3a3a",
       "--p-rule": "#1a1a1a",
-      "--p-acc": "#7db4ff"
+      "--p-acc": "#b48cff"
     }
   },
   "sketch": {
