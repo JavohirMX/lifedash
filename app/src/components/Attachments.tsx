@@ -123,7 +123,7 @@ function TaskAttachments(props: { taskId: string }) {
           <button className="att-name att-open" title={`Download ${a.name}`} aria-label={`Download ${a.name}`} onClick={() => download(a)}>{a.name}</button>
           <span className="att-size">{fmtSize(a.byteSize)}</span>
           <button className="mini" title="Remove" aria-label={`Remove ${a.name}`} disabled={busy} onClick={() => void remove(a.id, a.name)}><X size={13} strokeWidth={2} /></button>
-          {localOnly && !failed?.permanent && <span className="att-state" role="note">On this device only - uploads on the next sync.</span>}
+          {localOnly && !failed?.permanent && <span className="att-state" role="note">On this device only. Will try uploading on the next sync.</span>}
           {failed?.permanent && (
             <span className="att-state att-state-warn" role="note">
               Couldn't upload to the sync server; on this device only.
