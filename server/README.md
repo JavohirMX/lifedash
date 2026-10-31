@@ -20,6 +20,16 @@ Funnel) before exposing it beyond localhost - tokens are bearer tokens.
 
 ## Local development
 
+With `uv` (recommended):
+
+```bash
+uv sync --all-groups
+SYNC_DB=./dev.db SYNC_OPEN_REGISTRATION=1 uv run uvicorn app.main:app --port 8787 --no-proxy-headers
+uv run pytest
+```
+
+With `pip`:
+
 ```bash
 pip install -r requirements-dev.txt
 SYNC_DB=./dev.db SYNC_OPEN_REGISTRATION=1 uvicorn app.main:app --port 8787 --no-proxy-headers

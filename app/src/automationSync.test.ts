@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import {
-  hydrateAutomation, refreshAutomationFromSync, loadRules, loadUserRules, saveRules,
+  hydrateAutomation, refreshAutomationFromSync, loadRules, loadUserRules, saveRules, saveUserRules,
   AUTOMATION_CHANGED_EVENT, type UserRule,
 } from './automation';
 
@@ -22,6 +22,7 @@ vi.mock('./db', () => ({
     userRules: {
       toArray: async () => [...tables.userRules.values()],
       clear: async () => tables.userRules.clear(),
+      delete: async (id: string) => tables.userRules.delete(id),
       bulkPut: async (rows: { id: string }[]) => { for (const r of rows) tables.userRules.set(r.id, r); },
     },
   },
@@ -112,5 +113,15 @@ describe('saveRules mirror', () => {
     await new Promise((r) => setTimeout(r, 0));
     expect(tables.automationRules.get('settings')).toEqual({ id: 'settings', rollover: false, completeParent: true });
     expect(loadRules()).toEqual({ rollover: false, completeParent: true });
+  });
+
+  it('saveUserRules deletes removed rules individually to trigger delete hooks for sync', async () => {
+    tables.userRules.set('r1', rule({ id: 'r1' }) as Record<string, unknown>);
+    tables.userRules.set('r2', rule({ id: 'r2' }) as Record<string, unknown>);
+    saveUserRules([rule({ id: 'r2' })]);
+    await new Promise((r) => setTimeout(r, 0));
+    expect(tables.userRules.get('r1')).toBeUndefined();
+    expect(tables.userRules.get('r2')).toBeDefined();
+    expect(loadUserRules().map((r) => r.id)).toEqual(['r2']);
   });
 });

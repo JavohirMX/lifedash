@@ -1,0 +1,35 @@
+[project]
+name = "lifedash-server"
+version = "0.1.0"
+description = "Self-hosted sync backend for the Lifedash PWA"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "fastapi>=0.162.0",
+    "uvicorn[standard]>=0.54.0",
+    "pydantic>=2.14.1",
+    "python-dotenv>=1.2.4",
+    "python-dateutil>=2.9.0.post0",
+]
+
+[project.optional-dependencies]
+google = [
+    "cryptography>=50.0.2",
+    "cffi>=2.1.1",
+    "pycparser>=3.11",
+]
+
+[dependency-groups]
+google = [
+    "cryptography>=50.0.2",
+    "cffi>=2.1.1",
+    "pycparser>=3.11",
+]
+dev = [
+    "pytest>=9.1.1",
+    "httpx>=0.28.1",
+    {include-group = "google"},
+]
+
+[tool.uv]
+package = false

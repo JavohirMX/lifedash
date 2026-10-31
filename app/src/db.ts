@@ -163,6 +163,26 @@ export class LifeDashDB extends Dexie {
             t.priority ??= 0;
           }),
       );
+    this.version(10)
+      .stores({
+        tasks: 'id, status, projectId, parentId, dueDate, seriesId, goalId, noteId',
+        projects: 'id, order',
+        attachments: 'id, taskId',
+        habits: 'id, order',
+        habitLogs: 'id, habitId, date',
+        goals: 'id, order',
+        notes: 'id, updatedAt',
+        journal: 'id, date',
+        syncmeta: 'key',
+      })
+      .upgrade((tx) =>
+        tx
+          .table('tasks')
+          .toCollection()
+          .modify((t: { noteId?: string | null }) => {
+            t.noteId ??= null;
+          }),
+      );
     this.version(11)
       .stores({
         tasks: 'id, status, projectId, parentId, dueDate, seriesId, goalId, noteId',
@@ -205,26 +225,6 @@ export class LifeDashDB extends Dexie {
       userRules: 'id',
       deviceSettings: 'id',
     });
-    this.version(10)
-      .stores({
-        tasks: 'id, status, projectId, parentId, dueDate, seriesId, goalId, noteId',
-        projects: 'id, order',
-        attachments: 'id, taskId',
-        habits: 'id, order',
-        habitLogs: 'id, habitId, date',
-        goals: 'id, order',
-        notes: 'id, updatedAt',
-        journal: 'id, date',
-        syncmeta: 'key',
-      })
-      .upgrade((tx) =>
-        tx
-          .table('tasks')
-          .toCollection()
-          .modify((t: { noteId?: string | null }) => {
-            t.noteId ??= null;
-          }),
-      );
   }
 }
 

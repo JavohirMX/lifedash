@@ -42,14 +42,13 @@ jobs:
         working-directory: server
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        if: hashFiles('server/requirements-dev.txt') != ''
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
         with:
-          python-version: "3.11"
-          cache: pip
+          enable-cache: true
+      - name: Set up Python
+        run: uv python install 3.11
       - name: Install dependencies
-        if: hashFiles('server/requirements-dev.txt') != ''
-        run: pip install -r requirements-dev.txt
+        run: uv sync --all-groups
       - name: Run tests
-        if: hashFiles('server/requirements-dev.txt') != ''
-        run: pytest
+        run: uv run pytest

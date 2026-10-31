@@ -77,7 +77,21 @@ More UI captures live in [`shots/`](shots/).
 
 ## Quick Start
 
-### Frontend App
+### One-Command Quick Start (Recommended)
+
+Requires Node 20+ and [uv](https://docs.astral.sh/uv/) (Python 3.11+):
+
+```bash
+make quickstart
+```
+
+This verifies and installs frontend dependencies (`npm ci`) and backend dependencies (`uv sync`), then immediately boots both the frontend PWA (`http://localhost:5173`) and the sync server (`http://localhost:8787`) together.
+
+> **Explore sample data:** Open `http://localhost:5173/?sample` to explore a fully populated, fictional sandbox that never touches your real database or sync settings.
+
+### Individual Components
+
+#### Frontend App
 
 Requires Node 20+:
 
@@ -87,11 +101,19 @@ npm install
 npm run dev        # http://localhost:5173
 ```
 
-> **Explore sample data:** Open `http://localhost:5173/?sample` to explore a fully populated, fictional sandbox that never touches your real database or sync settings.
-
-### Optional Sync Server
+#### Optional Sync Server
 
 Requires Python 3.11+:
+
+With `uv` (recommended):
+
+```bash
+cd server
+uv sync --all-groups
+SYNC_DB=./dev.db SYNC_OPEN_REGISTRATION=1 uv run uvicorn app.main:app --port 8787 --no-proxy-headers
+```
+
+Or with `pip`:
 
 ```bash
 cd server
@@ -135,7 +157,8 @@ Prefer a terminal walkthrough? `make setup` runs preflight checks interactively;
 ## Development
 
 ```bash
-make install       # One-time install: npm dependencies + Python venv with test packages
+make quickstart    # Fast one-step setup and launch: install dependencies (if needed) & start local dev
+make install       # Install frontend (npm ci) and backend dependencies (uv sync --all-groups)
 make dev           # Start frontend Vite server + Python sync server together
 make test          # Run frontend Vitest test suite + backend Pytest suite
 make test-keyboard # Run Playwright keyboard and accessibility regressions

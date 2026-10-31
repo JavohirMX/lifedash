@@ -120,6 +120,11 @@ def test_plain_http_to_tls_port_fails(tls_proxy):
 
 
 def test_spoofed_xff_left_entries_throttle_through_proxy(tls_proxy):
+    try:
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as _probe:
+            _probe.bind(("127.0.0.3", 0))
+    except OSError:
+        pytest.skip("Loopback alias 127.0.0.3 not available on host (run on Linux/CI or configure alias)")
     port, db = tls_proxy
     call(port, "POST", "/api/register", {"username": "victim", "password": "correct horse battery staple"})
     # One real source (127.0.0.3) rotating attacker-controlled left entries.
@@ -136,6 +141,11 @@ def test_spoofed_xff_left_entries_throttle_through_proxy(tls_proxy):
 
 
 def test_throttle_isolation_between_real_sources_through_proxy(tls_proxy):
+    try:
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as _probe:
+            _probe.bind(("127.0.0.2", 0))
+    except OSError:
+        pytest.skip("Loopback alias 127.0.0.2 not available on host (run on Linux/CI or configure alias)")
     port, _ = tls_proxy
     # victim is throttled from 127.0.0.3 above; the same account from a
     # different real source signs straight in.

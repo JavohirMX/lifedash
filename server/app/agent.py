@@ -387,7 +387,7 @@ def create_token(body: TokenCreate, user_id: int = Depends(current_user)):
     )
     conn.commit()
     row = conn.execute("SELECT created_at FROM agent_tokens WHERE id = ?", (tid,)).fetchone()
-    return {"id": tid, "name": name, "scope": body.scope, "projectId": body.projectId,
+    return {"id": tid, "name": name, "scope": body.scope, "project_id": body.projectId, "projectId": body.projectId,
             "token": token, "created_at": row["created_at"]}
 
 

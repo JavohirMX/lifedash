@@ -89,8 +89,15 @@ export function saveUserRules(rules: UserRule[]): void {
   localStorage.setItem(USER_KEY, JSON.stringify(rules));
   void (async () => {
     try {
-      await db.userRules?.clear();
-      if (rules.length) await db.userRules?.bulkPut(rules);
+      if (!db.userRules) return;
+      const current = await db.userRules.toArray();
+      const nextIds = new Set(rules.map((r) => r.id));
+      for (const old of current) {
+        if (!nextIds.has(old.id)) {
+          await db.userRules.delete(old.id);
+        }
+      }
+      if (rules.length) await db.userRules.bulkPut(rules);
     } catch {
       /* Dexie unavailable (tests); localStorage mirror already updated. */
     }
