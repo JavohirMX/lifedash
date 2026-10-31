@@ -27,6 +27,7 @@ export async function addTask(input: {
   goalId?: string | null;
   noteId?: string | null;
   tags?: string[];
+  pinned?: boolean;
 }): Promise<Task> {
   const now = Date.now();
   const task: Task = {
@@ -39,7 +40,7 @@ export async function addTask(input: {
     goalId: input.goalId ?? null,
     noteId: input.noteId ?? null,
     status: 'active',
-    pinned: false,
+    pinned: input.pinned ?? false,
     priority: input.priority ?? 0,
     dueDate: input.dueDate ?? null,
     dueTime: input.dueTime ?? null,
@@ -142,10 +143,14 @@ async function fireTagRules(task: Task): Promise<number> {
     // Check and create in one read-write transaction: completing two tasks
     // with the same trigger tag together, or a second tab, serializes after
     // this commit and sees the new open task.
-    const made = await db.transaction('rw', db.tasks, async () => {
+    const made = await db.transaction('rw', db.tasks, db.projects, async () => {
       const open = await db.tasks.toArray();
       if (hasOpenTitle(open, rule.title)) return false;
-      await addTask({ title: rule.title, projectId: task.projectId });
+      // A rule can name a project; a deleted one falls back to inheriting
+      // the completing task's project rather than stranding the task.
+      let projectId = task.projectId;
+      if (rule.projectId && (await db.projects.get(rule.projectId))) projectId = rule.projectId;
+      await addTask({ title: rule.title, projectId, pinned: rule.pinned === true });
       return true;
     });
     if (made) created++;
@@ -171,10 +176,13 @@ export async function applyWeeklyUserRules(today: string): Promise<number> {
     for (const rule of due) {
       // Check and create in one read-write transaction: a run in another tab
       // serializes after this one commits and sees the new open task.
-      const made = await db.transaction('rw', db.tasks, async () => {
+      const made = await db.transaction('rw', db.tasks, db.projects, async () => {
         const open = await db.tasks.toArray();
         if (hasOpenTitle(open, rule.title)) return false;
-        await addTask({ title: rule.title, projectId: 'inbox' });
+        // A rule can name a project; a deleted one falls back to Inbox.
+        let projectId = 'inbox';
+        if (rule.projectId && (await db.projects.get(rule.projectId))) projectId = rule.projectId;
+        await addTask({ title: rule.title, projectId, pinned: rule.pinned === true });
         return true;
       });
       if (made) created++;

@@ -3,7 +3,7 @@ import type { Task } from './types';
 
 // In-memory stand-in for the Dexie db covering the small query surface
 // repo.ts uses in these tests.
-const { rows } = vi.hoisted(() => ({ rows: { tasks: [] as Task[], notes: [] as { id: string }[] } }));
+const { rows } = vi.hoisted(() => ({ rows: { tasks: [] as Task[], notes: [] as { id: string }[], projects: [] as { id: string }[] } }));
 
 function fakeTable<T extends { id: string }>(items: T[]) {
   const matching = (field: string, value: unknown) => items.filter((t) => (t as Record<string, unknown>)[field] === value);
@@ -53,6 +53,7 @@ vi.mock('./db', () => ({
   db: {
     tasks: fakeTable(rows.tasks),
     notes: fakeTable(rows.notes),
+    projects: fakeTable(rows.projects),
     attachments: fakeTable([]),
     transaction: async (...args: unknown[]) => {
       const fn = args[args.length - 1] as () => Promise<void>;
@@ -65,7 +66,8 @@ const userRulesState = vi.hoisted(() => ({
   rules: [] as {
     id: string;
     trigger: { kind: 'weekly'; weekday: number } | { kind: 'tag'; tag: string };
-    title: string; createdAt: number; lastFired: string | null;
+    title: string; projectId?: string | null; pinned?: boolean;
+    createdAt: number; lastFired: string | null;
   }[],
   savesBeforeFailure: Infinity,
 }));
@@ -173,6 +175,7 @@ describe('applyWeeklyUserRules', () => {
   });
   beforeEach(() => {
     rows.tasks.length = 0;
+    rows.projects.length = 0;
     userRulesState.rules = [];
     userRulesState.savesBeforeFailure = Infinity;
   });
@@ -209,6 +212,27 @@ describe('applyWeeklyUserRules', () => {
     expect(userRulesState.rules[0].lastFired).toBe(today);
   });
 
+  it('honors a rule project and pin, defaulting to Inbox unpinned', async () => {
+    rows.projects.push({ id: 'p1' });
+    userRulesState.rules = [
+      { ...weeklyRule('r1', 'Default target') },
+      { ...weeklyRule('r2', 'Targeted'), projectId: 'p1', pinned: true },
+    ];
+    expect(await applyWeeklyUserRules(today)).toBe(2);
+    const plain = rows.tasks.find((t) => t.title === 'Default target');
+    const targeted = rows.tasks.find((t) => t.title === 'Targeted');
+    expect(plain?.projectId).toBe('inbox');
+    expect(plain?.pinned).toBe(false);
+    expect(targeted?.projectId).toBe('p1');
+    expect(targeted?.pinned).toBe(true);
+  });
+
+  it('falls back to Inbox when the rule project was deleted', async () => {
+    userRulesState.rules = [{ ...weeklyRule('r1', 'Orphan target'), projectId: 'gone' }];
+    expect(await applyWeeklyUserRules(today)).toBe(1);
+    expect(rows.tasks.find((t) => t.title === 'Orphan target')?.projectId).toBe('inbox');
+  });
+
   it('keeps stamps for rules handled before a later save fails', async () => {
     // Regression: stamping used to happen in one save at the very end, so a
     // failure on any rule re-fired every rule on the next run.
@@ -237,6 +261,7 @@ describe('applyUserRulesForCompletion', () => {
   });
   beforeEach(() => {
     rows.tasks.length = 0;
+    rows.projects.length = 0;
     userRulesState.rules = [];
     userRulesState.savesBeforeFailure = Infinity;
   });
@@ -251,6 +276,29 @@ describe('applyUserRulesForCompletion', () => {
     ]);
     expect(first + second).toBe(1);
     expect(rows.tasks.filter((t) => t.title === 'Buy milk')).toHaveLength(1);
+  });
+
+  it('inherits the completing task project by default; a rule project and pin override', async () => {
+    rows.projects.push({ id: 'p1' });
+    const fromProject = { ...completedWith(['errand']), projectId: 'p1' };
+    userRulesState.rules = [tagRule('r1', 'errand', 'Inherited')];
+    expect(await applyUserRulesForCompletion(fromProject)).toBe(1);
+    expect(rows.tasks.find((t) => t.title === 'Inherited')?.projectId).toBe('p1');
+
+    rows.tasks.length = 0;
+    rows.projects.push({ id: 'p2' });
+    userRulesState.rules = [{ ...tagRule('r2', 'errand', 'Targeted'), projectId: 'p2', pinned: true }];
+    expect(await applyUserRulesForCompletion(completedWith(['errand']))).toBe(1);
+    const targeted = rows.tasks.find((t) => t.title === 'Targeted');
+    expect(targeted?.projectId).toBe('p2');
+    expect(targeted?.pinned).toBe(true);
+  });
+
+  it('falls back to inheriting when the rule project was deleted', async () => {
+    userRulesState.rules = [{ ...tagRule('r1', 'errand', 'Orphan'), projectId: 'gone' }];
+    const fromProject = { ...completedWith(['errand']), projectId: 'p9' };
+    expect(await applyUserRulesForCompletion(fromProject)).toBe(1);
+    expect(rows.tasks.find((t) => t.title === 'Orphan')?.projectId).toBe('p9');
   });
 
   it('does not re-create while a rule task is still open, fires again once done', async () => {

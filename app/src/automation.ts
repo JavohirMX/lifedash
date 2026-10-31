@@ -63,6 +63,11 @@ export interface UserRule {
   id: string;
   trigger: UserRuleTrigger;
   title: string; // title of the task to create
+  // Optional actions on the created task (SPEC Phase 5: move to project, pin).
+  // Absent keeps the original behavior: tag rules inherit the completing
+  // task's project, weekly rules create in Inbox, and tasks are unpinned.
+  projectId?: string | null;
+  pinned?: boolean;
   createdAt: number;
   lastFired: string | null; // local YYYY-MM-DD; stamped even when creation is skipped
 }
@@ -183,6 +188,13 @@ export function restoreAutomation(value: unknown): void {
         || !(x.lastFired === null || typeof x.lastFired === 'string') || !x.trigger) return false;
       return (x.trigger.kind === 'tag' && typeof x.trigger.tag === 'string' && !!x.trigger.tag.trim())
         || (x.trigger.kind === 'weekly' && Number.isInteger(x.trigger.weekday) && x.trigger.weekday >= 0 && x.trigger.weekday <= 6);
+    }).map((r) => {
+      // Optional action fields are sanitized, not rejected: a malformed one
+      // must not drop an otherwise valid rule; absent means default behavior.
+      const clean: UserRule = { id: r.id, trigger: r.trigger, title: r.title, createdAt: r.createdAt, lastFired: r.lastFired };
+      if (typeof r.projectId === 'string' && r.projectId.trim()) clean.projectId = r.projectId;
+      if (r.pinned === true) clean.pinned = true;
+      return clean;
     });
     saveUserRules(valid);
   }

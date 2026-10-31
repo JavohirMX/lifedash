@@ -916,6 +916,8 @@ h2 { font-family: var(--font-display); font-size: var(--fs-section); font-weight
 .rule-form select, .rule-form input { min-height: 34px; padding: 4px 8px; border: 1px solid var(--control); border-radius: var(--radius, 8px); background: var(--surface); color: var(--text); font: inherit; }
 .rule-form select { min-width: 10rem; }
 .rule-form input { flex: 1; min-width: 8rem; }
+.rule-form .rule-check { display: flex; align-items: center; gap: 6px; font-size: var(--fs-small); color: var(--muted); }
+.rule-form .rule-check input[type='checkbox'] { flex: none; min-width: 0; min-height: 0; }
 .rule-coming {
   display: flex; align-items: center; gap: 8px; margin-top: 14px;
   font-size: var(--fs-small); color: var(--muted);
