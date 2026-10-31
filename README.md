@@ -5,15 +5,16 @@ a journal and a day planner in one place. Local-first and installable as a
 PWA on desktop and mobile; an optional self-hosted sync server keeps your
 devices in step.
 
-[![CI](https://github.com/JavohirMX/lifedash/actions/workflows/ci.yml/badge.svg)](https://github.com/JavohirMX/lifedash/actions/workflows/ci.yml)
-
-| Home | Week (dark) |
-|---|---|
-| ![Home](shots/combined-home.png) | ![Week](shots/week-nav-overdue.png) |
-
-| Habits | Home (mobile) |
-|---|---|
-| ![Habits](shots/habits-past-toggle.png) | ![Home on mobile](shots/home-mobile.png) |
+<table>
+  <tr>
+    <td><img src="shots/combined-home.png" alt="Home - day plan" width="100%"></td>
+    <td><img src="shots/week-nav-overdue.png" alt="Week view, dark" width="100%"></td>
+  </tr>
+  <tr>
+    <td><img src="shots/habits-past-toggle.png" alt="Habits with past days" width="100%"></td>
+    <td align="center"><img src="shots/home-mobile.png" alt="Home on mobile" width="300"></td>
+  </tr>
+</table>
 
 More UI screenshots live in [`shots/`](shots/).
 
