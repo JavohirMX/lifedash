@@ -9,12 +9,20 @@ devices in step.
   <tr>
     <td><img src="shots/combined-home.png" alt="Home - day plan" width="100%"></td>
     <td><img src="shots/week-nav-overdue.png" alt="Week view, dark" width="100%"></td>
+    <td><img src="shots/habits-past-toggle.png" alt="Habits with past days" width="100%"></td>
   </tr>
   <tr>
-    <td><img src="shots/habits-past-toggle.png" alt="Habits with past days" width="100%"></td>
-    <td align="center"><img src="shots/home-mobile.png" alt="Home on mobile" width="300"></td>
+    <td align="center"><sub>Home</sub></td>
+    <td align="center"><sub>Week, dark</sub></td>
+    <td align="center"><sub>Habits</sub></td>
   </tr>
 </table>
+
+<details>
+<summary>Mobile preview</summary>
+<br>
+<img src="shots/home-mobile.png" alt="Home on mobile" width="300">
+</details>
 
 More UI screenshots live in [`shots/`](shots/).
 
