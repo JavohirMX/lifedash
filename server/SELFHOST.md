@@ -252,6 +252,18 @@ database. Check login and records before reconnecting clients. This guide does
 not automatically perform recovery. `docker compose down` preserves data;
 `docker compose down -v` deletes the volume and must not be used for upgrades.
 
+**Known hazard: restoring an older backup can silently corrupt multi-device
+sync.** Devices assume the server's revision counter only moves forward. A
+restore moves it backward and reuses numbers, and neither side detects that
+today (characterized in `tests/test_restore_rollback_characterization.py`):
+a device can permanently miss changes other devices make after the restore,
+and ordinary conflict handling can keep the server's older version over a
+device's newer edit. A designed reconciliation is pending. Until it ships,
+after any restore of an older backup: have everyone hold off editing, check
+each device's data against the server, and re-enter anything missing by hand
+from the device that still has it. Do not assume that reconnecting every
+device repairs the restore - it does not.
+
 For a synthetic, non-Docker drill after `make install`, run
 `make test-selfhost` from the repo root on a POSIX host. It verifies a real
 loopback uvicorn process, account/auth behavior, restart persistence, an online

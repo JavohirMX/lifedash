@@ -907,3 +907,19 @@ describe('prompt attachment upload ordering', () => {
     expect(blobUploads[0]).toMatchObject({ id: 'att-1', taskId: 'task-1' });
   });
 });
+
+describe('restore-rollback characterization (current behavior, not the desired one)', () => {
+  it('regresses the stored cursor when a pull reports a LOWER counter (a restored server is invisible)', async () => {
+    // The client was synced up to rev 5. The server was then restored from
+    // an older backup whose counter is 2. The pull answers 200 with an
+    // empty page and the current counter - and the client adopts that
+    // LOWER counter as its new cursor without any signal. Post-restore
+    // entities stamped with revs 3..5 before this pull are now permanently
+    // invisible to this client.
+    meta.set('cursor', 5);
+    mockFetch({ changesResponses: [{ changes: [], rev: 2 }, { changes: [], rev: 2 }] });
+    const r = await syncNow(settings);
+    expect(r).toMatchObject({ pushed: 0, pulled: 0, conflicts: 0 });
+    expect(meta.get('cursor')).toBe(2); // moved BACKWARD, silently
+  });
+});
