@@ -8,7 +8,7 @@ try {
     await page.goto(`${process.env.BASE_URL}/?sample`);
     await page.getByText('Set up the backup volume', { exact: true }).first().click();
     const select = page.getByLabel('Due date', {exact:true}); await select.waitFor();
-    const before = await select.inputValue(), next = '2026-11-01';
+    const before = await select.inputValue(), next = (() => { const d = new Date(); d.setDate(d.getDate() + 2); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; })();
     await page.evaluate(async () => {
       const { db } = await import('/src/db.ts');
       window.originId = (await db.tasks.toArray()).find(t => t.title === 'Set up the backup volume').id;
@@ -36,6 +36,8 @@ try {
     await page.waitForFunction(async wanted => { const { db } = await import('/src/db.ts'); return (await db.tasks.get(window.originId)).dueDate === (wanted || null); }, next);
     assert.equal(await select.inputValue(), other); assert.equal(await page.getByRole('alert').count(), 0);
     await page.getByRole('button', { name: 'Close task details', exact: true }).click();
+    if (width < 500) { await page.getByRole('button', { name: 'More', exact: true }).click(); await page.getByRole('dialog', { name: 'More navigation', exact: true }).getByRole('button', { name: 'Upcoming', exact: true }).click(); }
+    else { await page.locator('button.nav').filter({ hasText: 'Upcoming' }).click(); }
     await page.getByText('Set up the backup volume', { exact: true }).first().click(); assert.equal(await select.inputValue(), next);
     await select.fill('');
     await page.waitForFunction(async field => { const { db } = await import('/src/db.ts'); return (await db.tasks.get(window.originId))[field] === null; }, 'dueDate');

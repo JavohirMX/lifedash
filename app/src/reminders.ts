@@ -1,12 +1,15 @@
+import { SAMPLE_MODE } from './dev/sampleMode';
 import type { Task } from './types';
 
 // In-app reminders: while Lifedash is open, tasks due today with a time fire
 // a browser notification at that minute. Local-first and honest about scope:
 // nothing fires while the app is closed.
 
-const PREF_KEY = 'lifedash-reminders-enabled';
-const FIRED_KEY = 'lifedash-reminders-fired';
-const JOURNAL_PREF_KEY = 'lifedash-journal-prompt-enabled';
+// Sample sessions keep their own reminder prefs and fired history so a
+// demo never reads, writes, or schedules from the real profile's keys.
+const PREF_KEY = SAMPLE_MODE ? 'lifedash-sample-reminders-enabled' : 'lifedash-reminders-enabled';
+const FIRED_KEY = SAMPLE_MODE ? 'lifedash-sample-reminders-fired' : 'lifedash-reminders-fired';
+const JOURNAL_PREF_KEY = SAMPLE_MODE ? 'lifedash-sample-journal-prompt-enabled' : 'lifedash-journal-prompt-enabled';
 export const JOURNAL_PROMPT_HHMM = '21:00';
 
 export function remindersEnabled(): boolean {

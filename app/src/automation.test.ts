@@ -120,4 +120,19 @@ describe('automation backups', () => {
     restoreAutomation({ userRules: [good, null, {}, {...good, trigger: {kind: 'weekly', weekday: 8}}] });
     expect(loadUserRules()).toEqual([good]);
   });
+  it('keeps valid optional action fields on restore', () => {
+    const rule: UserRule = { id: 'a', title: 'Review', createdAt: 1, lastFired: null, trigger: { kind: 'weekly', weekday: 1 }, projectId: 'p1', pinned: true };
+    restoreAutomation({ userRules: [rule] });
+    expect(loadUserRules()).toEqual([rule]);
+  });
+  it('sanitizes malformed optional action fields instead of dropping the rule', () => {
+    const base: UserRule = { id: 'a', title: 'Review', createdAt: 1, lastFired: null, trigger: { kind: 'tag', tag: 'done' } };
+    restoreAutomation({ userRules: [
+      { ...base, id: 'num-proj', projectId: 42 as unknown as string, pinned: 'yes' as unknown as boolean },
+      { ...base, id: 'blank-proj', projectId: '   ' },
+    ] });
+    const restored = loadUserRules();
+    expect(restored.map((r) => r.id).sort()).toEqual(['blank-proj', 'num-proj']);
+    expect(restored.every((r) => r.projectId === undefined && r.pinned === undefined)).toBe(true);
+  });
 });

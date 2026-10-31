@@ -157,6 +157,7 @@ export default function Sidebar(props: {
       <input
         className="search-box"
         placeholder="Search tasks, #tags"
+        aria-label="Search tasks, #tags"
         value={query}
         onChange={(e) => {
           setQuery(e.target.value);

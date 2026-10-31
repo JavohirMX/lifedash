@@ -1,3 +1,4 @@
+import { SAMPLE_MODE } from './dev/sampleMode';
 export const FONTS = [
   { id: 'style', name: 'Match style', family: '', description: 'Keep each style’s original typography.' },
   { id: 'inter', name: 'Inter', family: "'Inter Variable', ui-sans-serif, system-ui, sans-serif", description: 'Clean, open shapes. A focused everyday choice.' },
@@ -11,7 +12,10 @@ export const FONTS = [
   { id: 'mono', name: 'Monospace', family: 'ui-monospace, SFMono-Regular, Consolas, monospace', description: 'Fixed-width letters and numbers.' },
 ] as const;
 export type FontId = typeof FONTS[number]['id'];
-const PREFIX = typeof window !== 'undefined' && new URLSearchParams(window.location.search).has('sample') ? 'lifedash-sample-' : 'lifedash-';
+// One determination for sample mode (dev-only ?sample), shared with the
+// database and every other prefixed key; a production visit with ?sample is
+// not sample mode.
+const PREFIX = SAMPLE_MODE ? 'lifedash-sample-' : 'lifedash-';
 export const FONT_KEY = `${PREFIX}font`;
 export const WALLPAPER_KEY = `${PREFIX}wallpaper`;
 export const WALLPAPERS = [
@@ -32,6 +36,8 @@ export function parseWallpaper(value: string | null): WallpaperPrefs {
     return {id:p.id, intensity:typeof p.intensity==='number' && Number.isFinite(p.intensity) ? Math.max(0,Math.min(35,Math.round(p.intensity))) :20, ...(p.id==='custom'?{image:p.image}:{})};
   } catch {return {...DEFAULT_WALLPAPER};}
 }
+// Product decision 2026-10-27: Inter is the default font; the style's own
+// typography renders only when the user explicitly picks "Match style".
 export function getFont(): FontId {try{return parseFont(localStorage.getItem(FONT_KEY));}catch{return 'inter';}}
 export function getWallpaper(): WallpaperPrefs {try{return parseWallpaper(localStorage.getItem(WALLPAPER_KEY));}catch{return {...DEFAULT_WALLPAPER};}}
 function renderFont(id:FontId) {

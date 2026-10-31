@@ -151,35 +151,82 @@ Every device uses the same account; each keeps its own cursor.
 
 ## Backups
 
-Everything is one SQLite file. If your host has the SQLite CLI installed,
-an online backup can be made with:
+The database is one SQLite file; attachment files live in the blob
+directory alongside it (`SYNC_BLOB_DIR`, default `<database dir>/blobs`,
+so `/data/blobs` in the shipped Compose files). A complete server backup
+needs both halves as a consistent pair. Recent writes can live in the
+database's `-wal` sidecar file, so never copy `lifedash.db` alone -
+copy the whole data directory or use the online backup API.
+
+### Recovery-grade snapshot (brief downtime)
+
+Stop the service, copy the whole data directory, start again:
 
 ```bash
-sqlite3 /data/lifedash.db ".backup '/backups/lifedash-$(date +%F).db'"
+docker compose stop sync
+docker compose cp sync:/data ./lifedash-server-backup-$(date +%F)
+docker compose start sync
 ```
 
+Sync is unavailable between stop and start - usually seconds, and
+clients retry on their own. Copying the stopped container's directory
+captures the database with any `-wal`/`-shm` sidecars and every blob as
+of the same moment, so the pair is consistent by construction. (The
+`cp` subcommand reads the stopped container's filesystem; it does not
+need the service running.)
+
+Bare metal: stop the process, `cp -a` the directory holding `SYNC_DB`
+(including `blobs/` and any `-wal`/`-shm` sidecars), start again.
+
+### Online backup (no downtime, one bounded risk)
+
 The container includes Python, not the SQLite command-line program. From
-the repo root, use Python's online backup API and copy the result out:
+the repo root, archive the blob directory and take an online database
+backup, then copy both out:
 
 ```bash
+docker compose exec sync python -c "import shutil; shutil.make_archive('/data/blobs-backup', 'gztar', '/data', 'blobs')"
+docker compose cp sync:/data/blobs-backup.tar.gz ./lifedash-blobs-$(date +%F).tar.gz
 docker compose exec sync python -c "import sqlite3; src=sqlite3.connect('/data/lifedash.db'); dst=sqlite3.connect('/data/backup.db'); src.backup(dst); dst.close(); src.close()"
 docker compose cp sync:/data/backup.db ./lifedash-backup.db
 ```
 
-Keep the copied backup somewhere separate from the running data volume.
-The destination file is overwritten on the next backup, so rename or archive
-it if you need multiple versions.
+Blob files are written atomically, and no server code path deletes or
+rewrites an existing blob (deleting an attachment tombstones its
+metadata and retains the file), so the archive holds whole files only.
+The database backup uses SQLite's online API and is consistent on its
+own. The one risk is pairing skew: an attachment uploaded between the
+blob archive and the database backup ends up in the database half
+without its file. Nothing on a restored server automatically repairs
+that - clients that already synced past the attachment never pull it
+again, so the file only comes back if a device that still holds it
+re-attaches it, and if no device has the file, it is gone. For routine
+protection that risk is usually acceptable; before upgrades, or when a
+restore must be complete, use the quiesced snapshot above.
+
+With the SQLite CLI installed, the database half alone can also be made
+with `sqlite3 /data/lifedash.db ".backup '/backups/lifedash-$(date +%F).db'"`.
+Bare metal: run the same two Python one-liners against your `SYNC_DB`
+path and its sibling `blobs/` directory.
+
+Keep the copied backups somewhere separate from the running data volume.
+Each destination file is overwritten on the next backup, so rename or
+archive if you need multiple versions.
 
 ## Test a backup before recovery
 
-A server backup contains account credentials/tokens and synced records. Treat it
-as private. It does not include device-only attachment files or focus history.
+A server backup contains account credentials/tokens and synced records, including
+attachment metadata and focus history, which both sync. Treat it as private.
+Attachment files are not inside the SQLite file: they live in the blob directory
+alongside it (`SYNC_BLOB_DIR`; inside `/data` in the shipped Compose files), so
+include that directory - or copy the whole data volume - in a server backup.
 Settings > Data & backups creates portable v3 JSON with attachment files, focus
 history and automation. Its generated contents are checked in a temporary database
 before download; confirm the file was saved and check that saved file too.
 Legacy Export JSON remains v2: focus history and attachment metadata, no file
-contents. Neither attachment metadata nor files are transported by server sync.
-Keep portable backups outside the browser and server. Never copy just the live SQLite file while writes
+contents. Attachment metadata and focus history sync; attachment files upload to the sync
+server and other devices fetch them from there. Keep portable backups outside
+the browser and server. Never copy just the live SQLite file while writes
 are active: use the online backup command above.
 
 To check the copied snapshot without modifying it, run on a host with Python:
@@ -189,10 +236,14 @@ python3 -c "import sqlite3; c=sqlite3.connect('file:lifedash-backup.db?mode=ro',
 ```
 
 Expect `ok`. Integrity is not proof of complete recovery. For a recovery drill,
-copy the backup into a separate directory and start a separate sync process
-using the bare-metal command with `SYNC_DB` pointing at that copy and a different
-loopback port. Use a separate browser profile with fictional data to verify
-login and expected records. Do not point a real client at a recovery test.
+copy the snapshot into a separate directory - the quiesced copy as a whole,
+or from an online pair the database backup as `lifedash.db` with the blob
+archive extracted beside it (so `<dir>/blobs/...` exists) - and start a
+separate sync process using the bare-metal command with `SYNC_DB` pointing
+at that copy and a different loopback port. Keep any `-wal`/`-shm` sidecars
+together with the database they belong to. Use a separate browser profile
+with fictional data to verify login, expected records, and that an uploaded
+attachment downloads. Do not point a real client at a recovery test.
 
 Replacing the live database is destructive. Stop all sync writers first, retain
 an online backup of the current state and the current code version, and restore
@@ -200,6 +251,20 @@ into a fresh data location. Do not leave old WAL/SHM sidecars beside the restore
 database. Check login and records before reconnecting clients. This guide does
 not automatically perform recovery. `docker compose down` preserves data;
 `docker compose down -v` deletes the volume and must not be used for upgrades.
+
+**Known hazard: restoring an older backup can silently corrupt multi-device
+sync.** Devices assume the server's revision counter only moves forward. A
+restore moves it backward and reuses numbers, and neither side detects that
+today (characterized in `tests/test_restore_rollback_characterization.py`):
+a device can permanently miss changes other devices make after the restore,
+and ordinary conflict handling can keep the server's older version over a
+device's newer edit. A designed reconciliation is pending. Until it ships,
+there is no verified reconciliation procedure. The cautious manual path
+after restoring an older backup: everyone holds off editing, then you
+compare each device's data against the server and re-enter anything missing
+by hand from the device that still has it. Treat that as careful review,
+not a proven repair. Do not assume that reconnecting every device repairs
+the restore - it does not.
 
 For a synthetic, non-Docker drill after `make install`, run
 `make test-selfhost` from the repo root on a POSIX host. It verifies a real
@@ -228,9 +293,11 @@ first, as with anything that holds your data.
 - **Nothing syncs** - check `/api/health` from the device's network,
   then the browser console (auto-sync failures log there). The app
   needs to reach the server URL exactly as entered, including scheme.
-- **Attachments missing on the second device** - attachment blobs stay
-  local to each device in v1; attachment metadata does not sync either.
-  Portable backups from Settings > Data & backups include files. Legacy Export
-  JSON includes attachment metadata only. Tasks, projects, habits
-  habit logs, goals, notes and journal all sync. Focus-session history is local
-  only and included in JSON backups, not server sync.
+- **Attachments missing on the second device** - attachment metadata syncs
+  and the file uploads to the server; the second device fetches it from the
+  server when you choose Download on the attachment. Until the upload
+  completes, or if the server refused it, the source device marks the file as
+  on this device only, and refused uploads show a Retry. Portable backups from
+  Settings > Data & backups include files. Legacy Export JSON includes
+  attachment metadata only. Tasks, projects, habits, habit logs, goals, notes,
+  journal and focus-session history all sync.

@@ -3,7 +3,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db } from '../db';
 import { addAttachment, deleteAttachment } from '../repo';
-import { loadSyncSettings, attachmentUploadFailures, resetAttachmentUploadFailure, uploadAttachmentBlob } from '../sync';
+import { loadSyncSettings, attachmentUploadFailures, retryAttachmentUpload } from '../sync';
 import { SAMPLE_MODE } from '../dev/sampleMode';
 import type { Attachment } from '../types';
 
@@ -79,13 +79,13 @@ function TaskAttachments(props: { taskId: string }) {
 
   async function retryUpload(id: string) {
     setError(''); setStatus('Retrying upload…');
-    await resetAttachmentUploadFailure(id);
-    const row = await db.attachments.get(id);
-    if (!row?.blob) { setStatus(''); setError('The file is not saved on this device.'); return; }
-    const outcome = await uploadAttachmentBlob(row as typeof row & { blob: Blob });
-    if (outcome === 'ok') setStatus(`Uploaded ${row.name} to your sync server.`);
+    const name = (await db.attachments.get(id))?.name ?? 'file';
+    // retryAttachmentUpload owns reset + re-attempt + refusal recording.
+    const outcome = await retryAttachmentUpload(id);
+    if (outcome === 'missing') { setStatus(''); setError('The file is not saved on this device.'); }
+    else if (outcome === 'ok') setStatus(`Uploaded ${name} to your sync server.`);
     else if (outcome === 'unconfigured') { setStatus(''); setError('Set up sync in Settings to upload this file.'); }
-    else { setStatus(''); setError(`Couldn't upload ${row.name} yet. It is still saved on this device; Sync now retries.`); }
+    else { setStatus(''); setError(`Couldn't upload ${name} yet. It is still saved on this device; Sync now retries.`); }
   }
 
   async function remove(id: string, name: string) {
@@ -123,7 +123,7 @@ function TaskAttachments(props: { taskId: string }) {
           <button className="att-name att-open" title={`Download ${a.name}`} aria-label={`Download ${a.name}`} onClick={() => download(a)}>{a.name}</button>
           <span className="att-size">{fmtSize(a.byteSize)}</span>
           <button className="mini" title="Remove" aria-label={`Remove ${a.name}`} disabled={busy} onClick={() => void remove(a.id, a.name)}><X size={13} strokeWidth={2} /></button>
-          {localOnly && !failed?.permanent && <span className="att-state" role="note">On this device only - uploads on the next sync.</span>}
+          {localOnly && !failed?.permanent && <span className="att-state" role="note">On this device only. Will try uploading on the next sync.</span>}
           {failed?.permanent && (
             <span className="att-state att-state-warn" role="note">
               Couldn't upload to the sync server; on this device only.

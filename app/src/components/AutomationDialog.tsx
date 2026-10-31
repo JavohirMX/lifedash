@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { X, Pencil, Trash2 } from 'lucide-react';
 import { useDialogFocus } from '../hooks/useDialogFocus';
 import type { AutomationRules, UserRule } from '../automation';
+import type { Project } from '../types';
 import { describeUserRule } from '../automation';
 
 const WEEKDAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
@@ -15,6 +16,7 @@ export default function AutomationDialog(props: {
   onChange: (rules: AutomationRules) => void;
   userRules: UserRule[];
   onUserRulesChange: (rules: UserRule[]) => void;
+  projects: Project[];
   onClose: () => void;
 }) {
   const { rules, userRules } = props;
@@ -32,6 +34,8 @@ export default function AutomationDialog(props: {
   const [tag, setTag] = useState('');
   const [weekday, setWeekday] = useState(1);
   const [title, setTitle] = useState('');
+  const [projectId, setProjectId] = useState('');
+  const [pinned, setPinned] = useState(false);
 
   const resetForm = () => {
     setEditingId(null);
@@ -39,6 +43,8 @@ export default function AutomationDialog(props: {
     setTag('');
     setWeekday(1);
     setTitle('');
+    setProjectId('');
+    setPinned(false);
   };
 
   const startEdit = (rule: UserRule) => {
@@ -47,6 +53,17 @@ export default function AutomationDialog(props: {
     setTag(rule.trigger.kind === 'tag' ? rule.trigger.tag : '');
     setWeekday(rule.trigger.kind === 'weekly' ? rule.trigger.weekday : 1);
     setTitle(rule.title);
+    setProjectId(rule.projectId ?? '');
+    setPinned(rule.pinned === true);
+  };
+
+  const projectName = (id: string) =>
+    id === 'inbox' ? 'Inbox' : (props.projects.find((p) => p.id === id)?.name ?? 'a deleted project');
+  const actionNote = (rule: UserRule): string => {
+    const parts: string[] = [];
+    if (rule.projectId) parts.push(`creates in ${projectName(rule.projectId)}`);
+    if (rule.pinned === true) parts.push('pinned');
+    return parts.length ? ` - ${parts.join(', ')}` : '';
   };
 
   const submit = () => {
@@ -54,15 +71,16 @@ export default function AutomationDialog(props: {
     const cleanTag = tag.trim().replace(/^#/, '').toLowerCase();
     if (!cleanTitle || (kind === 'tag' && !cleanTag)) return;
     const trigger = kind === 'tag' ? { kind: 'tag' as const, tag: cleanTag } : { kind: 'weekly' as const, weekday };
+    const actions: Pick<UserRule, 'projectId' | 'pinned'> = { projectId: projectId || null, pinned };
     const saved = save(() => {
     if (editingId) {
       // In-place edit: id, createdAt and lastFired carry over, so an edited
       // weekly rule still fires at most once per day.
-      props.onUserRulesChange(userRules.map((r) => (r.id === editingId ? { ...r, trigger, title: cleanTitle } : r)));
+      props.onUserRulesChange(userRules.map((r) => (r.id === editingId ? { ...r, trigger, title: cleanTitle, ...actions } : r)));
     } else {
       props.onUserRulesChange([
         ...userRules,
-        { id: `ur-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`, trigger, title: cleanTitle, createdAt: Date.now(), lastFired: null },
+        { id: `ur-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`, trigger, title: cleanTitle, ...actions, createdAt: Date.now(), lastFired: null },
       ]);
     }
     });
@@ -121,7 +139,7 @@ export default function AutomationDialog(props: {
               <div className="rule-row" key={rule.id}>
                 <div className="rule-copy">
                   <strong>{rule.title}</strong>
-                  <span>{describeUserRule(rule)}</span>
+                  <span>{describeUserRule(rule)}{actionNote(rule)}</span>
                 </div>
                 <button className="icon-btn" aria-label={`Edit rule ${rule.title}`} title="Edit rule" onClick={() => startEdit(rule)}>
                   <Pencil size={15} strokeWidth={1.75} />
@@ -174,6 +192,17 @@ export default function AutomationDialog(props: {
             value={title}
             onChange={(e) => setTitle(e.target.value)}
           />
+          <select aria-label="Project for the created task" value={projectId} onChange={(e) => setProjectId(e.target.value)}>
+            <option value="">{kind === 'tag' ? 'Same project as completed task' : 'Inbox (default)'}</option>
+            <option value="inbox">Inbox</option>
+            {props.projects.map((p) => (
+              <option key={p.id} value={p.id}>{p.name}</option>
+            ))}
+          </select>
+          <label className="rule-check">
+            <input type="checkbox" checked={pinned} onChange={(e) => setPinned(e.target.checked)} />
+            Pin the created task
+          </label>
           <button type="submit" className="btn-primary">{editingId ? 'Save rule' : 'Add rule'}</button>
           {editingId && (
             <button type="button" className="btn-secondary" onClick={resetForm}>Cancel</button>

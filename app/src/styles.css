@@ -296,6 +296,7 @@ h2 { font-family: var(--font-display); font-size: var(--fs-section); font-weight
   color: transparent;
   cursor: pointer;
   flex-shrink: 0;
+  position: relative;
   display: grid;
   place-items: center;
   padding: 0;
@@ -339,6 +340,11 @@ h2 { font-family: var(--font-display); font-size: var(--fs-section); font-weight
 .pin:hover { background: var(--surface-2); }
 .pin.on { color: var(--accent); }
 .pin.on, .task-row:hover .pin { opacity: 1; }
+
+/* Tap targets: visual size stays, clickable area meets the 24px minimum. */
+.checkbox::after { content: ''; position: absolute; inset: -3px; }
+.pin { position: relative; }
+.pin::after { content: ''; position: absolute; inset: -1px; }
 
 .backlog-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 .backlog-row .task-row { flex: 1; min-width: 0; }
@@ -772,6 +778,9 @@ h2 { font-family: var(--font-display); font-size: var(--fs-section); font-weight
 }
 .palette-input-wrap input {
   flex: 1;
+  /* Shrink below the intrinsic ~20ch width so the row fits 320px dialogs
+     (overflow fix, 2026-10-30). */
+  min-width: 0;
   height: 46px;
   background: none;
   border: 0;
@@ -907,6 +916,8 @@ h2 { font-family: var(--font-display); font-size: var(--fs-section); font-weight
 .rule-form select, .rule-form input { min-height: 34px; padding: 4px 8px; border: 1px solid var(--control); border-radius: var(--radius, 8px); background: var(--surface); color: var(--text); font: inherit; }
 .rule-form select { min-width: 10rem; }
 .rule-form input { flex: 1; min-width: 8rem; }
+.rule-form .rule-check { display: flex; align-items: center; gap: 6px; font-size: var(--fs-small); color: var(--muted); }
+.rule-form .rule-check input[type='checkbox'] { flex: none; min-width: 0; min-height: 0; }
 .rule-coming {
   display: flex; align-items: center; gap: 8px; margin-top: 14px;
   font-size: var(--fs-small); color: var(--muted);
@@ -1057,6 +1068,7 @@ button.cal-more:hover { color: var(--accent); }
 .note-editor-head { display: flex; align-items: center; gap: 6px; margin-bottom: 8px; }
 .note-title-input { flex: 1; border: none; background: transparent; font-size: var(--fs-section); font-weight: 600; font-family: var(--font); color: var(--text); padding: 4px 0; }
 .note-title-input:focus { outline: none; }
+.ed-content .ProseMirror:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 4px; }
 @media (max-width: 700px) {
   .notes-layout { grid-template-columns: 1fr; }
   .notes-list { max-height: none; }
@@ -1575,6 +1587,8 @@ input[type='checkbox'], input[type='radio'], input[type='range'] { accent-color:
 
 /* Restored grouped navigation and approved Settings consolidation. */
 .sidebar .nav-section { margin-top: 14px; margin-bottom: 4px; font-size: 10px; letter-spacing: .08em; text-transform: uppercase; }
+/* Paper (default): sentence-case group labels, near-normal tracking (unslop pass, Oct 30 2026). Themed styles keep their own label treatments. */
+:root[data-style='paper'] .sidebar .nav-section { font-size: 11px; letter-spacing: .02em; text-transform: none; }
 .sidebar .foot-action { min-height: 28px; padding-top: 4px; padding-bottom: 4px; font-size: 12px; }
 .mobile-sheet .nav, .mobile-sheet .foot-action { min-height: 44px; }
 .settings-panel { max-width: 540px; }
@@ -1718,6 +1732,628 @@ main.schedule-main { max-width: 1280px; width: 100%; min-width: 0; }
  button.cal-more { font-size: 10px; line-height: 1.4; white-space: nowrap; }
  .cal-cell { padding-left: 2px; padding-right: 2px; }
 }
+
+
+/* ---- Modern Dark (designprompts.dev) ---- */
+/* Source is tagged "Dark Mode"; the light pairing is a deliberate neutral
+   adaptation for Lifedash's light mode, keeping the same near-monochrome
+   greys and reserving mint for live/selected state only (source: "a tiny
+   mint signal can identify a live or selected state; it is not a general
+   accent color"). No colored glows, glass, or decorative light pools: the
+   app's working areas stay flat per the source's "keep ordinary reading
+   areas flat". */
+:root[data-style='modern-dark'] {
+  --font: 'Geist Variable', 'Helvetica Neue', Arial, ui-sans-serif, system-ui, sans-serif;
+  --font-display: var(--font);
+  --ground: #f4f4f2; --surface: #ffffff; --surface-2: #ececea; --active: #e2e2de;
+  --border: #d8d8d4; --rule: #e4e4e0; --control: #8a8d91;
+  --text: #0a0a0a; --muted: #55575b; --faint: #6b6e73;
+  --accent: #0a0a0a; --accent-strong: #000000; --accent-soft: #e2e2de; --accent-ink: #f2f2f2;
+  --primary-btn: #0a0a0a; --primary-btn-ink: #f2f2f2;
+  --positive: #0d7d72; --negative: #c0453c; --warning: #8a6d1a;
+  --radius-card: 6px; --radius-control: 6px; --radius-panel: 6px;
+  --fs-title: 24px; --fs-section: 15px; --fs-body: 14px; --fs-small: 12px;
+  --row-h: 44px; --ls-title: -0.02em; --h-weight: 400;
+  --shadow-card: none; --shadow-float: 0 16px 48px rgba(0, 0, 0, 0.22);
+  --btn-border: 1px;
+}
+:root[data-style='modern-dark'][data-theme='dark'] {
+  --ground: #050505; --surface: #0e0e0e; --surface-2: #151515; --active: #1c1c1c;
+  --border: #222222; --rule: #1a1a1a; --control: #63666c;
+  --text: #f2f2f2; --muted: #a6a9ad; --faint: #8a8d91;
+  --accent: #f2f2f2; --accent-strong: #ffffff; --accent-soft: #1c1c1c; --accent-ink: #0a0a0a;
+  --primary-btn: #f2f2f2; --primary-btn-ink: #0a0a0a;
+  --positive: #3fd6c6; --negative: #f07878; --warning: #e0b45a;
+}
+/* Source: "compact pill buttons ... white filled primary ... dark outlined
+   secondary" (--dp-radius-pill 999px); panels, cards and inputs keep the
+   6px panel radius - the two radii serve different roles. */
+:root[data-style='modern-dark'] .btn-primary,
+:root[data-style='modern-dark'] .btn-secondary { border-radius: 999px; }
+:root[data-style='modern-dark'] .task-row { border-radius: 6px; }
+/* Functional control edges use the reference's own control-edge token
+   (--edge-control #63666c, ~3.2-3.4:1 on the dark fills); decorative panel
+   hairlines stay at --border #222222. The three input styles that base CSS
+   ties to --border are lifted to the control edge (invalid state untouched). */
+:root[data-style='modern-dark'][data-theme='dark'] .search-box,
+:root[data-style='modern-dark'][data-theme='dark'] .quick-add-field input:not([aria-invalid='true']),
+:root[data-style='modern-dark'][data-theme='dark'] .capture-options :is(input, select):not([aria-invalid='true']),
+:root[data-style='modern-dark'][data-theme='dark'] .mini,
+:root[data-style='modern-dark'][data-theme='dark'] .widget-toggle { border-color: var(--control); }
+
+:root[data-style='modern-dark'][data-theme='dark'] .home .home-check::before { border-color: #7b7e84; }
+
+/* Mint marks the selected nav item and checked state only. */
+:root[data-style='modern-dark'] .nav.active { background: transparent; box-shadow: inset 2px 0 0 #0d7d72; border-radius: 0; }
+:root[data-style='modern-dark'][data-theme='dark'] .nav.active { box-shadow: inset 2px 0 0 #3fd6c6; }
+:root[data-style='modern-dark'] .checkbox { border-radius: 6px; }
+:root[data-style='modern-dark'] .checkbox.checked { background: #0d7d72; border-color: #0d7d72; color: #f2f2f2; }
+:root[data-style='modern-dark'][data-theme='dark'] .checkbox.checked { background: #3fd6c6; border-color: #3fd6c6; color: #0a0a0a; }
+/* Large statements stay regular weight ("keep large type at regular weight"),
+   and the featured focus panel separates with a hairline, not a bright outline
+   ("panel and hairline roles separate opaque surfaces without bright outlines"). */
+:root[data-style='modern-dark'] .home .focus-title { font-weight: 400; }
+:root[data-style='modern-dark'] .home .home-focus { border-color: var(--border); }
+:root[data-style='modern-dark'][data-theme='dark'] .home .home-focus { border-color: #303030; }
+
+/* Source: Geist Mono for labels, dates, numerical values, and short notes (bundled). */
+:root[data-style='modern-dark'] .nav-section,
+:root[data-style='modern-dark'] .count,
+:root[data-style='modern-dark'] .chip,
+:root[data-style='modern-dark'] .home-date,
+:root[data-style='modern-dark'] .widget-meta,
+:root[data-style='modern-dark'] .widget-when { font-family: 'Geist Mono Variable', ui-monospace, 'SFMono-Regular', Menlo, monospace; }
+:root[data-style='modern-dark'] .count, :root[data-style='modern-dark'] .chip { font-size: 11px; }
+
+/* ---- Playful Geometric (designprompts.dev) ---- */
+:root[data-style='playful-geometric'] {
+  /* Source faces: Host Grotesk (display) + Instrument Sans (reading), both bundled. */
+  --font: 'Instrument Sans Variable', 'Instrument Sans', 'Manrope Variable', ui-sans-serif, system-ui, sans-serif;
+  --font-display: 'Host Grotesk Variable', 'Host Grotesk', 'Manrope Variable', ui-sans-serif, system-ui, sans-serif;
+  --ground: #fffdf5; --surface: #ffffff; --surface-2: #f1ebff; --active: #e9fff5;
+  --border: #252b3a; --rule: #e6e2d8; --control: #252b3a;
+  --text: #253044; --muted: #525b74; --faint: #666f88;
+  --accent: #6434df; --accent-strong: #4c22b8; --accent-soft: #f1ebff; --accent-ink: #ffffff;
+  --primary-btn: #6434df; --primary-btn-ink: #ffffff;
+  --positive: #0e8a5f; --negative: #d23b6e; --warning: #b87908;
+  /* Source accent set: violet / pink / amber / mint divide decorative and selected signals. */
+  --pg-pink: #ff78c5; --pg-amber: #ffd05b; --pg-mint: #9bf1cd;
+  --radius-card: 17px; --radius-control: 17px; --radius-panel: 17px;
+  --fs-title: 28px; --fs-section: 16px; --fs-body: 14.5px; --fs-small: 12.5px;
+  --row-h: 48px; --ls-title: -0.02em; --h-weight: 800;
+  --shadow-card: 3px 3px 0 #252b3a;
+  --shadow-float: 6px 6px 0 rgba(37, 43, 58, 0.85);
+  --btn-border: 2px;
+}
+/* Source is light-only; the dark pairing is a deliberate adaptation that keeps the
+   cream/violet/pink/amber/mint identity on deep slate. */
+:root[data-style='playful-geometric'][data-theme='dark'] {
+  --ground: #1b1f2e; --surface: #252a3d; --surface-2: #2f3550; --active: #2b3c46;
+  --border: #454c66; --rule: #333a52; --control: #6d7592;
+  --text: #f2f3fa; --muted: #b9bed4; --faint: #99a0bc;
+  --accent: #a78bfa; --accent-strong: #c4b5fd; --accent-soft: #332a55; --accent-ink: #1d1436;
+  --primary-btn: #a78bfa; --primary-btn-ink: #1d1436;
+  --positive: #5ee0ae; --negative: #ff7fa8; --warning: #ffd05b;
+  --shadow-card: 3px 3px 0 #454c66;
+  --shadow-float: 6px 6px 0 rgba(10, 12, 22, 0.9);
+}
+/* Thick dark outlines + hard offset shadows with hover lift / press-down, per source
+   (.button: 3px outline, 4px 5px 0 offset; hover lifts, active reduces the offset). */
+:root[data-style='playful-geometric'] :is(.btn-primary, .btn-secondary, .mini) {
+  border-width: 3px; border-color: var(--border); box-shadow: 4px 4px 0 var(--border);
+  transition: transform 180ms cubic-bezier(.2, .9, .3, 1.3), box-shadow 180ms cubic-bezier(.2, .9, .3, 1.3),
+    background-color 180ms, border-color 180ms;
+}
+:root[data-style='playful-geometric'] .btn-primary { border-color: var(--border); }
+:root[data-style='playful-geometric'] :is(.btn-primary, .btn-secondary, .mini):hover:not(:disabled):not([aria-disabled='true']) {
+  transform: translate(-1px, -2px); box-shadow: 5px 6px 0 var(--border); filter: none;
+}
+:root[data-style='playful-geometric'] :is(.btn-primary, .btn-secondary, .mini):active:not(:disabled) {
+  transform: translate(2px, 2px); box-shadow: 1px 1px 0 var(--border); filter: none;
+}
+:root[data-style='playful-geometric'] :is(.btn-primary, .btn-secondary, .mini):disabled,
+:root[data-style='playful-geometric'] :is(.btn-primary, .btn-secondary, .mini)[aria-disabled='true'] {
+  transform: none; box-shadow: none;
+}
+/* Reduced motion: keep the color/shadow state changes, drop the lift/press travel. */
+@media (prefers-reduced-motion: reduce) {
+  :root[data-style='playful-geometric'] :is(.btn-primary, .btn-secondary, .mini) {
+    transition: background-color 180ms, border-color 180ms;
+  }
+  :root[data-style='playful-geometric'] :is(.btn-primary, .btn-secondary, .mini):hover:not(:disabled):not([aria-disabled='true']),
+  :root[data-style='playful-geometric'] :is(.btn-primary, .btn-secondary, .mini):active:not(:disabled) {
+    transform: none;
+  }
+}
+/* Detail-width (2px) outlined surfaces; selection = pale-violet fill + violet offset (source). */
+:root[data-style='playful-geometric'] .task-row { border-width: 2px; }
+:root[data-style='playful-geometric'] .widget { border-width: 2px; box-shadow: var(--shadow-card); }
+:root[data-style='playful-geometric'] .chip { border-radius: 999px; border-width: 2px; }
+:root[data-style='playful-geometric'] :is(.mini, .chip, .wd)[aria-pressed='true'] { box-shadow: 2px 2px 0 var(--accent); }
+:root[data-style='playful-geometric'] :where(input:not([type='checkbox']):not([type='radio']):not([type='range']):not([type='color']):not([type='file']):not([type='hidden']), select, textarea):not(.detail-title):not(.note-title-input) {
+  border-width: 2px;
+}
+:root[data-style='playful-geometric'] .checkbox { border-width: 2px; border-radius: 6px; }
+:root[data-style='playful-geometric'] input:is([type='checkbox'], [type='radio']) { border-width: 2px; }
+/* Focus stays visible beyond the shadow: 3px accent outline (source focus-visible). */
+:root[data-style='playful-geometric'] :is(button, input, select, textarea, summary, a):focus-visible {
+  outline-width: 3px;
+}
+:root[data-style='playful-geometric'] .nav { border-radius: 14px; }
+:root[data-style='playful-geometric'] .nav.active { background: var(--pg-amber); color: #253044; box-shadow: 2px 2px 0 var(--border); }
+:root[data-style='playful-geometric'] .nav.active svg { color: #253044; }
+:root[data-style='playful-geometric'][data-theme='dark'] .nav.active { background: var(--pg-amber); color: #253044; box-shadow: 2px 2px 0 #6d7592; }
+
+/* ---- Cyberpunk (designprompts.dev) ---- */
+/* Cyberpunk is dark-only in the source; this light pairing is a deliberate Lifedash adaptation, not source-provided. */
+:root[data-style='cyberpunk'] {
+  /* Source body/controls are IBM Plex Mono ("Cyberpunk Plex Mono", bundled); display is IBM Plex Sans. */
+  --font: 'IBM Plex Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+  --font-display: 'IBM Plex Sans', ui-sans-serif, system-ui, sans-serif;
+  --ground: #eef4ef; --surface: #fbfefb; --surface-2: #e2eee4; --active: #d2e8d7;
+  --border: #304c3b; --rule: #cfdccf; --control: #4d7258;
+  --text: #0a0f0c; --muted: #395143; --faint: #4c6855;
+  --accent: #0a7d44; --accent-strong: #075f33; --accent-soft: #d2f2dd; --accent-ink: #ffffff;
+  --primary-btn: #0a0f0c; --primary-btn-ink: #38ff8e;
+  --positive: #0a7d44; --negative: #c81e5b; --warning: #0e7490;
+  --radius-card: 0; --radius-control: 0; --radius-panel: 0;
+  --fs-title: 22px; --fs-section: 14px; --fs-body: 14px; --fs-small: 12px;
+  /* Source headings: semibold uppercase with tight (negative) tracking, never letterspaced wide */
+  --row-h: 42px; --ls-title: -0.02em; --h-weight: 600;
+  /* Flat ruled cells in source; cards carry hairline borders, not shadows */
+  --shadow-card: none;
+  --shadow-float: 0 0 0 1px #304c3b, 0 10px 30px rgba(10, 125, 68, 0.18);
+  --btn-border: 1px solid #4d7258;
+}
+:root[data-style='cyberpunk'][data-theme='dark'] {
+  --ground: #020303; --surface: #090e0b; --surface-2: #0e1511; --active: #12211a;
+  --border: #304c3b; --rule: #16241b; --control: #659579;
+  --text: #f8fffa; --muted: #c2cbc5; --faint: #8fa598;
+  --accent: #38ff8e; --accent-strong: #7dffb4; --accent-soft: #0c2c1a; --accent-ink: #02170c;
+  --primary-btn: #38ff8e; --primary-btn-ink: #02170c;
+  --positive: #38ff8e; --negative: #ff65d8; --warning: #65f8ff;
+  /* Source elevation is a hairline plus a faint green signal glow, not a hard offset shadow */
+  --shadow-float: 0 0 0 1px #304c3b, 0 0 24px rgba(56, 255, 142, 0.18);
+  --btn-border: 1px solid #659579;
+}
+/* Major statements: semibold uppercase, tight tracking (source hero/section titles) */
+:root[data-style='cyberpunk'] h1, :root[data-style='cyberpunk'] .brand { text-transform: uppercase; letter-spacing: -0.02em; }
+/* Interference: displaced magenta/cyan copies on short display elements only, body text stays intact (narrative) */
+:root[data-style='cyberpunk'] h1 { text-shadow: 1px 0 rgba(255, 101, 216, 0.4), -1px 0 rgba(101, 248, 255, 0.4); }
+:root[data-style='cyberpunk'][data-theme='dark'] h1 { text-shadow: 1px 0 rgba(255, 101, 216, 0.46), -1px 1px rgba(101, 248, 255, 0.44), 0 0 22px rgba(56, 255, 142, 0.15); }
+/* Selected nav: green inset signal edge (source comparison/selection pattern) */
+:root[data-style='cyberpunk'] .nav.active { background: transparent; box-shadow: inset 3px 0 0 var(--accent); border-radius: 0; }
+:root[data-style='cyberpunk'] .nav-section, :root[data-style='cyberpunk'] .count { font-family: var(--font); text-transform: uppercase; letter-spacing: 0.1em; }
+:root[data-style='cyberpunk'] .count { font-variant-numeric: tabular-nums; }
+/* Square geometry everywhere (source --dp-radius-control: 0) */
+:root[data-style='cyberpunk'] .checkbox, :root[data-style='cyberpunk'] .chip { border-radius: 0; }
+:root[data-style='cyberpunk'] .task-row { border-radius: 0; }
+/* Filled primary actions only: diagonally clipped opposing corners (source .primary clip-path).
+   Outlined/secondary actions stay square in the source; icon and close buttons are never clipped. */
+:root[data-style='cyberpunk'] .btn-primary { clip-path: polygon(0 0, calc(100% - 8px) 0, 100% 8px, 100% 100%, 8px 100%, 0 calc(100% - 8px)); }
+/* Keyboard focus ring stays fully visible: drop the clip while focused */
+:root[data-style='cyberpunk'] .btn-primary:focus-visible { clip-path: none; }
+
+/* ---- Luxury (designprompts.dev) ---- */
+:root[data-style='luxury'] {
+  --font: 'Instrument Sans Variable', 'Instrument Sans', 'Helvetica Neue', Arial, ui-sans-serif, system-ui, sans-serif;
+  --font-display: 'EB Garamond Variable', 'EB Garamond', Garamond, Georgia, 'Times New Roman', serif;
+  --ground: #f3eee4; --surface: #fbf8f1; --surface-2: #e4dbcc; --active: #ddd2bd;
+  --border: #c6b89f; --rule: #d5cab8; --control: #8a7a5f;
+  --text: #262321; --muted: #5f5750; --faint: #74695c;
+  --accent: #76591f; --accent-strong: #5d4616; --accent-soft: #efe4c8; --accent-ink: #ffffff;
+  --primary-btn: #262321; --primary-btn-ink: #f3eee4;
+  --positive: #4a6b41; --negative: #8c3a2a; --warning: #8a6a1a;
+  --radius-card: 0; --radius-control: 0; --radius-panel: 0;
+  --fs-title: 30px; --fs-section: 17px; --fs-body: 15px; --fs-small: 12.5px;
+  --row-h: 50px; --ls-title: -0.01em; --h-weight: 400;
+  --shadow-float: 0 20px 50px rgba(60, 48, 24, 0.25);
+}
+/* Luxury is light-only in the source (alabaster ground); this dark pairing is a deliberate Lifedash adaptation, not source-provided. */
+:root[data-style='luxury'][data-theme='dark'] {
+  --ground: #1b1815; --surface: #262321; --surface-2: #302c29; --active: #3a352f;
+  --border: #46403a; --rule: #332e29; --control: #7a6c58;
+  --text: #f3eee4; --muted: #c6bdb0; --faint: #a29785;
+  --accent: #d2b071; --accent-strong: #e4c98f; --accent-soft: #3d3419; --accent-ink: #241a06;
+  --primary-btn: #f3eee4; --primary-btn-ink: #262321;
+  --positive: #9ec28f; --negative: #e08f7a; --warning: #d2b071;
+}
+/* Major serif statements stay regular weight with tight leading and oldstyle proportional figures; smaller item titles take medium. */
+:root[data-style='luxury'] h1 { font-weight: 400; line-height: 1.05; font-feature-settings: 'onum' 1, 'pnum' 1; padding-bottom: 10px; border-bottom: 1px solid #b69355; }
+:root[data-style='luxury'] h2 { font-weight: 500; font-feature-settings: 'onum' 1, 'pnum' 1; }
+:root[data-style='luxury'][data-theme='dark'] h1 { border-bottom-color: #d2b071; }
+:root[data-style='luxury'] .nav-section, :root[data-style='luxury'] .settings-row small:first-child { letter-spacing: 0.16em; text-transform: uppercase; }
+:root[data-style='luxury'] .nav.active { background: transparent; box-shadow: inset 0 -1px 0 #b69355; border-radius: 0; }
+:root[data-style='luxury'][data-theme='dark'] .nav.active { box-shadow: inset 0 -1px 0 #d2b071; }
+:root[data-style='luxury'] .task-row { border-width: 0 0 1px 0; border-radius: 0; background: transparent; margin-bottom: 0; padding: 9px 4px; }
+:root[data-style='luxury'] .task-row:hover { background: var(--surface-2); }
+:root[data-style='luxury'] main { max-width: 780px; }
+/* Tracked uppercase sans labels on primary actions; secondary actions read as text links with a fine gold underline. Pressing a button moves it down 1px. */
+:root[data-style='luxury'] .btn-primary { text-transform: uppercase; letter-spacing: 0.16em; font-size: 12px; }
+:root[data-style='luxury'] .btn-secondary { border: 0; border-bottom: 1px solid #b69355; border-radius: 0; color: var(--accent); padding-left: 2px; padding-right: 2px; }
+:root[data-style='luxury'][data-theme='dark'] .btn-secondary { border-bottom-color: #d2b071; }
+:root[data-style='luxury'] .btn-secondary:hover:not(:disabled) { background: transparent; color: var(--accent-strong); }
+:root[data-style='luxury'] .btn-primary:active:not(:disabled), :root[data-style='luxury'] .btn-secondary:active:not(:disabled) { transform: translateY(1px); }
+/* Corners remain square, including the focus outline. */
+/* Featured card: the source marks major emphasis with a charcoal field and fine
+   gold edges, not a dark-olive fill (product fix, 2026-10-30). */
+:root[data-style='luxury'][data-theme='dark'] .home .home-focus {
+  background: #262321; border: 1px solid var(--accent); box-shadow: none;
+}
+:root[data-style='luxury'] :focus-visible { border-radius: 0; }
+/* Fields focus with a visible solid outline instead of the soft ring; checkboxes keep the square-corner limit. */
+:root[data-style='luxury'] .search-box:focus, :root[data-style='luxury'] .quick-add input:focus { outline: 2px solid var(--accent); outline-offset: 2px; box-shadow: none; }
+:root[data-style='luxury'] .checkbox { border-radius: 0; }
+/* Reduced motion removes the button press movement. */
+@media (prefers-reduced-motion: reduce) {
+  :root[data-style='luxury'] .btn-primary:active:not(:disabled), :root[data-style='luxury'] .btn-secondary:active:not(:disabled) { transform: none; }
+}
+
+/* ---- Professional (designprompts.dev) ---- */
+:root[data-style='professional'] {
+  --font: 'Instrument Sans Variable', 'Source Sans 3 Variable', Arial, ui-sans-serif, system-ui, sans-serif;
+  --font-display: 'EB Garamond Variable', Garamond, Georgia, 'Times New Roman', serif;
+  --ground: #f7f4ec; --surface: #fcfaf5; --surface-2: #efe9dc; --active: #e7e0d3;
+  --border: #d4ccbd; --rule: #e7e0d3; --control: #8f8672;
+  --text: #29271f; --muted: #514d44; --faint: #665f52;
+  --accent: #8b713a; --accent-strong: #68501f; --accent-soft: #f0e8d2; --accent-ink: #ffffff;
+  --primary-btn: #29271f; --primary-btn-ink: #fcfaf5;
+  --positive: #3b6b3a; --negative: #96362c; --warning: #77590f;
+  --radius-card: 3px; --radius-control: 3px; --radius-panel: 3px;
+  --fs-title: 27px; --fs-section: 16px; --fs-body: 15px; --fs-small: 12px;
+  --row-h: 46px; --ls-title: -0.01em; --h-weight: 400;
+  --shadow-float: 0 14px 40px rgba(50, 42, 20, 0.2);
+}
+/* Professional is light-only in the source; this dark pairing is a deliberate Lifedash adaptation, not source-provided. */
+:root[data-style='professional'][data-theme='dark'] {
+  --ground: #191712; --surface: #221f18; --surface-2: #2b271e; --active: #332e23;
+  --border: #3d372a; --rule: #2e2920; --control: #7d7461;
+  --text: #f2ecdd; --muted: #c2b9a4; --faint: #a29883;
+  --accent: #d0b071; --accent-strong: #e2c48b; --accent-soft: #39301a; --accent-ink: #221a08;
+  --primary-btn: #f2ecdd; --primary-btn-ink: #221f18;
+  --positive: #8fc48b; --negative: #e08f7a; --warning: #d0b071;
+}
+:root[data-style='professional'] h1 { padding-bottom: 8px; border-bottom: 1px solid var(--accent); }
+:root[data-style='professional'] h1 .date-sub, :root[data-style='professional'] h2 .date-sub { font-family: var(--font-display); font-style: italic; letter-spacing: 0; }
+:root[data-style='professional'] .nav-section { letter-spacing: 0.14em; font-weight: 600; }
+:root[data-style='professional'] .count { font-family: var(--font-display); font-variant-numeric: lining-nums tabular-nums; }
+:root[data-style='professional'] .nav.active { background: var(--accent-soft); color: var(--accent-strong); border-radius: 3px; }
+/* Featured card: the source's featured surface is a modest raise, never a dark
+   luxury field, so the dark adaptation uses the raised neutral, not olive. */
+:root[data-style='professional'][data-theme='dark'] .home .home-focus {
+  background: var(--surface-2);
+}
+:root[data-style='professional'] .nav.active svg { color: var(--accent-strong); }
+
+/* ---- Retro (designprompts.dev) ---- */
+/* Win95 desktop: grey bevelled windows on a teal dithered desktop, navy title bars,
+   a bright yellow launch window, purple keys and links, magenta echo on heavy
+   display type. Source tokens: desktop #008080, window #d4d4d4, titlebar #000080,
+   highlight #ffff00, accent #6600ff, emphasis #ff00b8, bevel-light #ffffff,
+   bevel-dark #808080. Source typography: Host Grotesk display / IBM Plex Sans
+   interface / IBM Plex Mono metadata; Host Grotesk and IBM Plex Mono are
+   unbundled and fall back per the existing unbundled-face precedent.
+   The source is light-only; the dark pairing is a deliberate dimmed-desktop adaptation. */
+:root[data-style='retro'] {
+  --font: 'IBM Plex Sans', Tahoma, ui-sans-serif, system-ui, sans-serif;
+  --font-display: 'Host Grotesk', 'IBM Plex Sans', Tahoma, ui-sans-serif, sans-serif;
+  --ground: #008080; --surface: #d4d4d4; --surface-2: #c0c0c0; --active: #b8b8b8;
+  --border: #808080; --rule: #a8a8a8; --control: #5a5a5a;
+  --text: #000000; --muted: #2a2a2a; --faint: #3d3d3d;
+  --accent: #6600ff; --accent-strong: #4d00bf; --accent-soft: #ffff00; --accent-ink: #ffffff;
+  --primary-btn: #6600ff; --primary-btn-ink: #ffffff;
+  --positive: #005f00; --negative: #a00000; --warning: #7a5c00;
+  --radius-card: 0; --radius-control: 0; --radius-panel: 0;
+  --fs-title: 28px; --fs-section: 14px; --fs-body: 14px; --fs-small: 12px;
+  --row-h: 38px; --ls-title: -0.02em; --h-weight: 800;
+  --shadow-card: inset 1px 1px 0 #ffffff, inset -1px -1px 0 #808080, 4px 4px 0 rgba(0, 0, 0, 0.45);
+  --shadow-float: inset 1px 1px 0 #ffffff, inset -1px -1px 0 #808080, 8px 8px 0 rgba(0, 0, 0, 0.5);
+}
+:root[data-style='retro'][data-theme='dark'] {
+  --ground: #002b2b; --surface: #3a3a3a; --surface-2: #2e2e2e; --active: #4a4a4a;
+  --border: #161616; --rule: #2a2a2a; --control: #8a8a8a;
+  --text: #f0f0f0; --muted: #c8c8c8; --faint: #a8a8a8;
+  --accent: #b48cff; --accent-strong: #cfb3ff; --accent-soft: #5c5800; --accent-ink: #1a0033;
+  --primary-btn: #b48cff; --primary-btn-ink: #1a0033;
+  --positive: #5ad75a; --negative: #ff6b6b; --warning: #ffd75a;
+  --shadow-card: inset 1px 1px 0 #5a5a5a, inset -1px -1px 0 #161616, 4px 4px 0 rgba(0, 0, 0, 0.6);
+  --shadow-float: inset 1px 1px 0 #5a5a5a, inset -1px -1px 0 #161616, 8px 8px 0 rgba(0, 0, 0, 0.65);
+}
+/* Fine tiled dither on the desktop between the windows. */
+:root[data-style='retro'] body {
+  background-image: repeating-conic-gradient(rgba(0, 0, 0, 0.16) 0% 25%, transparent 0% 50%);
+  background-size: 3px 3px;
+}
+:root[data-style='retro'][data-theme='dark'] body {
+  background-image: repeating-conic-gradient(rgba(0, 0, 0, 0.35) 0% 25%, transparent 0% 50%);
+}
+/* Display type: heavy contemporary sans, uppercase, tightly tracked, magenta offset echo. */
+:root[data-style='retro'] h1 { text-transform: uppercase; text-shadow: 3px 3px 0 #ff00b8; }
+:root[data-style='retro'] h1 .date-sub { text-transform: none; text-shadow: none; }
+/* Compact metadata in the mono face. */
+:root[data-style='retro'] .num, :root[data-style='retro'] .widget-meta, :root[data-style='retro'] .focus-reason, :root[data-style='retro'] .home-date, :root[data-style='retro'] .date-sub {
+  font-family: 'IBM Plex Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+/* Window furniture: every widget gets a navy title bar with decorative min/max/close glyphs. */
+:root[data-style='retro'] .widget { padding-top: 0; }
+:root[data-style='retro'] .widget-head {
+  margin: 0 -16px 4px; padding: 6px 10px;
+  background: #000080; color: #ffffff;
+  font-family: 'IBM Plex Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+  text-transform: uppercase; letter-spacing: 0.08em;
+}
+:root[data-style='retro'] .widget-head h2 { color: #ffffff; font-size: 12px; font-weight: 700; }
+:root[data-style='retro'] .widget-head .focus-icon { color: #ffff00; }
+:root[data-style='retro'] .widget-head .focus-reason { color: #ffff00; }
+:root[data-style='retro'] .widget-head .widget-link { color: #ffff00; }
+:root[data-style='retro'] .widget-head .widget-link:hover { color: #ffffff; }
+:root[data-style='retro'] .widget-head::after {
+  content: ''; flex: none; width: 30px; height: 10px; margin-left: 10px;
+  background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='30' height='10'%3E%3Cg stroke='white' stroke-width='1.2' fill='none'%3E%3Cpath d='M1 8h6'/%3E%3Crect x='12' y='2' width='6' height='6'/%3E%3Cpath d='M22 2l6 6M28 2l-6 6'/%3E%3C/g%3E%3C/svg%3E") no-repeat center;
+}
+/* The launch window: flat bright yellow field, black ink. */
+:root[data-style='retro'] .home-focus {
+  background: #ffff00; color: #000000; border-color: #000000;
+  box-shadow: inset 1px 1px 0 #ffffff, inset -1px -1px 0 #808080, 5px 5px 0 rgba(0, 0, 0, 0.5);
+}
+:root[data-style='retro'] .home-focus .focus-title { color: #000000; }
+:root[data-style='retro'] .home-focus .focus-title:hover { color: #6600ff; }
+:root[data-style='retro'] .home-focus .widget-empty, :root[data-style='retro'] .home-focus > p { color: #2a2a2a; }
+:root[data-style='retro'] .home-focus > h2 {
+  color: #000000; font-size: 12px; letter-spacing: 0.08em; text-transform: uppercase;
+  font-family: 'IBM Plex Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+:root[data-style='retro'][data-theme='dark'] .home-focus { background: #b8ad00; color: #101000; border-color: #000000; }
+:root[data-style='retro'][data-theme='dark'] .home-focus .focus-title, :root[data-style='retro'][data-theme='dark'] .home-focus > h2 { color: #101000; }
+:root[data-style='retro'][data-theme='dark'] .home-focus .focus-title:hover { color: #4d00bf; }
+:root[data-style='retro'][data-theme='dark'] .home-focus .widget-empty, :root[data-style='retro'][data-theme='dark'] .home-focus > p { color: #2e2b00; }
+/* Raised keys with squared bevels; pressing moves the key and reverses its depth. */
+:root[data-style='retro'] .btn-primary {
+  font-weight: 600;
+  box-shadow: inset 1px 1px 0 rgba(255, 255, 255, 0.55), inset -1px -1px 0 rgba(0, 0, 0, 0.5), 2px 2px 0 #000000;
+}
+:root[data-style='retro'] .btn-secondary, :root[data-style='retro'] .mini, :root[data-style='retro'] .chip {
+  background: #d4d4d4; color: #000000; border: none;
+  box-shadow: inset 1px 1px 0 #ffffff, inset -1px -1px 0 #808080, 2px 2px 0 #000000;
+}
+:root[data-style='retro'] .chip.active {
+  background: #6600ff; color: #ffffff;
+  box-shadow: inset 1px 1px 0 #2d0073, inset -1px -1px 0 #b380ff, 2px 2px 0 #000000;
+}
+:root[data-style='retro'] .chip.tag { color: #000000; background: #ffff00; }
+:root[data-style='retro'] .btn-primary:active:not(:disabled), :root[data-style='retro'] .btn-secondary:active:not(:disabled), :root[data-style='retro'] .mini:active:not(:disabled), :root[data-style='retro'] .chip:active:not(:disabled) {
+  transform: translate(2px, 2px);
+  box-shadow: inset 1px 1px 0 #808080, inset -1px -1px 0 #ffffff;
+}
+:root[data-style='retro'][data-theme='dark'] .btn-secondary, :root[data-style='retro'][data-theme='dark'] .mini, :root[data-style='retro'][data-theme='dark'] .chip {
+  background: #4a4a4a; color: #f0f0f0;
+  box-shadow: inset 1px 1px 0 #6a6a6a, inset -1px -1px 0 #161616, 2px 2px 0 #000000;
+}
+:root[data-style='retro'][data-theme='dark'] .chip.active {
+  background: #b48cff; color: #1a0033;
+  box-shadow: inset 1px 1px 0 #5a2da0, inset -1px -1px 0 #dcccff, 2px 2px 0 #000000;
+}
+:root[data-style='retro'][data-theme='dark'] .chip.tag { color: #fff9c4; background: #5c5800; }
+/* White inset reading wells; the edge treatment reverses. */
+:root[data-style='retro'] input:not([type='checkbox']):not([type='radio']):not([type='range']), :root[data-style='retro'] textarea, :root[data-style='retro'] select {
+  background: #ffffff; color: #000000; border: none; border-radius: 0;
+  box-shadow: inset 1px 1px 0 #808080, inset -1px -1px 0 #dfdfdf;
+}
+:root[data-style='retro'][data-theme='dark'] input:not([type='checkbox']):not([type='radio']):not([type='range']), :root[data-style='retro'][data-theme='dark'] textarea, :root[data-style='retro'][data-theme='dark'] select {
+  background: #1c1c1c; color: #f0f0f0;
+  box-shadow: inset 1px 1px 0 #000000, inset -1px -1px 0 #5a5a5a;
+}
+/* Error wells keep the inset bevel and add the shared negative border (the
+   well rule above removes borders, so the shared aria-invalid rule loses). */
+:root[data-style='retro'] input[aria-invalid='true']:not([type='checkbox']):not([type='radio']):not([type='range']), :root[data-style='retro'] textarea[aria-invalid='true'], :root[data-style='retro'] select[aria-invalid='true'] {
+  border: 2px solid var(--negative);
+}
+/* Task rows read as white wells set into the grey frame. */
+:root[data-style='retro'] .task-row { border: none; border-radius: 0; background: #ffffff; box-shadow: inset 1px 1px 0 #808080, inset -1px -1px 0 #dfdfdf; }
+:root[data-style='retro'][data-theme='dark'] .task-row { background: #1c1c1c; box-shadow: inset 1px 1px 0 #000000, inset -1px -1px 0 #5a5a5a; }
+/* Square checkbox wells; checked fills purple. */
+:root[data-style='retro'] .checkbox { border-radius: 0; background: #ffffff; border-color: #808080; }
+:root[data-style='retro'] .checkbox.checked { background: #6600ff; border-color: #6600ff; color: #ffffff; }
+:root[data-style='retro'][data-theme='dark'] .checkbox { background: #1c1c1c; border-color: #5a5a5a; }
+:root[data-style='retro'][data-theme='dark'] .checkbox.checked { background: #b48cff; border-color: #b48cff; color: #1a0033; }
+:root[data-style='retro'] .chip { border-radius: 0; }
+/* Navigation: flat navy selection, brand block with magenta offset. */
+:root[data-style='retro'] .nav { border-radius: 0; }
+:root[data-style='retro'] .nav.active { background: #000080; color: #ffffff; }
+:root[data-style='retro'] .nav.active svg { color: #ffffff; }
+:root[data-style='retro'][data-theme='dark'] .nav.active { background: #000080; color: #ffffff; }
+:root[data-style='retro'][data-theme='dark'] .nav.active svg { color: #ffffff; }
+:root[data-style='retro'] .brand { background: #000080; color: #ffffff; padding: 1px 8px; box-shadow: 3px 3px 0 #ff00b8; }
+:root[data-style='retro'][data-theme='dark'] .brand { background: #000080; color: #ffffff; box-shadow: 3px 3px 0 #ff00b8; }
+/* The sidebar is the desktop's grey window frame; icon buttons are raised keys. */
+:root[data-style='retro'] .sidebar { background: #d4d4d4; border-right: 2px solid #808080; }
+:root[data-style='retro'][data-theme='dark'] .sidebar { background: #2e2e2e; border-right: 2px solid #161616; }
+:root[data-style='retro'] .icon-btn { background: #d4d4d4; color: #000000; border-radius: 0; box-shadow: inset 1px 1px 0 #ffffff, inset -1px -1px 0 #808080, 2px 2px 0 #000000; }
+:root[data-style='retro'][data-theme='dark'] .icon-btn { background: #4a4a4a; color: #f0f0f0; box-shadow: inset 1px 1px 0 #6a6a6a, inset -1px -1px 0 #161616, 2px 2px 0 #000000; }
+:root[data-style='retro'] .bottombar, :root[data-style='retro'] .mobile-topbar { background: #d4d4d4; border-top: 2px solid #808080; }
+:root[data-style='retro'] .mobile-topbar { border-top: none; border-bottom: 2px solid #808080; }
+:root[data-style='retro'][data-theme='dark'] .bottombar, :root[data-style='retro'][data-theme='dark'] .mobile-topbar { background: #2e2e2e; border-top: 2px solid #161616; }
+:root[data-style='retro'][data-theme='dark'] .mobile-topbar { border-top: none; border-bottom: 2px solid #161616; }
+/* Desktop labels: small text that sits directly on the teal desktop gets the
+   classic white icon-label treatment with a dark echo. Panel text is untouched. */
+:root[data-style='retro'] .home-greeting, :root[data-style='retro'] .home-date, :root[data-style='retro'] .home-extra-widgets > summary, :root[data-style='retro'] .search-query, :root[data-style='retro'] h1 .date-sub, :root[data-style='retro'] .quick-add-hint {
+  color: #ffffff; text-shadow: 1px 1px 0 rgba(0, 0, 0, 0.6);
+}
+:root[data-style='retro'] .search-query strong { color: #ffffff; }
+:root[data-style='retro'] .capture-panel .quick-add-hint { color: var(--muted); text-shadow: none; }
+/* Real clearance under the brand block so its magenta offset never abuts the next control. */
+:root[data-style='retro'] .brand { margin-bottom: 8px; }
+/* Keys on the yellow launch window get an explicit ink edge: the grey-on-yellow
+   fill pair alone is 1.38:1, so the boundary is carried by a black frame. */
+:root[data-style='retro'] .home-focus .btn-secondary, :root[data-style='retro'] .home-focus .mini { border: 1px solid #000000; }
+:root[data-style='retro'] .app { border: none; }
+
+/* ---- Sketch (designprompts.dev) ---- */
+/* Self-hosted handwriting faces for the Sketch style (MIT license,
+   see app/public/fonts/WORKINGSHEET-LICENSE.txt). Kept inside the Sketch
+   section so section-level splices cannot drop them. Only the Sketch
+   style references these families, so other styles never fetch them. */
+@font-face {
+  font-family: 'Sketch Working Marker';
+  src: url('/fonts/WorkingSheet-Marker.ttf') format('truetype');
+  font-weight: 700; font-style: normal; font-display: swap;
+}
+@font-face {
+  font-family: 'Sketch Working Hand';
+  src: url('/fonts/WorkingSheet-Hand.ttf') format('truetype');
+  font-weight: 400; font-style: normal; font-display: swap;
+}
+/* Source: designprompts.dev/sketch - warm working sheet, pencil ink, ballpoint-blue
+   annotations, marker-red actions, highlighter-yellow marks, hard offset shadows.
+   Handwriting faces "Sketch Working Marker"/"Sketch Working Hand" come from the shared
+   self-hosted font plumbing (WorkingSheet-*.ttf, MIT-licensed); the handwritten system
+   fallbacks below cover environments where they are not bundled.
+   The source style is light-only; the dark block is a deliberate adaptation. */
+:root[data-style='sketch'] {
+  --font: 'Sketch Working Hand', 'Segoe Print', 'Bradley Hand', 'Comic Sans MS', cursive;
+  --font-display: 'Sketch Working Marker', 'Sketch Working Hand', 'Segoe Print', 'Bradley Hand', cursive;
+  --ground: #f7f2e7; --surface: #fcf8ef; --surface-2: #efe8d8; --active: #e8dfc9;
+  --border: #b3ac9d; --rule: #d8d0bd; --control: #8d8574;
+  --text: #38352f; --muted: #514d44; --faint: #6b655a;
+  --accent: #9e3a2e; --accent-strong: #7e2c22; --accent-soft: #f0dfa0; --accent-ink: #ffffff;
+  --primary-btn: #9e3a2e; --primary-btn-ink: #ffffff;
+  --positive: #3e6b45; --negative: #b01e14; --warning: #8a6a1a;
+  --sk-annotation: #344c69;
+  --radius-card: 9px 4px 17px 5px / 4px 12px 5px 9px;
+  --radius-control: 9px 4px 17px 5px / 4px 12px 5px 9px;
+  --radius-panel: 12px 5px 20px 6px / 5px 15px 6px 12px;
+  --fs-title: 27px; --fs-section: 17px; --fs-body: 16px; --fs-small: 14px;
+  --row-h: 50px; --ls-title: 0; --h-weight: 700;
+  --shadow-card: 3px 4px 0 #d8cfb8;
+  --shadow-float: 5px 7px 0 #c8bda2;
+  --btn-border: 1.5px;
+}
+:root[data-style='sketch'][data-theme='dark'] {
+  --ground: #2b2822; --surface: #353128; --surface-2: #3f3a2e; --active: #4a4436;
+  --border: #5c5546; --rule: #453f32; --control: #8d8471;
+  --text: #ece5d5; --muted: #c9c0ab; --faint: #a89e88;
+  --accent: #e08f7a; --accent-strong: #eda892; --accent-soft: #4a3b26; --accent-ink: #2e150e;
+  --primary-btn: #c86a55; --primary-btn-ink: #241009;
+  --positive: #8fc48b; --negative: #e08f7a; --warning: #d8b46a;
+  --sk-annotation: #9db4d4;
+  --shadow-card: 3px 4px 0 #1a1712;
+  --shadow-float: 5px 7px 0 #12100c;
+}
+/* Faint paper grain, matching the source's layered pin-dot gradients. */
+:root[data-style='sketch'] body {
+  background-image:
+    radial-gradient(at 20% 40%, #84735a1c 0.45px, #0000 0.8px),
+    radial-gradient(at 72% 65%, #85755b16 0.5px, #0000 0.9px),
+    radial-gradient(at 30% 10%, #ffffffa0 0.5px, #0000 0.85px);
+  background-size: 4px 5px, 7px 8px, 5px 3px;
+}
+:root[data-style='sketch'][data-theme='dark'] body {
+  background-image:
+    radial-gradient(at 20% 40%, #00000026 0.45px, #0000 0.8px),
+    radial-gradient(at 72% 65%, #0000001f 0.5px, #0000 0.9px),
+    radial-gradient(at 30% 10%, #fff8e714 0.5px, #0000 0.85px);
+}
+:root[data-style='sketch'] h1 { font-weight: 700; transform: rotate(-0.6deg); }
+:root[data-style='sketch'] .brand { transform: rotate(-1.5deg); }
+:root[data-style='sketch'] .nav-section { font-family: var(--font-display); letter-spacing: 0.02em; }
+:root[data-style='sketch'] .task-row { border-width: 1.5px; border-style: solid; }
+/* Buttons: pencil-outlined with a small hard offset; hover tilts and compresses
+   the shadow, press settles flat onto the page (100ms, per source motion). */
+:root[data-style='sketch'] .btn-primary {
+  border: 2px solid var(--accent-strong);
+  box-shadow: 3px 4px 0 var(--accent-strong);
+  font-family: var(--font-display);
+  transition: transform 100ms ease, box-shadow 100ms ease;
+}
+:root[data-style='sketch'] .btn-primary:hover:not(:disabled) { opacity: 1; transform: rotate(0.6deg) translate(1px, 1px); box-shadow: 2px 2px 0 var(--accent-strong); }
+:root[data-style='sketch'] .btn-primary:active:not(:disabled) { box-shadow: none; transform: translate(3px, 4px); }
+:root[data-style='sketch'] .btn-secondary {
+  border: 1.5px solid var(--text);
+  box-shadow: 2px 3px 0 var(--border);
+  transition: transform 100ms ease, box-shadow 100ms ease, background 160ms ease;
+}
+:root[data-style='sketch'] .btn-secondary:hover:not(:disabled) { transform: rotate(0.6deg) translate(1px, 1px); box-shadow: 1px 2px 0 var(--border); }
+:root[data-style='sketch'] .btn-secondary:active:not(:disabled) { box-shadow: none; transform: translate(2px, 3px); }
+/* Active nav item reads as a highlighter mark on the sheet. */
+:root[data-style='sketch'] .nav { border-radius: var(--radius-control); }
+:root[data-style='sketch'] .nav.active { background: var(--accent-soft); color: var(--text); transform: rotate(-0.4deg); box-shadow: 2px 2px 0 var(--rule); }
+:root[data-style='sketch'] .nav.active svg { color: var(--text); }
+/* Checkbox ticks are ballpoint-blue strokes, like the source's blue check marks. */
+:root[data-style='sketch'] .checkbox { border-radius: 3px 6px 4px 7px / 6px 3px 7px 4px; border-width: 1.5px; border-color: var(--text); }
+:root[data-style='sketch'] .checkbox.checked { background: var(--sk-annotation); border-color: var(--sk-annotation); }
+:root[data-style='sketch'][data-theme='dark'] .checkbox.checked { color: #2b2822; }
+:root[data-style='sketch'] .chip { border-width: 1.5px; }
+/* Editor links use the ballpoint-blue annotation color. */
+:root[data-style='sketch'] .ed-content .ProseMirror a { color: var(--sk-annotation); }
+/* Clear dashed blue focus outline, per source. */
+:root[data-style='sketch'] :is(a, button, summary, input, select, textarea, [role='button'], [role='checkbox']):focus-visible {
+  outline: 2.5px dashed var(--sk-annotation);
+  outline-offset: 2px;
+}
+
+/* Reduced motion: no tilt/press transforms; shadow changes remain as state feedback. */
+@media (prefers-reduced-motion: reduce) {
+  :root[data-style='sketch'] .btn-primary, :root[data-style='sketch'] .btn-secondary { transition: none; }
+  :root[data-style='sketch'] .btn-primary:hover:not(:disabled),
+  :root[data-style='sketch'] .btn-primary:active:not(:disabled),
+  :root[data-style='sketch'] .btn-secondary:hover:not(:disabled),
+  :root[data-style='sketch'] .btn-secondary:active:not(:disabled) { transform: none; }
+}
+
+/* ---- Monochrome (designprompts.dev) ---- */
+/* Source is Light Mode only; the dark pairing below is a deliberate adaptation
+   (paper/ink swapped, quiet-inverted rules) to match the app's light/dark themes. */
+:root[data-style='monochrome'] {
+  --font: 'Source Serif 4', 'Iowan Old Style', Georgia, ui-serif, serif;
+  --font-display: 'EB Garamond Variable', Garamond, Georgia, serif;
+  --font-mono: 'IBM Plex Mono', ui-monospace, 'SFMono-Regular', Menlo, monospace;
+  --ground: #ffffff; --surface: #ffffff; --surface-2: #f2f2f2; --active: #e8e8e8;
+  --border: #cfcfcf; --rule: #cfcfcf; --control: #000000;
+  --text: #000000; --muted: #4d4d4d; --faint: #666666;
+  --accent: #000000; --accent-strong: #000000; --accent-soft: #e8e8e8; --accent-ink: #ffffff;
+  --primary-btn: #000000; --primary-btn-ink: #ffffff;
+  /* No status color exists in a pure ink/paper system; states step through gray
+     tones and the component touches below add underline/inversion signals. */
+  --positive: #4d4d4d; --negative: #000000; --warning: #666666;
+  --radius-card: 0; --radius-control: 0; --radius-panel: 0;
+  --fs-title: 34px; --fs-section: 18px; --fs-body: 16px; --fs-small: 12.5px;
+  --row-h: 52px; --ls-title: -0.02em; --h-weight: 500;
+  --shadow-card: none;
+  --shadow-float: 0 0 0 1px #000000;
+  --btn-border: 1px;
+}
+:root[data-style='monochrome'][data-theme='dark'] {
+  --ground: #000000; --surface: #000000; --surface-2: #141414; --active: #242424;
+  --border: #3d3d3d; --rule: #3d3d3d; --control: #ffffff;
+  --text: #ffffff; --muted: #cfcfcf; --faint: #a0a0a0;
+  --accent: #ffffff; --accent-strong: #ffffff; --accent-soft: #242424; --accent-ink: #000000;
+  --primary-btn: #ffffff; --primary-btn-ink: #000000;
+  --positive: #cfcfcf; --negative: #ffffff; --warning: #a0a0a0;
+  --shadow-card: none;
+  --shadow-float: 0 0 0 1px #ffffff;
+  --btn-border: 1px;
+}
+:root[data-style='monochrome'] h1 { font-weight: 500; line-height: 1.05; }
+:root[data-style='monochrome'] .home .home-head h1 { padding-bottom: 10px; border-bottom: 1px solid var(--text); }
+:root[data-style='monochrome'] .nav-section { text-transform: uppercase; letter-spacing: 0.12em; }
+:root[data-style='monochrome'] .nav { border-radius: 0; font-variant-caps: small-caps; letter-spacing: 0.08em; }
+:root[data-style='monochrome'] .nav.active { background: var(--text); color: var(--ground); }
+:root[data-style='monochrome'] .nav.active svg { color: var(--ground); }
+:root[data-style='monochrome'] .task-row { border-width: 0 0 1px 0; border-color: var(--rule); border-radius: 0; background: transparent; margin-bottom: 0; }
+:root[data-style='monochrome'] .task-row:hover { background: var(--surface-2); }
+:root[data-style='monochrome'] .checkbox, :root[data-style='monochrome'] .chip { border-radius: 0; }
+/* Dates, metadata and short notes set in the mono face, per source. */
+:root[data-style='monochrome'] :is(.count, .chip, .due, .home-date, .date-sub) { font-family: var(--font-mono); }
+/* Square controls, small-cap labels, immediate fg/bg swap on hover, no shadows. */
+:root[data-style='monochrome'] :is(.btn-primary, .btn-secondary) { font-variant-caps: small-caps; letter-spacing: 0.12em; box-shadow: none; }
+:root[data-style='monochrome'] .btn-primary:hover:not(:disabled) { opacity: 1; filter: none; box-shadow: none; background: var(--surface); color: var(--text); }
+:root[data-style='monochrome'] .btn-secondary:hover:not(:disabled) { background: var(--text); color: var(--ground); border-color: var(--text); }
+:root[data-style='monochrome'] :is(.btn-primary, .btn-secondary, .mini, .chip):active:not(:disabled) { box-shadow: none; }
+/* Achromatic state signals: underline for due-today, inversion for overdue. */
+:root[data-style='monochrome'] .due.today { text-decoration: underline; text-underline-offset: 2px; }
+:root[data-style='monochrome'] .due.overdue { background: var(--negative); color: var(--ground); padding: 0 4px; }
+/* State changes are immediate: the composition stays still. */
+:root[data-style='monochrome'] :is(.btn-primary, .btn-secondary, .mini, .chip, .nav, .task-row, .habit-toggle, input, select, textarea, .widget-link) { transition: none; }
 
 /* Keep secondary and error text readable in both modes of optional styles. */
 :root { --faint: #6b6e65; }

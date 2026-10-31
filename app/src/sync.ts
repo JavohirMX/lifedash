@@ -1,4 +1,5 @@
 import { SAMPLE_MODE } from './dev/sampleMode';
+import { syncFailureMessage } from './syncFormFeedback';
 import { db } from './db';
 import { refreshAutomationFromSync } from './automation';
 import { applyRemoteSettings, getDeviceId } from './deviceSettings';
@@ -151,6 +152,92 @@ export async function acknowledgeConflictNotice(): Promise<void> {
   await db.syncmeta.delete(CONFLICT_NOTICE_KEY);
 }
 
+/** A pulled entity whose payload can never be applied as delivered
+ * (contradictory or non-object data). Distinct from transient store
+ * failures: malformed payloads are quarantined and skipped; anything
+ * else aborts the pull so the cursor keeps covering it for retry. */
+class MalformedEntityError extends Error {}
+
+const QUARANTINE_PREFIX = 'quarantine:';
+const QUARANTINE_MAX = 20;
+
+export interface QuarantinedEntity {
+  collection: string;
+  id: string;
+  rev: number;
+  data: unknown;
+  reason: string;
+  at: number;
+}
+
+// Stored payloads are capped so one huge blob cannot crowd out everything
+// else: over the limit the record keeps the size, not the bytes.
+const QUARANTINE_PAYLOAD_MAX_BYTES = 64 * 1024;
+
+export interface QuarantineOverflow {
+  count: number;
+  lastCollection: string;
+  lastId: string;
+  lastReason: string;
+  lastAt: number;
+}
+const QUARANTINE_OVERFLOW_KEY = 'quarantine-overflow';
+
+/** Eviction tally: how many quarantined entities were dropped to stay
+ * within the cap, with the most recent reason. The overflow record is the
+ * durable trace; the quarantine itself is a bounded recent-failure buffer,
+ * not unlimited recovery. */
+export async function loadSyncQuarantineOverflow(): Promise<QuarantineOverflow | null> {
+  return ((await getMeta(QUARANTINE_OVERFLOW_KEY)) as QuarantineOverflow | undefined) ?? null;
+}
+
+async function quarantineEntity(col: Collection, e: ServerEntity, reason: string): Promise<boolean> {
+  let data: unknown = e.deleted ? null : e.data;
+  let truncated = false;
+  if (data !== null) {
+    const bytes = JSON.stringify(data)?.length ?? 0;
+    if (bytes > QUARANTINE_PAYLOAD_MAX_BYTES) {
+      truncated = true;
+      data = { truncated: true, bytes, note: 'Payload too large to keep whole; only its size is recorded.' };
+    }
+  }
+  await setMeta(QUARANTINE_PREFIX + col + ':' + e.id, {
+    collection: col, id: e.id, rev: e.rev, data, reason, at: Date.now(),
+  } satisfies QuarantinedEntity);
+  // Bound the quarantine so a broken peer cannot grow storage without limit.
+  const rows = await db.syncmeta.where('key').startsWith(QUARANTINE_PREFIX).toArray();
+  if (rows.length > QUARANTINE_MAX) {
+    const oldestFirst = rows
+      .map((r) => ({ key: r.key as string, at: (r.value as QuarantinedEntity).at ?? 0 }))
+      .sort((a, b) => a.at - b.at);
+    const evicted = oldestFirst.slice(0, rows.length - QUARANTINE_MAX);
+    for (const row of evicted) {
+      await db.syncmeta.delete(row.key);
+    }
+    const prior = await loadSyncQuarantineOverflow();
+    const lastRow = evicted[evicted.length - 1];
+    await setMeta(QUARANTINE_OVERFLOW_KEY, {
+      count: (prior?.count ?? 0) + evicted.length,
+      lastCollection: col,
+      lastId: e.id,
+      lastReason: reason,
+      lastAt: lastRow ? (rows.find((r) => r.key === lastRow.key)?.value as QuarantinedEntity)?.at ?? Date.now() : Date.now(),
+    } satisfies QuarantineOverflow);
+  }
+  return truncated;
+}
+
+/** Pulled entities that could not be applied and were kept for review. */
+export async function loadSyncQuarantine(): Promise<QuarantinedEntity[]> {
+  const rows = await db.syncmeta.where('key').startsWith(QUARANTINE_PREFIX).toArray();
+  return rows.map((r) => r.value as QuarantinedEntity);
+}
+
+/** Drop one quarantined entity, e.g. after it was re-expressed locally. */
+export async function removeFromSyncQuarantine(collection: string, id: string): Promise<void> {
+  await db.syncmeta.delete(QUARANTINE_PREFIX + collection + ':' + id);
+}
+
 async function recordConflicts(conflicts: number): Promise<void> {
   if (conflicts <= 0) return;
   const prior = await getConflictNotice();
@@ -180,9 +267,9 @@ async function runAutoSync(): Promise<void> {
   if (!settings || syncing || !navigator.onLine) return;
   try {
     const r = await syncNow(settings); // syncNow owns the in-flight guard
-    saveSyncStatus({ at: Date.now(), ok: true, summary: summaryOf(r) });
+    saveSyncStatus({ at: Date.now(), ok: true, summary: await summaryWithNotice(r) });
   } catch (e) {
-    saveSyncStatus({ at: Date.now(), ok: false, summary: e instanceof Error ? e.message : String(e) });
+    saveSyncStatus({ at: Date.now(), ok: false, summary: syncFailureMessage(e, 'sync') });
     console.warn('auto-sync failed', e);
   }
 }
@@ -190,7 +277,30 @@ async function runAutoSync(): Promise<void> {
 function summaryOf(r: SyncResult): string {
   const parts = [`pushed ${r.pushed}`, `pulled ${r.pulled}`];
   if (r.conflicts) parts.push(`${r.conflicts} conflict${r.conflicts === 1 ? '' : 's'} (server won)`);
+  if (r.skipped) {
+    const kept = r.skipped - (r.skippedTruncated ?? 0);
+    if (kept === r.skipped) parts.push(`${r.skipped} skipped (kept for review)`);
+    else if (kept === 0) parts.push(`${r.skipped} skipped (recorded by size only)`);
+    else parts.push(`${r.skipped} skipped (${kept} kept for review, ${r.skippedTruncated} recorded by size only)`);
+  }
   return parts.join(', ');
+}
+
+/**
+ * Status-line summary for persisting. A later idle sync reports
+ * "pushed 0, pulled 0"; saving that verbatim would erase awareness of a
+ * still-unacknowledged server-wins conflict, so the summary keeps the
+ * outstanding notice count until the user dismisses the banner. The
+ * outstanding count is worded as earlier activity awaiting review so an
+ * idle run never reads as if the conflict happened in that run
+ * (product decision, 2026-10-30).
+ */
+async function summaryWithNotice(r: SyncResult): Promise<string> {
+  const notice = await getConflictNotice();
+  const outstanding = Math.max(0, (notice?.count ?? 0) - r.conflicts);
+  const base = summaryOf(r);
+  if (!outstanding) return base;
+  return `${base}, ${outstanding} earlier conflict${outstanding === 1 ? '' : 's'} (server won) awaiting review`;
 }
 
 /** Focus/online/interval sync plus debounced push after local edits. */
@@ -259,9 +369,16 @@ export async function uploadAttachmentBlob(att: Pick<Attachment, 'id' | 'taskId'
       body: att.blob,
     });
     if (!res.ok) {
-      // Gone task / conflicting bytes / invalid id never heal by retrying;
-      // quota (413), auth hiccups and 5xx can.
-      return (res.status === 404 || res.status === 409 || res.status === 422) ? 'permanent' : 'transient';
+      // Gone task / conflicting bytes / invalid id need attention, not
+      // automatic retry; auth hiccups and 5xx can heal by retrying.
+      if (res.status === 404 || res.status === 409 || res.status === 422) return 'permanent';
+      // 413 splits two ways: quota refusals heal when space frees (stay
+      // transient), while per-file-size refusals need attention until the
+      // server limit changes. Newer servers say which with a structured
+      // reason; older servers send a plain-string detail, which stays
+      // transient - never parse prose.
+      if (res.status === 413 && await isFileTooLargeRefusal(res)) return 'permanent';
+      return 'transient';
     }
     const body = (await res.json()) as { rev?: number };
     if (typeof body.rev === 'number') {
@@ -272,6 +389,31 @@ export async function uploadAttachmentBlob(att: Pick<Attachment, 'id' | 'taskId'
     return 'ok';
   } catch {
     return 'transient';
+  }
+}
+
+/**
+ * Prompt blob upload at attach time, but only when the parent task is
+ * already on the server. Attaching to a not-yet-synced task and uploading
+ * immediately makes the server reject the blob with a 422 (unknown task):
+ * the metadata-first completion path owns that case instead - the push
+ * announces the metadata and the next sync backfill completes the upload.
+ * Returns true when the prompt upload was attempted.
+ */
+export async function promptAttachmentUploadIfTaskSynced(att: Pick<Attachment, 'id' | 'taskId' | 'name'> & { blob: Blob }): Promise<boolean> {
+  const taskSynced = (await getMeta(revKey('tasks', att.taskId))) !== undefined;
+  if (!taskSynced) return false;
+  void uploadAttachmentBlob(att);
+  return true;
+}
+
+/** Structured per-file-size refusal from newer servers; anything else is not. */
+async function isFileTooLargeRefusal(res: Response): Promise<boolean> {
+  try {
+    const body = (await res.json()) as { detail?: unknown };
+    return (body?.detail as { reason?: unknown } | undefined)?.reason === 'attachment_file_too_large';
+  } catch {
+    return false;
   }
 }
 
@@ -288,6 +430,33 @@ async function blobFailState(id: string): Promise<BlobFailState> {
 /** Explicit retry path: a fresh local edit of the row clears its failure tally. */
 export async function resetAttachmentUploadFailure(id: string): Promise<void> {
   await db.syncmeta.delete(BLOB_FAIL_KEY(id));
+}
+
+/**
+ * Persist one refused upload attempt's classification. The backfill loop
+ * and the manual per-file Retry both call this so a refused retry cannot
+ * leave the row looking queued for guaranteed upload (product decision,
+ * 2026-10-30).
+ */
+export async function recordAttachmentUploadFailure(id: string, outcome: 'transient' | 'permanent'): Promise<void> {
+  const st = await blobFailState(id);
+  await setMeta(BLOB_FAIL_KEY(id), {
+    count: st.count + 1, lastAt: Date.now(), permanent: outcome === 'permanent' || undefined,
+  });
+}
+
+/**
+ * Manual per-file retry: clear the tally, re-attempt the upload, and
+ * record a refusal so the row keeps its truthful failure state.
+ * 'missing' means the row or its bytes are gone locally.
+ */
+export async function retryAttachmentUpload(id: string): Promise<BlobUploadOutcome | 'missing'> {
+  await resetAttachmentUploadFailure(id);
+  const row = await db.attachments.get(id);
+  if (!row?.blob) return 'missing';
+  const outcome = await uploadAttachmentBlob(row as Attachment & { blob: Blob });
+  if (outcome !== 'ok' && outcome !== 'unconfigured') await recordAttachmentUploadFailure(id, outcome);
+  return outcome;
 }
 
 /** User-initiated retry: manual Sync now clears every upload-failure tally. */
@@ -327,6 +496,10 @@ export interface SyncResult {
   pushed: number;
   conflicts: number;
   pulled: number;
+  /** Pulled entities that could not be applied and were skipped. */
+  skipped?: number;
+  /** Of skipped: quarantined by size only because the payload was too large to keep whole. */
+  skippedTruncated?: number;
   cursor: number;
 }
 
@@ -338,8 +511,12 @@ export async function syncNow(settings: SyncSettings, opts?: { retryFailedUpload
   syncing = true;
   try {
     const r = await syncNowInner(settings);
-    saveSyncStatus({ at: Date.now(), ok: true, summary: summaryOf(r) });
+    saveSyncStatus({ at: Date.now(), ok: true, summary: await summaryWithNotice(r) });
     return r;
+  } catch (e) {
+    // A thrown sync must not leave the last success standing as if current.
+    saveSyncStatus({ at: Date.now(), ok: false, summary: syncFailureMessage(e, 'sync') });
+    throw e;
   } finally {
     syncing = false;
   }
@@ -350,7 +527,7 @@ async function syncNowInner(settings: SyncSettings): Promise<SyncResult> {
   const headers = { 'Content-Type': 'application/json', Authorization: `Bearer ${settings.token}` };
 
   // Pull first so base_revs are fresh.
-  const pulled1 = await pull(base, headers);
+  const pull1 = await pull(base, headers);
   // Push all dirty entities.
   const dirtyRows = await db.syncmeta.where('key').startsWith('dirty:').toArray();
   const changes = [];
@@ -410,7 +587,7 @@ async function syncNowInner(settings: SyncSettings): Promise<SyncResult> {
     }
   }
   // Final pull to settle on anything the server applied.
-  const pulled2 = await pull(base, headers);
+  const pull2 = await pull(base, headers);
   // Blob backfill: locally created attachments carry bytes only in Dexie.
   // Upload a few per sync so agents and other devices can download them.
   // Failure handling: permanent refusals stop retrying (until the row is
@@ -434,10 +611,7 @@ async function syncNowInner(settings: SyncSettings): Promise<SyncResult> {
       if (outcome === 'ok') {
         await db.syncmeta.delete(BLOB_FAIL_KEY(a.id));
       } else if (outcome !== 'unconfigured') {
-        const st = await blobFailState(a.id);
-        await setMeta(BLOB_FAIL_KEY(a.id), {
-          count: st.count + 1, lastAt: Date.now(), permanent: outcome === 'permanent' || undefined,
-        });
+        await recordAttachmentUploadFailure(a.id, outcome);
       }
     }
   } catch {
@@ -446,15 +620,17 @@ async function syncNowInner(settings: SyncSettings): Promise<SyncResult> {
   // Server-wins drops the conflicting local edits: keep a persistent notice
   // so an auto-sync cannot erase awareness before the user sees it.
   await recordConflicts(replaced);
-  return { pushed, conflicts, pulled: pulled1 + pulled2, cursor: await getCursor() };
+  return { pushed, conflicts, pulled: pull1.applied + pull2.applied, skipped: pull1.skipped + pull2.skipped, skippedTruncated: pull1.skippedTruncated + pull2.skippedTruncated, cursor: await getCursor() };
 }
 
-async function pull(base: string, headers: Record<string, string>): Promise<number> {
+async function pull(base: string, headers: Record<string, string>): Promise<{ applied: number; skipped: number; skippedTruncated: number }> {
   const since = await getCursor();
   const res = await fetch(`${base}/api/changes?since=${since}`, { headers });
   if (!res.ok) throw new Error(`pull failed: ${res.status} ${await res.text()}`);
   const body = (await res.json()) as { changes: ServerEntity[]; rev: number };
   let applied = 0;
+  let skipped = 0;
+  let skippedTruncated = 0;
   for (const e of body.changes) {
     const col = e.collection as Collection;
     if (!COLLECTIONS.includes(col)) continue;
@@ -467,11 +643,23 @@ async function pull(base: string, headers: Record<string, string>): Promise<numb
       // server's newer version - the bug this comment replaces.
       continue;
     }
-    await applyRemote(col, e);
-    applied += 1;
+    try {
+      await applyRemote(col, e);
+      applied += 1;
+    } catch (err) {
+      // Only a provably malformed payload is skipped: it is quarantined
+      // with its payload for review and the cursor advances past it.
+      // Anything else (quota, transient IndexedDB failure, ...) rethrows,
+      // aborting the pull BEFORE the cursor advances, so the next sync
+      // retries the entity instead of silently losing it.
+      if (!(err instanceof MalformedEntityError)) throw err;
+      skipped += 1;
+      if (await quarantineEntity(col, e, err.message)) skippedTruncated += 1;
+      console.warn('sync: quarantined an unreadable entity', col, e.id, err);
+    }
   }
   await setMeta('cursor', body.rev);
-  return applied;
+  return { applied, skipped, skippedTruncated };
 }
 
 async function applyRemote(col: Collection, e: ServerEntity): Promise<void> {
@@ -483,6 +671,16 @@ async function applyRemote(col: Collection, e: ServerEntity): Promise<void> {
       // Attachment metadata syncs without its blob; never let a pulled row
       // wipe the blob this device already holds.
       let data = e.data as Record<string, unknown>;
+      // The server keys the blob externally; the local table keys rows by
+      // their inline id. Realign a blob that lost its id, and refuse one
+      // that contradicts its key or is not an object at all: those can
+      // never apply as delivered, so the pull loop quarantines and skips
+      // them instead of retrying forever.
+      if (!data || typeof data !== 'object') {
+        throw new MalformedEntityError(`sync: entity data is not an object (key ${e.id})`);
+      }
+      if (data.id === undefined) data = { ...data, id: e.id };
+      else if (data.id !== e.id) throw new MalformedEntityError(`sync: entity id mismatch (key ${e.id}, data id ${String(data.id)})`);
       if (col === 'attachments' && data.blob === undefined) {
         const existing = (await table.get(e.id)) as { blob?: unknown } | undefined;
         if (existing?.blob !== undefined) data = { ...data, blob: existing.blob };

@@ -41,12 +41,13 @@ vi.mock('./db', () => ({
       const t = tables.get(col)!;
       return {
         get: async (id: string) => t.get(id),
-        put: async (obj: { id: string }) => { t.set(obj.id, obj); return obj.id; },
+        put: async (obj: { id: string }) => { if (obj.id === 'simulated-dexie-error') { const e = new Error('simulated DataError'); e.name = 'DataError'; throw e; } t.set(obj.id, obj); return obj.id; },
         delete: async (id: string) => { t.delete(id); },
         hook: (name: string, cb: (...args: unknown[]) => void) => { hooks[`${col}:${name}`] = cb; },
       };
     },
     attachments: {
+      get: async (id: string) => tables.get('attachments')?.get(id),
       filter: (fn: (a: unknown) => boolean) => ({
         sortBy: async () => [...(tables.get('attachments')?.values() ?? [])].filter(fn),
       }),
@@ -59,7 +60,7 @@ vi.mock('./db', () => ({
   },
 }));
 
-import { acknowledgeConflictNotice, getConflictNotice, loadSyncStatus, logout, saveSyncSettings, syncNow, uploadAttachmentBlob } from './sync';
+import { acknowledgeConflictNotice, attachmentUploadFailures, getConflictNotice, loadSyncQuarantine, loadSyncQuarantineOverflow, loadSyncStatus, logout, promptAttachmentUploadIfTaskSynced, retryAttachmentUpload, saveSyncSettings, syncNow, uploadAttachmentBlob } from './sync';
 
 const settings = { url: 'http://test', username: 'u', token: 'tok' };
 
@@ -198,6 +199,100 @@ describe('sync edit-edit conflicts', () => {
     const r = await syncNow(settings);
     expect(r.conflicts).toBe(1);
     expect(await getConflictNotice()).toBeNull();
+  });
+
+  it('keeps the unacknowledged conflict count in the saved status after a later no-op sync', async () => {
+    tables.get('tasks') ?? tables.set('tasks', new Map());
+    tables.get('tasks')!.set('X', serverTask('X', 'local edit'));
+    meta.set('rev:tasks:X', 1);
+    meta.set('dirty:tasks:X', { deleted: false });
+    mockFetch({
+      changesResponses: [
+        { changes: [{ collection: 'tasks', id: 'X', rev: 2, deleted: false, data: serverTask('X', 'server v2') }], rev: 2 },
+        { changes: [], rev: 2 },
+      ],
+      pushResults: [
+        { id: 'X', collection: 'tasks', status: 'conflict', current: { rev: 2, deleted: false, data: serverTask('X', 'server v2') } },
+      ],
+    });
+    const r1 = await syncNow(settings);
+    expect(r1.conflicts).toBe(1);
+    // The run that resolved the conflict reports it as this-run activity.
+    expect(loadSyncStatus()?.summary).toBe('pushed 0, pulled 0, 1 conflict (server won)');
+
+    // A later idle auto-sync (nothing dirty, nothing new) must not erase
+    // awareness of the still-unacknowledged conflict from the status line,
+    // and must not present it as activity of that idle run.
+    mockFetch({ changesResponses: [{ changes: [], rev: 2 }, { changes: [], rev: 2 }] });
+    const r2 = await syncNow(settings);
+    expect(r2).toMatchObject({ pushed: 0, pulled: 0, conflicts: 0 });
+    expect(loadSyncStatus()?.summary).toBe('pushed 0, pulled 0, 1 earlier conflict (server won) awaiting review');
+  });
+
+  it('distinguishes this-run conflicts from still-outstanding earlier ones in one summary', async () => {
+    tables.get('tasks') ?? tables.set('tasks', new Map());
+    tables.get('tasks')!.set('X', serverTask('X', 'local edit'));
+    meta.set('rev:tasks:X', 1);
+    meta.set('dirty:tasks:X', { deleted: false });
+    mockFetch({
+      changesResponses: [
+        { changes: [{ collection: 'tasks', id: 'X', rev: 2, deleted: false, data: serverTask('X', 'server v2') }], rev: 2 },
+        { changes: [], rev: 2 },
+      ],
+      pushResults: [
+        { id: 'X', collection: 'tasks', status: 'conflict', current: { rev: 2, deleted: false, data: serverTask('X', 'server v2') } },
+      ],
+    });
+    await syncNow(settings);
+    // Second conflict on Y while X's notice is still unacknowledged.
+    tables.get('tasks')!.set('Y', serverTask('Y', 'local edit Y'));
+    meta.set('rev:tasks:Y', 2);
+    meta.set('dirty:tasks:Y', { deleted: false });
+    mockFetch({
+      changesResponses: [{ changes: [], rev: 3 }, { changes: [], rev: 3 }],
+      pushResults: [
+        { id: 'Y', collection: 'tasks', status: 'conflict', current: { rev: 3, deleted: false, data: serverTask('Y', 'server v3') } },
+      ],
+    });
+    const r2 = await syncNow(settings);
+    expect(r2.conflicts).toBe(1);
+    expect(loadSyncStatus()?.summary).toBe('pushed 0, pulled 0, 1 conflict (server won), 1 earlier conflict (server won) awaiting review');
+  });
+
+  it('drops the conflict count from the status once the notice is acknowledged', async () => {
+    tables.get('tasks') ?? tables.set('tasks', new Map());
+    tables.get('tasks')!.set('X', serverTask('X', 'local edit'));
+    meta.set('rev:tasks:X', 1);
+    meta.set('dirty:tasks:X', { deleted: false });
+    mockFetch({
+      changesResponses: [
+        { changes: [{ collection: 'tasks', id: 'X', rev: 2, deleted: false, data: serverTask('X', 'server v2') }], rev: 2 },
+        { changes: [], rev: 2 },
+      ],
+      pushResults: [
+        { id: 'X', collection: 'tasks', status: 'conflict', current: { rev: 2, deleted: false, data: serverTask('X', 'server v2') } },
+      ],
+    });
+    await syncNow(settings);
+    await acknowledgeConflictNotice();
+    mockFetch({ changesResponses: [{ changes: [], rev: 2 }, { changes: [], rev: 2 }] });
+    await syncNow(settings);
+    expect(loadSyncStatus()?.summary).toBe('pushed 0, pulled 0');
+  });
+
+  it('a failed sync replaces the stale success status with an honest failure', async () => {
+    // An earlier success is on record.
+    mockFetch({ changesResponses: [{ changes: [], rev: 0 }, { changes: [], rev: 0 }] });
+    await syncNow(settings);
+    expect(loadSyncStatus()?.ok).toBe(true);
+    // The server then rejects the token: the persisted status must say so,
+    // in user-safe wording, instead of keeping the stale success.
+    vi.stubGlobal('fetch', vi.fn(async () => ({ ok: false, status: 401, text: async () => '{"detail":"invalid token"}' }) as Response));
+    await expect(syncNow(settings)).rejects.toThrow();
+    const st = loadSyncStatus();
+    expect(st?.ok).toBe(false);
+    expect(st?.summary).toContain('sign in');
+    expect(st?.summary).not.toContain('invalid token');
   });
 
   it('does not record a notice when a sync has no conflicts', async () => {
@@ -349,6 +444,59 @@ describe('sync edit-edit conflicts', () => {
     await syncNow(settings, { retryFailedUploads: true });
     expect(blobUploads.map((u) => u.id)).toEqual(['STUCK']);
     expect(meta.get('blobfail:STUCK')).toBeUndefined();
+  });
+
+  it('a refused manual retry re-records the failure classification so the file does not look queued', async () => {
+    tables.get('attachments') ?? tables.set('attachments', new Map());
+    tables.get('attachments')!.set('R1', {
+      id: 'R1', taskId: 't1', name: 'empty.txt', mime: 'text/plain', byteSize: 0,
+      blob: { size: 0, type: 'text/plain' }, createdAt: 1,
+    });
+    // Server refuses this file for good (422 empty upload).
+    vi.stubGlobal('fetch', vi.fn(async (url: string, init?: RequestInit) => {
+      if (String(url).includes('/api/attachments?') && init?.method === 'POST') {
+        return { ok: false, status: 422 } as Response;
+      }
+      throw new Error(`unexpected fetch ${url}`);
+    }));
+    // Behavior fail-first through the actual manual-retry caller: removing
+    // the refusal recording from retryAttachmentUpload fails this test even
+    // though the recording helper still exists.
+    const outcome = await retryAttachmentUpload('R1');
+    expect(outcome).toBe('permanent');
+    const failures = await attachmentUploadFailures();
+    expect(failures['R1']?.permanent).toBe(true);
+    // A further refused retry keeps the classification (the retry path
+    // clears the old tally first, so the count restarts at 1 by design).
+    const outcome2 = await retryAttachmentUpload('R1');
+    expect(outcome2).toBe('permanent');
+    const tally = meta.get('blobfail:R1') as { count: number; permanent?: boolean };
+    expect(tally.count).toBe(1);
+    expect(tally.permanent).toBe(true);
+  });
+
+  it('structured per-file-size 413 needs attention; quota and plain 413 stay transient', async () => {
+    tables.get('attachments') ?? tables.set('attachments', new Map());
+    tables.get('attachments')!.set('BIG', {
+      id: 'BIG', taskId: 't1', name: 'big.bin', mime: 'application/octet-stream', byteSize: 3,
+      blob: { size: 3, type: 'application/octet-stream' }, createdAt: 1,
+    });
+    const stub413 = (body: unknown) => vi.stubGlobal('fetch', vi.fn(async (url: string, init?: RequestInit) => {
+      if (String(url).includes('/api/attachments?') && init?.method === 'POST') {
+        return { ok: false, status: 413, json: async () => body } as Response;
+      }
+      throw new Error(`unexpected fetch ${url}`);
+    }));
+    // New server: machine-readable per-file-size refusal needs attention.
+    stub413({ detail: { reason: 'attachment_file_too_large', max_file_mb: 1 } });
+    expect(await uploadAttachmentBlob(tables.get('attachments')!.get('BIG') as never)).toBe('permanent');
+    // Old server: plain-string detail stays transient (no prose parsing).
+    stub413({ detail: 'file exceeds the 1 MB per-file limit' });
+    expect(await uploadAttachmentBlob(tables.get('attachments')!.get('BIG') as never)).toBe('transient');
+    // Quota refusals stay transient even with the new structured shape:
+    // freed space heals them without user attention on this file.
+    stub413({ detail: { reason: 'attachment_quota_exceeded', quota_mb: 200 } });
+    expect(await uploadAttachmentBlob(tables.get('attachments')!.get('BIG') as never)).toBe('transient');
   });
 
   it('saving sync settings clears stale upload-failure tallies', async () => {
@@ -601,5 +749,177 @@ describe('sync status persistence', () => {
     await syncNow(settings);
     expect(loadSyncStatus()).toMatchObject({ ok: true });
     expect(loadSyncStatus()?.persistenceFailed).toBeUndefined();
+  });
+});
+
+describe('pull resilience against malformed entities', () => {
+  it('realigns a blob that lost its inline id instead of wedging sync', async () => {
+    mockFetch({
+      changesResponses: [
+        { changes: [{ collection: 'tasks', id: 'noid', rev: 1, deleted: false, data: { title: 'Pulled task', projectId: 'inbox' } }], rev: 1 },
+        { changes: [], rev: 1 },
+      ],
+    });
+    const r = await syncNow(settings);
+    expect(r.pulled).toBe(1);
+    expect(r.skipped ?? 0).toBe(0);
+    expect(tables.get('tasks')!.get('noid')).toMatchObject({ id: 'noid', title: 'Pulled task' });
+    expect(meta.get('cursor')).toBe(1);
+    expect(loadSyncStatus()?.ok).toBe(true);
+  });
+
+  it('skips an entity whose data id contradicts its key, applies the rest, and advances the cursor', async () => {
+    mockFetch({
+      changesResponses: [
+        { changes: [
+          { collection: 'tasks', id: 'keyed', rev: 1, deleted: false, data: { id: 'different-id', title: 'Mismatched' } },
+          { collection: 'tasks', id: 'good', rev: 2, deleted: false, data: { id: 'good', title: 'Good task' } },
+        ], rev: 2 },
+        { changes: [], rev: 2 },
+      ],
+    });
+    const r = await syncNow(settings);
+    expect(r.pulled).toBe(1);
+    expect(r.skipped).toBe(1);
+    expect(tables.get('tasks')!.get('good')).toMatchObject({ title: 'Good task' });
+    expect(tables.get('tasks')!.has('keyed')).toBe(false);
+    expect(tables.get('tasks')!.has('different-id')).toBe(false);
+    expect(meta.get('cursor')).toBe(2);
+    expect(loadSyncStatus()?.ok).toBe(true);
+    expect(loadSyncStatus()?.summary).toContain('1 skipped (kept for review)');
+    // The skipped payload is quarantined with its reason, not dropped.
+    const q = await loadSyncQuarantine();
+    expect(q).toHaveLength(1);
+    expect(q[0]).toMatchObject({ collection: 'tasks', id: 'keyed', rev: 1 });
+    expect((q[0].data as { id: string }).id).toBe('different-id');
+    expect(q[0].reason).toContain('id mismatch');
+  });
+
+  it('treats a store-level put failure as transient: cursor stays, nothing is lost, retry recovers', async () => {
+    const responses = () => [
+      { changes: [
+        { collection: 'tasks', id: 'simulated-dexie-error', rev: 1, deleted: false, data: { id: 'simulated-dexie-error', title: 'Broken row' } },
+        { collection: 'tasks', id: 'after', rev: 2, deleted: false, data: { id: 'after', title: 'Later valid' } },
+      ], rev: 2 },
+      { changes: [], rev: 2 },
+    ];
+    mockFetch({ changesResponses: responses() });
+    // The put failure aborts the pull BEFORE the cursor advances: the
+    // failing entity and everything after it stay covered by the cursor.
+    await expect(syncNow(settings)).rejects.toThrow('simulated DataError');
+    expect(meta.get('cursor') ?? 0).toBe(0);
+    expect(tables.get('tasks')!.has('after')).toBe(false);
+    // Nothing was quarantined: this was not a malformed payload.
+    expect(await loadSyncQuarantine()).toHaveLength(0);
+    // The store fault clears (id renamed as if the row were fixed) and the
+    // next sync retries and applies both entities - no silent loss.
+    mockFetch({ changesResponses: [
+      { changes: [
+        { collection: 'tasks', id: 'simulated-dexie-error', rev: 1, deleted: true, data: {} },
+        { collection: 'tasks', id: 'after', rev: 2, deleted: false, data: { id: 'after', title: 'Later valid' } },
+      ], rev: 2 },
+      { changes: [], rev: 2 },
+    ] });
+    const r2 = await syncNow(settings);
+    // Both re-fetched entities apply: the tombstone (delete counts as
+    // applied) and the valid row that was previously stuck behind it.
+    expect(r2.pulled).toBe(2);
+    expect(tables.get('tasks')!.has('simulated-dexie-error')).toBe(false);
+    expect(tables.get('tasks')!.get('after')).toMatchObject({ title: 'Later valid' });
+    expect(meta.get('cursor')).toBe(2);
+    expect(loadSyncStatus()?.ok).toBe(true);
+  });
+});
+
+describe('quarantine bounds', () => {
+  it('caps the quarantine at 20, evicts oldest first, and tallies overflow with the last reason', async () => {
+    const changes = [];
+    for (let i = 1; i <= 23; i++) {
+      changes.push({ collection: 'tasks', id: 'bad' + i, rev: i, deleted: false, data: { id: 'mismatch' + i, title: 'Bad ' + i } });
+    }
+    mockFetch({ changesResponses: [{ changes, rev: 23 }, { changes: [], rev: 23 }] });
+    const r = await syncNow(settings);
+    expect(r.skipped).toBe(23);
+    const q = await loadSyncQuarantine();
+    expect(q).toHaveLength(20);
+    // Oldest three (bad1..bad3) evicted; newest kept.
+    expect(q.some((e) => e.id === 'bad1')).toBe(false);
+    expect(q.some((e) => e.id === 'bad3')).toBe(false);
+    expect(q.some((e) => e.id === 'bad23')).toBe(true);
+    const ov = await loadSyncQuarantineOverflow();
+    expect(ov).not.toBeNull();
+    expect(ov!.count).toBe(3);
+    expect(ov!.lastReason).toContain('id mismatch');
+    expect(ov!.lastId).toBe('bad23');
+  });
+
+  it('stores oversized payloads truncated with their byte size, not the whole blob', async () => {
+    const big = 'x'.repeat(70 * 1024);
+    mockFetch({
+      changesResponses: [
+        { changes: [{ collection: 'tasks', id: 'big1', rev: 1, deleted: false, data: { id: 'other', title: big } }], rev: 1 },
+        { changes: [], rev: 1 },
+      ],
+    });
+    await syncNow(settings);
+    const q = await loadSyncQuarantine();
+    expect(q).toHaveLength(1);
+    expect(q[0].data).toMatchObject({ truncated: true });
+    expect((q[0].data as { bytes: number }).bytes).toBeGreaterThan(70 * 1024);
+    // The status must not claim the payload is kept whole.
+    expect(loadSyncStatus()?.summary).toContain('1 skipped (recorded by size only)');
+    expect(loadSyncStatus()?.summary).not.toContain('kept for review');
+  });
+
+  it('distinguishes kept vs size-only records in a mixed batch', async () => {
+    const big = 'y'.repeat(70 * 1024);
+    mockFetch({
+      changesResponses: [
+        { changes: [
+          { collection: 'tasks', id: 'small-bad', rev: 1, deleted: false, data: { id: 'nope', title: 'Small bad' } },
+          { collection: 'tasks', id: 'big-bad', rev: 2, deleted: false, data: { id: 'alsono', title: big } },
+        ], rev: 2 },
+        { changes: [], rev: 2 },
+      ],
+    });
+    await syncNow(settings);
+    expect(loadSyncStatus()?.summary).toContain('2 skipped (1 kept for review, 1 recorded by size only)');
+  });
+});
+
+describe('prompt attachment upload ordering', () => {
+  const att = () => ({ id: 'att-1', taskId: 'task-1', name: 'pixel.png', blob: new Blob(['px'], { type: 'image/png' }) });
+
+  it('does not upload immediately when the task is not synced yet (avoids the predictable 422)', async () => {
+    mockFetch({ changesResponses: [] });
+    const attempted = await promptAttachmentUploadIfTaskSynced(att());
+    expect(attempted).toBe(false);
+    expect(blobUploads).toHaveLength(0);
+  });
+
+  it('uploads promptly when the task already has a server rev', async () => {
+    mockFetch({ changesResponses: [] });
+    meta.set('rev:tasks:task-1', 5);
+    const attempted = await promptAttachmentUploadIfTaskSynced(att());
+    expect(attempted).toBe(true);
+    await new Promise((r) => setTimeout(r, 0));
+    expect(blobUploads).toHaveLength(1);
+    expect(blobUploads[0]).toMatchObject({ id: 'att-1', taskId: 'task-1' });
+  });
+});
+
+describe('restore-rollback characterization (current behavior, not the desired one)', () => {
+  it('regresses the stored cursor when a pull reports a LOWER counter (a restored server is invisible)', async () => {
+    // The client was synced up to rev 5. The server was then restored from
+    // an older backup whose counter is 2. The pull answers 200 with an
+    // empty page and the current counter - and the client adopts that
+    // LOWER counter as its new cursor without any signal. Post-restore
+    // entities stamped with revs 3..5 before this pull are now permanently
+    // invisible to this client.
+    meta.set('cursor', 5);
+    mockFetch({ changesResponses: [{ changes: [], rev: 2 }, { changes: [], rev: 2 }] });
+    const r = await syncNow(settings);
+    expect(r).toMatchObject({ pushed: 0, pulled: 0, conflicts: 0 });
+    expect(meta.get('cursor')).toBe(2); // moved BACKWARD, silently
   });
 });

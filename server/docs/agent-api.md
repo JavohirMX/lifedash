@@ -192,8 +192,9 @@ applies remote changes on its next sync pull:
   id is unknown, 422 for a malformed id.
 - `PUT /api/agent/devices/{deviceId}/settings` - partial update, merged
   like automation config. Validated fields:
-  `theme` (light|dark|system), `style` (paper|terminal|editorial|soft|
-  contrast|nexus|compact|polar), `font` (style|inter|manrope|geist|
+  `theme` (light|dark|system), `style` (paper|terminal|editorial|soft|contrast|nexus|
+  compact|polar|modern-dark|playful-geometric|cyberpunk|luxury|
+  professional|retro|sketch|monochrome), `font` (style|inter|manrope|geist|
   source-sans|dm-sans|plex|system|serif|mono),
   `wallpaper` (`{id: none|aurora|sand|blue|custom, intensity: 0-35}`),
   `remindersEnabled`, `journalPromptEnabled`. Unknown fields and wrong

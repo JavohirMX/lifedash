@@ -131,7 +131,9 @@ Every list: pinned tasks on top, clearly marked.
 ### Automation (first rules shipped)
 - Shipped rules: roll overdue tasks into Today; complete a parent task when
   its subtasks finish. Both are user toggles in the Automation dialog.
-- Further rules (create task, move to project, pin) remain planned.
+- User rules (tag or weekly trigger) create a task and can set its project
+  and pinned state; unset fields keep the defaults (inherited project or
+  Inbox, unpinned).
 
 ## 5. Non-functional requirements
 
