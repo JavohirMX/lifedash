@@ -12,6 +12,7 @@ backward and rev numbers are reused for different entities.
 import os
 import shutil
 import sqlite3
+import threading
 import uuid
 
 import pytest
@@ -71,6 +72,13 @@ def _restore_snapshot():
         p = dbmod.DB_PATH + suf
         if os.path.exists(p):
             os.remove(p)
+    # A real restore is followed by a server restart: every connection is
+    # new. TestClient requests run on anyio pool threads that OUTLIVE the
+    # client and keep their thread-local connection to the pre-restore
+    # file (and its deleted WAL), which poisons later requests. Swapping
+    # the module's thread-local makes every thread open a fresh connection
+    # to the restored file, like the restarted process would.
+    dbmod._local = threading.local()
 
 
 @pytest.fixture()
