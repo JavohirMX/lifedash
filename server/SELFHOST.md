@@ -259,10 +259,12 @@ today (characterized in `tests/test_restore_rollback_characterization.py`):
 a device can permanently miss changes other devices make after the restore,
 and ordinary conflict handling can keep the server's older version over a
 device's newer edit. A designed reconciliation is pending. Until it ships,
-after any restore of an older backup: have everyone hold off editing, check
-each device's data against the server, and re-enter anything missing by hand
-from the device that still has it. Do not assume that reconnecting every
-device repairs the restore - it does not.
+there is no verified reconciliation procedure. The cautious manual path
+after restoring an older backup: everyone holds off editing, then you
+compare each device's data against the server and re-enter anything missing
+by hand from the device that still has it. Treat that as careful review,
+not a proven repair. Do not assume that reconnecting every device repairs
+the restore - it does not.
 
 For a synthetic, non-Docker drill after `make install`, run
 `make test-selfhost` from the repo root on a POSIX host. It verifies a real
