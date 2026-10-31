@@ -152,6 +152,51 @@ export async function acknowledgeConflictNotice(): Promise<void> {
   await db.syncmeta.delete(CONFLICT_NOTICE_KEY);
 }
 
+/** A pulled entity whose payload can never be applied as delivered
+ * (contradictory or non-object data). Distinct from transient store
+ * failures: malformed payloads are quarantined and skipped; anything
+ * else aborts the pull so the cursor keeps covering it for retry. */
+class MalformedEntityError extends Error {}
+
+const QUARANTINE_PREFIX = 'quarantine:';
+const QUARANTINE_MAX = 20;
+
+export interface QuarantinedEntity {
+  collection: string;
+  id: string;
+  rev: number;
+  data: unknown;
+  reason: string;
+  at: number;
+}
+
+async function quarantineEntity(col: Collection, e: ServerEntity, reason: string): Promise<void> {
+  await setMeta(QUARANTINE_PREFIX + col + ':' + e.id, {
+    collection: col, id: e.id, rev: e.rev, data: e.deleted ? null : e.data, reason, at: Date.now(),
+  } satisfies QuarantinedEntity);
+  // Bound the quarantine so a broken peer cannot grow storage without limit.
+  const rows = await db.syncmeta.where('key').startsWith(QUARANTINE_PREFIX).toArray();
+  if (rows.length > QUARANTINE_MAX) {
+    const oldestFirst = rows
+      .map((r) => ({ key: r.key as string, at: (r.value as QuarantinedEntity).at ?? 0 }))
+      .sort((a, b) => a.at - b.at);
+    for (const row of oldestFirst.slice(0, rows.length - QUARANTINE_MAX)) {
+      await db.syncmeta.delete(row.key);
+    }
+  }
+}
+
+/** Pulled entities that could not be applied and were kept for review. */
+export async function loadSyncQuarantine(): Promise<QuarantinedEntity[]> {
+  const rows = await db.syncmeta.where('key').startsWith(QUARANTINE_PREFIX).toArray();
+  return rows.map((r) => r.value as QuarantinedEntity);
+}
+
+/** Drop one quarantined entity, e.g. after it was re-expressed locally. */
+export async function removeFromSyncQuarantine(collection: string, id: string): Promise<void> {
+  await db.syncmeta.delete(QUARANTINE_PREFIX + collection + ':' + id);
+}
+
 async function recordConflicts(conflicts: number): Promise<void> {
   if (conflicts <= 0) return;
   const prior = await getConflictNotice();
@@ -191,7 +236,7 @@ async function runAutoSync(): Promise<void> {
 function summaryOf(r: SyncResult): string {
   const parts = [`pushed ${r.pushed}`, `pulled ${r.pulled}`];
   if (r.conflicts) parts.push(`${r.conflicts} conflict${r.conflicts === 1 ? '' : 's'} (server won)`);
-  if (r.skipped) parts.push(`${r.skipped} skipped (unreadable)`);
+  if (r.skipped) parts.push(`${r.skipped} skipped (kept for review)`);
   return parts.join(', ');
 }
 
@@ -538,11 +583,15 @@ async function pull(base: string, headers: Record<string, string>): Promise<{ ap
       await applyRemote(col, e);
       applied += 1;
     } catch (err) {
-      // One malformed entity must not abort the batch or wedge sync: skip
-      // it, keep applying the rest, and still advance the cursor below.
-      // Mirrors the server applying a batch per-entity.
+      // Only a provably malformed payload is skipped: it is quarantined
+      // with its payload for review and the cursor advances past it.
+      // Anything else (quota, transient IndexedDB failure, ...) rethrows,
+      // aborting the pull BEFORE the cursor advances, so the next sync
+      // retries the entity instead of silently losing it.
+      if (!(err instanceof MalformedEntityError)) throw err;
       skipped += 1;
-      console.warn('sync: skipped an entity that could not be applied', col, e.id, err);
+      await quarantineEntity(col, e, err.message);
+      console.warn('sync: quarantined an unreadable entity', col, e.id, err);
     }
   }
   await setMeta('cursor', body.rev);
@@ -560,11 +609,14 @@ async function applyRemote(col: Collection, e: ServerEntity): Promise<void> {
       let data = e.data as Record<string, unknown>;
       // The server keys the blob externally; the local table keys rows by
       // their inline id. Realign a blob that lost its id, and refuse one
-      // that contradicts its key (the pull loop skips it and moves on).
-      if (data && typeof data === 'object') {
-        if (data.id === undefined) data = { ...data, id: e.id };
-        else if (data.id !== e.id) throw new Error(`sync: entity id mismatch (key ${e.id}, data id ${String(data.id)})`);
+      // that contradicts its key or is not an object at all: those can
+      // never apply as delivered, so the pull loop quarantines and skips
+      // them instead of retrying forever.
+      if (!data || typeof data !== 'object') {
+        throw new MalformedEntityError(`sync: entity data is not an object (key ${e.id})`);
       }
+      if (data.id === undefined) data = { ...data, id: e.id };
+      else if (data.id !== e.id) throw new MalformedEntityError(`sync: entity id mismatch (key ${e.id}, data id ${String(data.id)})`);
       if (col === 'attachments' && data.blob === undefined) {
         const existing = (await table.get(e.id)) as { blob?: unknown } | undefined;
         if (existing?.blob !== undefined) data = { ...data, blob: existing.blob };

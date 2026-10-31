@@ -60,7 +60,7 @@ vi.mock('./db', () => ({
   },
 }));
 
-import { acknowledgeConflictNotice, attachmentUploadFailures, getConflictNotice, loadSyncStatus, logout, retryAttachmentUpload, saveSyncSettings, syncNow, uploadAttachmentBlob } from './sync';
+import { acknowledgeConflictNotice, attachmentUploadFailures, getConflictNotice, loadSyncQuarantine, loadSyncStatus, logout, retryAttachmentUpload, saveSyncSettings, syncNow, uploadAttachmentBlob } from './sync';
 
 const settings = { url: 'http://test', username: 'u', token: 'tok' };
 
@@ -786,22 +786,45 @@ describe('pull resilience against malformed entities', () => {
     expect(tables.get('tasks')!.has('different-id')).toBe(false);
     expect(meta.get('cursor')).toBe(2);
     expect(loadSyncStatus()?.ok).toBe(true);
-    expect(loadSyncStatus()?.summary).toContain('1 skipped (unreadable)');
+    expect(loadSyncStatus()?.summary).toContain('1 skipped (kept for review)');
+    // The skipped payload is quarantined with its reason, not dropped.
+    const q = await loadSyncQuarantine();
+    expect(q).toHaveLength(1);
+    expect(q[0]).toMatchObject({ collection: 'tasks', id: 'keyed', rev: 1 });
+    expect((q[0].data as { id: string }).id).toBe('different-id');
+    expect(q[0].reason).toContain('id mismatch');
   });
 
-  it('survives a store-level put failure without aborting the batch (the live DataError wedge)', async () => {
-    mockFetch({
-      changesResponses: [
-        { changes: [
-          { collection: 'tasks', id: 'simulated-dexie-error', rev: 1, deleted: false, data: { id: 'simulated-dexie-error', title: 'Broken row' } },
-          { collection: 'tasks', id: 'after', rev: 2, deleted: false, data: { id: 'after', title: 'Later valid' } },
-        ], rev: 2 },
-        { changes: [], rev: 2 },
-      ],
-    });
-    const r = await syncNow(settings);
-    expect(r.pulled).toBe(1);
-    expect(r.skipped).toBe(1);
+  it('treats a store-level put failure as transient: cursor stays, nothing is lost, retry recovers', async () => {
+    const responses = () => [
+      { changes: [
+        { collection: 'tasks', id: 'simulated-dexie-error', rev: 1, deleted: false, data: { id: 'simulated-dexie-error', title: 'Broken row' } },
+        { collection: 'tasks', id: 'after', rev: 2, deleted: false, data: { id: 'after', title: 'Later valid' } },
+      ], rev: 2 },
+      { changes: [], rev: 2 },
+    ];
+    mockFetch({ changesResponses: responses() });
+    // The put failure aborts the pull BEFORE the cursor advances: the
+    // failing entity and everything after it stay covered by the cursor.
+    await expect(syncNow(settings)).rejects.toThrow('simulated DataError');
+    expect(meta.get('cursor') ?? 0).toBe(0);
+    expect(tables.get('tasks')!.has('after')).toBe(false);
+    // Nothing was quarantined: this was not a malformed payload.
+    expect(await loadSyncQuarantine()).toHaveLength(0);
+    // The store fault clears (id renamed as if the row were fixed) and the
+    // next sync retries and applies both entities - no silent loss.
+    mockFetch({ changesResponses: [
+      { changes: [
+        { collection: 'tasks', id: 'simulated-dexie-error', rev: 1, deleted: true, data: {} },
+        { collection: 'tasks', id: 'after', rev: 2, deleted: false, data: { id: 'after', title: 'Later valid' } },
+      ], rev: 2 },
+      { changes: [], rev: 2 },
+    ] });
+    const r2 = await syncNow(settings);
+    // Both re-fetched entities apply: the tombstone (delete counts as
+    // applied) and the valid row that was previously stuck behind it.
+    expect(r2.pulled).toBe(2);
+    expect(tables.get('tasks')!.has('simulated-dexie-error')).toBe(false);
     expect(tables.get('tasks')!.get('after')).toMatchObject({ title: 'Later valid' });
     expect(meta.get('cursor')).toBe(2);
     expect(loadSyncStatus()?.ok).toBe(true);
