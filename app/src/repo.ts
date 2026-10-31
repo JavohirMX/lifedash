@@ -6,7 +6,7 @@ import { hasProjectCycle, wouldCycle } from './projects';
 import type { FocusSession } from './types';
 import { parseLocalDate } from './dates';
 import { db, newId, INBOX_ID } from './db';
-import { uploadAttachmentBlob } from './sync';
+import { promptAttachmentUploadIfTaskSynced } from './sync';
 import type { Task, Project, Goal, Note, JournalEntry } from './types';
 import { completeTask, skipOccurrence, subtasksOf, wouldCreateCycle, normalizeTag, normalizeTask, reorderedPosition, renamedTags, extractChecklistItems, filterNewChecklistItems } from './logic';
 import { todayStr } from './dates';
@@ -356,9 +356,12 @@ export async function addAttachment(taskId: string, file: File): Promise<void> {
     createdAt: Date.now(),
   };
   await db.attachments.add(row);
-  // Best-effort blob upload so agents and other devices can download it;
-  // offline stays local and the next sync backfills.
-  void uploadAttachmentBlob(row);
+  // Best-effort prompt blob upload so agents and other devices can download
+  // it - but only when the task is already on the server; attaching to a
+  // not-yet-synced task uploads via the next sync's metadata-first backfill
+  // instead of failing predictably with a 422. Offline stays local either
+  // way and the next sync backfills.
+  void promptAttachmentUploadIfTaskSynced(row);
 }
 
 export async function deleteAttachment(id: string): Promise<void> {

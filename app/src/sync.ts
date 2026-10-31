@@ -191,11 +191,13 @@ export async function loadSyncQuarantineOverflow(): Promise<QuarantineOverflow |
   return ((await getMeta(QUARANTINE_OVERFLOW_KEY)) as QuarantineOverflow | undefined) ?? null;
 }
 
-async function quarantineEntity(col: Collection, e: ServerEntity, reason: string): Promise<void> {
+async function quarantineEntity(col: Collection, e: ServerEntity, reason: string): Promise<boolean> {
   let data: unknown = e.deleted ? null : e.data;
+  let truncated = false;
   if (data !== null) {
     const bytes = JSON.stringify(data)?.length ?? 0;
     if (bytes > QUARANTINE_PAYLOAD_MAX_BYTES) {
+      truncated = true;
       data = { truncated: true, bytes, note: 'Payload too large to keep whole; only its size is recorded.' };
     }
   }
@@ -222,6 +224,7 @@ async function quarantineEntity(col: Collection, e: ServerEntity, reason: string
       lastAt: lastRow ? (rows.find((r) => r.key === lastRow.key)?.value as QuarantinedEntity)?.at ?? Date.now() : Date.now(),
     } satisfies QuarantineOverflow);
   }
+  return truncated;
 }
 
 /** Pulled entities that could not be applied and were kept for review. */
@@ -274,7 +277,12 @@ async function runAutoSync(): Promise<void> {
 function summaryOf(r: SyncResult): string {
   const parts = [`pushed ${r.pushed}`, `pulled ${r.pulled}`];
   if (r.conflicts) parts.push(`${r.conflicts} conflict${r.conflicts === 1 ? '' : 's'} (server won)`);
-  if (r.skipped) parts.push(`${r.skipped} skipped (kept for review)`);
+  if (r.skipped) {
+    const kept = r.skipped - (r.skippedTruncated ?? 0);
+    if (kept === r.skipped) parts.push(`${r.skipped} skipped (kept for review)`);
+    else if (kept === 0) parts.push(`${r.skipped} skipped (recorded by size only)`);
+    else parts.push(`${r.skipped} skipped (${kept} kept for review, ${r.skippedTruncated} recorded by size only)`);
+  }
   return parts.join(', ');
 }
 
@@ -384,6 +392,21 @@ export async function uploadAttachmentBlob(att: Pick<Attachment, 'id' | 'taskId'
   }
 }
 
+/**
+ * Prompt blob upload at attach time, but only when the parent task is
+ * already on the server. Attaching to a not-yet-synced task and uploading
+ * immediately makes the server reject the blob with a 422 (unknown task):
+ * the metadata-first completion path owns that case instead - the push
+ * announces the metadata and the next sync backfill completes the upload.
+ * Returns true when the prompt upload was attempted.
+ */
+export async function promptAttachmentUploadIfTaskSynced(att: Pick<Attachment, 'id' | 'taskId' | 'name'> & { blob: Blob }): Promise<boolean> {
+  const taskSynced = (await getMeta(revKey('tasks', att.taskId))) !== undefined;
+  if (!taskSynced) return false;
+  void uploadAttachmentBlob(att);
+  return true;
+}
+
 /** Structured per-file-size refusal from newer servers; anything else is not. */
 async function isFileTooLargeRefusal(res: Response): Promise<boolean> {
   try {
@@ -475,6 +498,8 @@ export interface SyncResult {
   pulled: number;
   /** Pulled entities that could not be applied and were skipped. */
   skipped?: number;
+  /** Of skipped: quarantined by size only because the payload was too large to keep whole. */
+  skippedTruncated?: number;
   cursor: number;
 }
 
@@ -595,16 +620,17 @@ async function syncNowInner(settings: SyncSettings): Promise<SyncResult> {
   // Server-wins drops the conflicting local edits: keep a persistent notice
   // so an auto-sync cannot erase awareness before the user sees it.
   await recordConflicts(replaced);
-  return { pushed, conflicts, pulled: pull1.applied + pull2.applied, skipped: pull1.skipped + pull2.skipped, cursor: await getCursor() };
+  return { pushed, conflicts, pulled: pull1.applied + pull2.applied, skipped: pull1.skipped + pull2.skipped, skippedTruncated: pull1.skippedTruncated + pull2.skippedTruncated, cursor: await getCursor() };
 }
 
-async function pull(base: string, headers: Record<string, string>): Promise<{ applied: number; skipped: number }> {
+async function pull(base: string, headers: Record<string, string>): Promise<{ applied: number; skipped: number; skippedTruncated: number }> {
   const since = await getCursor();
   const res = await fetch(`${base}/api/changes?since=${since}`, { headers });
   if (!res.ok) throw new Error(`pull failed: ${res.status} ${await res.text()}`);
   const body = (await res.json()) as { changes: ServerEntity[]; rev: number };
   let applied = 0;
   let skipped = 0;
+  let skippedTruncated = 0;
   for (const e of body.changes) {
     const col = e.collection as Collection;
     if (!COLLECTIONS.includes(col)) continue;
@@ -628,12 +654,12 @@ async function pull(base: string, headers: Record<string, string>): Promise<{ ap
       // retries the entity instead of silently losing it.
       if (!(err instanceof MalformedEntityError)) throw err;
       skipped += 1;
-      await quarantineEntity(col, e, err.message);
+      if (await quarantineEntity(col, e, err.message)) skippedTruncated += 1;
       console.warn('sync: quarantined an unreadable entity', col, e.id, err);
     }
   }
   await setMeta('cursor', body.rev);
-  return { applied, skipped };
+  return { applied, skipped, skippedTruncated };
 }
 
 async function applyRemote(col: Collection, e: ServerEntity): Promise<void> {

@@ -60,7 +60,7 @@ vi.mock('./db', () => ({
   },
 }));
 
-import { acknowledgeConflictNotice, attachmentUploadFailures, getConflictNotice, loadSyncQuarantine, loadSyncQuarantineOverflow, loadSyncStatus, logout, retryAttachmentUpload, saveSyncSettings, syncNow, uploadAttachmentBlob } from './sync';
+import { acknowledgeConflictNotice, attachmentUploadFailures, getConflictNotice, loadSyncQuarantine, loadSyncQuarantineOverflow, loadSyncStatus, logout, promptAttachmentUploadIfTaskSynced, retryAttachmentUpload, saveSyncSettings, syncNow, uploadAttachmentBlob } from './sync';
 
 const settings = { url: 'http://test', username: 'u', token: 'tok' };
 
@@ -866,5 +866,44 @@ describe('quarantine bounds', () => {
     expect(q).toHaveLength(1);
     expect(q[0].data).toMatchObject({ truncated: true });
     expect((q[0].data as { bytes: number }).bytes).toBeGreaterThan(70 * 1024);
+    // The status must not claim the payload is kept whole.
+    expect(loadSyncStatus()?.summary).toContain('1 skipped (recorded by size only)');
+    expect(loadSyncStatus()?.summary).not.toContain('kept for review');
+  });
+
+  it('distinguishes kept vs size-only records in a mixed batch', async () => {
+    const big = 'y'.repeat(70 * 1024);
+    mockFetch({
+      changesResponses: [
+        { changes: [
+          { collection: 'tasks', id: 'small-bad', rev: 1, deleted: false, data: { id: 'nope', title: 'Small bad' } },
+          { collection: 'tasks', id: 'big-bad', rev: 2, deleted: false, data: { id: 'alsono', title: big } },
+        ], rev: 2 },
+        { changes: [], rev: 2 },
+      ],
+    });
+    await syncNow(settings);
+    expect(loadSyncStatus()?.summary).toContain('2 skipped (1 kept for review, 1 recorded by size only)');
+  });
+});
+
+describe('prompt attachment upload ordering', () => {
+  const att = () => ({ id: 'att-1', taskId: 'task-1', name: 'pixel.png', blob: new Blob(['px'], { type: 'image/png' }) });
+
+  it('does not upload immediately when the task is not synced yet (avoids the predictable 422)', async () => {
+    mockFetch({ changesResponses: [] });
+    const attempted = await promptAttachmentUploadIfTaskSynced(att());
+    expect(attempted).toBe(false);
+    expect(blobUploads).toHaveLength(0);
+  });
+
+  it('uploads promptly when the task already has a server rev', async () => {
+    mockFetch({ changesResponses: [] });
+    meta.set('rev:tasks:task-1', 5);
+    const attempted = await promptAttachmentUploadIfTaskSynced(att());
+    expect(attempted).toBe(true);
+    await new Promise((r) => setTimeout(r, 0));
+    expect(blobUploads).toHaveLength(1);
+    expect(blobUploads[0]).toMatchObject({ id: 'att-1', taskId: 'task-1' });
   });
 });
