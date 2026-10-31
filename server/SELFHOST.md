@@ -154,21 +154,35 @@ Every device uses the same account; each keeps its own cursor.
 The database is one SQLite file; attachment files live in the blob
 directory alongside it (`SYNC_BLOB_DIR`, default `<database dir>/blobs`,
 so `/data/blobs` in the shipped Compose files). A complete server backup
-needs both. Archive the blob directory first, then the database: an
-upload landing between the two steps then restores as metadata without
-its file, which the uploading client re-sends on its next sync; the
-reverse order could only leave a harmless orphaned file.
+needs both halves as a consistent pair. Recent writes can live in the
+database's `-wal` sidecar file, so never copy `lifedash.db` alone -
+copy the whole data directory or use the online backup API.
 
-If your host has the SQLite CLI installed, an online backup of the
-database can be made with:
+### Recovery-grade snapshot (brief downtime)
+
+Stop the service, copy the whole data directory, start again:
 
 ```bash
-sqlite3 /data/lifedash.db ".backup '/backups/lifedash-$(date +%F).db'"
+docker compose stop sync
+docker compose cp sync:/data ./lifedash-server-backup-$(date +%F)
+docker compose start sync
 ```
+
+Sync is unavailable between stop and start - usually seconds, and
+clients retry on their own. Copying the stopped container's directory
+captures the database with any `-wal`/`-shm` sidecars and every blob as
+of the same moment, so the pair is consistent by construction. (The
+`cp` subcommand reads the stopped container's filesystem; it does not
+need the service running.)
+
+Bare metal: stop the process, `cp -a` the directory holding `SYNC_DB`
+(including `blobs/` and any `-wal`/`-shm` sidecars), start again.
+
+### Online backup (no downtime, one bounded risk)
 
 The container includes Python, not the SQLite command-line program. From
 the repo root, archive the blob directory and take an online database
-backup with Python, then copy both out:
+backup, then copy both out:
 
 ```bash
 docker compose exec sync python -c "import shutil; shutil.make_archive('/data/blobs-backup', 'gztar', '/data', 'blobs')"
@@ -177,10 +191,23 @@ docker compose exec sync python -c "import sqlite3; src=sqlite3.connect('/data/l
 docker compose cp sync:/data/backup.db ./lifedash-backup.db
 ```
 
-Both commands are safe against the running server: blob files are
-written atomically and never change in place, and the database backup
-uses SQLite's online API. Bare metal: run the same Python one-liners
-against your `SYNC_DB` path and its sibling `blobs/` directory.
+Blob files are written atomically, and no server code path deletes or
+rewrites an existing blob (deleting an attachment tombstones its
+metadata and retains the file), so the archive holds whole files only.
+The database backup uses SQLite's online API and is consistent on its
+own. The one risk is pairing skew: an attachment uploaded between the
+blob archive and the database backup ends up in the database half
+without its file. Nothing on a restored server automatically repairs
+that - clients that already synced past the attachment never pull it
+again, so the file only comes back if a device that still holds it
+re-attaches it, and if no device has the file, it is gone. For routine
+protection that risk is usually acceptable; before upgrades, or when a
+restore must be complete, use the quiesced snapshot above.
+
+With the SQLite CLI installed, the database half alone can also be made
+with `sqlite3 /data/lifedash.db ".backup '/backups/lifedash-$(date +%F).db'"`.
+Bare metal: run the same two Python one-liners against your `SYNC_DB`
+path and its sibling `blobs/` directory.
 
 Keep the copied backups somewhere separate from the running data volume.
 Each destination file is overwritten on the next backup, so rename or
@@ -209,10 +236,12 @@ python3 -c "import sqlite3; c=sqlite3.connect('file:lifedash-backup.db?mode=ro',
 ```
 
 Expect `ok`. Integrity is not proof of complete recovery. For a recovery drill,
-copy the database backup into a separate directory as `lifedash.db`,
-extract the blob archive beside it (so `<dir>/blobs/...` exists), and start
-a separate sync process using the bare-metal command with `SYNC_DB` pointing
-at that copy and a different loopback port. Use a separate browser profile
+copy the snapshot into a separate directory - the quiesced copy as a whole,
+or from an online pair the database backup as `lifedash.db` with the blob
+archive extracted beside it (so `<dir>/blobs/...` exists) - and start a
+separate sync process using the bare-metal command with `SYNC_DB` pointing
+at that copy and a different loopback port. Keep any `-wal`/`-shm` sidecars
+together with the database they belong to. Use a separate browser profile
 with fictional data to verify login, expected records, and that an uploaded
 attachment downloads. Do not point a real client at a recovery test.
 
