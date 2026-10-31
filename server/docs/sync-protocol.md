@@ -61,6 +61,17 @@ abort the rest of the batch.
   dirty version wins and is pushed next (client already knows its
   base_rev; if the server moved meanwhile the push conflicts and
   server-wins applies).
+- Malformed pulled entities (non-object data, or an inline id that
+  contradicts the server key) cannot be applied as delivered: the
+  reference client quarantines them locally ("kept for review" in the
+  sync status) and advances the cursor past them. The quarantine is a
+  bounded recent-failure buffer, not durable unlimited recovery: it
+  keeps at most 20 entities (oldest evicted first, with a durable
+  overflow tally of evicted counts and the last reason), and payloads
+  over 64 KB are recorded by size, not kept whole. Any other apply
+  failure (quota, transient storage errors) aborts the pull BEFORE the
+  cursor advances so the next sync retries the entity - a valid entity
+  is never skipped past silently.
 
 ## Out of scope for v1
 

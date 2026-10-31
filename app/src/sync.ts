@@ -170,9 +170,37 @@ export interface QuarantinedEntity {
   at: number;
 }
 
+// Stored payloads are capped so one huge blob cannot crowd out everything
+// else: over the limit the record keeps the size, not the bytes.
+const QUARANTINE_PAYLOAD_MAX_BYTES = 64 * 1024;
+
+export interface QuarantineOverflow {
+  count: number;
+  lastCollection: string;
+  lastId: string;
+  lastReason: string;
+  lastAt: number;
+}
+const QUARANTINE_OVERFLOW_KEY = 'quarantine-overflow';
+
+/** Eviction tally: how many quarantined entities were dropped to stay
+ * within the cap, with the most recent reason. The overflow record is the
+ * durable trace; the quarantine itself is a bounded recent-failure buffer,
+ * not unlimited recovery. */
+export async function loadSyncQuarantineOverflow(): Promise<QuarantineOverflow | null> {
+  return ((await getMeta(QUARANTINE_OVERFLOW_KEY)) as QuarantineOverflow | undefined) ?? null;
+}
+
 async function quarantineEntity(col: Collection, e: ServerEntity, reason: string): Promise<void> {
+  let data: unknown = e.deleted ? null : e.data;
+  if (data !== null) {
+    const bytes = JSON.stringify(data)?.length ?? 0;
+    if (bytes > QUARANTINE_PAYLOAD_MAX_BYTES) {
+      data = { truncated: true, bytes, note: 'Payload too large to keep whole; only its size is recorded.' };
+    }
+  }
   await setMeta(QUARANTINE_PREFIX + col + ':' + e.id, {
-    collection: col, id: e.id, rev: e.rev, data: e.deleted ? null : e.data, reason, at: Date.now(),
+    collection: col, id: e.id, rev: e.rev, data, reason, at: Date.now(),
   } satisfies QuarantinedEntity);
   // Bound the quarantine so a broken peer cannot grow storage without limit.
   const rows = await db.syncmeta.where('key').startsWith(QUARANTINE_PREFIX).toArray();
@@ -180,9 +208,19 @@ async function quarantineEntity(col: Collection, e: ServerEntity, reason: string
     const oldestFirst = rows
       .map((r) => ({ key: r.key as string, at: (r.value as QuarantinedEntity).at ?? 0 }))
       .sort((a, b) => a.at - b.at);
-    for (const row of oldestFirst.slice(0, rows.length - QUARANTINE_MAX)) {
+    const evicted = oldestFirst.slice(0, rows.length - QUARANTINE_MAX);
+    for (const row of evicted) {
       await db.syncmeta.delete(row.key);
     }
+    const prior = await loadSyncQuarantineOverflow();
+    const lastRow = evicted[evicted.length - 1];
+    await setMeta(QUARANTINE_OVERFLOW_KEY, {
+      count: (prior?.count ?? 0) + evicted.length,
+      lastCollection: col,
+      lastId: e.id,
+      lastReason: reason,
+      lastAt: lastRow ? (rows.find((r) => r.key === lastRow.key)?.value as QuarantinedEntity)?.at ?? Date.now() : Date.now(),
+    } satisfies QuarantineOverflow);
   }
 }
 

@@ -60,7 +60,7 @@ vi.mock('./db', () => ({
   },
 }));
 
-import { acknowledgeConflictNotice, attachmentUploadFailures, getConflictNotice, loadSyncQuarantine, loadSyncStatus, logout, retryAttachmentUpload, saveSyncSettings, syncNow, uploadAttachmentBlob } from './sync';
+import { acknowledgeConflictNotice, attachmentUploadFailures, getConflictNotice, loadSyncQuarantine, loadSyncQuarantineOverflow, loadSyncStatus, logout, retryAttachmentUpload, saveSyncSettings, syncNow, uploadAttachmentBlob } from './sync';
 
 const settings = { url: 'http://test', username: 'u', token: 'tok' };
 
@@ -828,5 +828,43 @@ describe('pull resilience against malformed entities', () => {
     expect(tables.get('tasks')!.get('after')).toMatchObject({ title: 'Later valid' });
     expect(meta.get('cursor')).toBe(2);
     expect(loadSyncStatus()?.ok).toBe(true);
+  });
+});
+
+describe('quarantine bounds', () => {
+  it('caps the quarantine at 20, evicts oldest first, and tallies overflow with the last reason', async () => {
+    const changes = [];
+    for (let i = 1; i <= 23; i++) {
+      changes.push({ collection: 'tasks', id: 'bad' + i, rev: i, deleted: false, data: { id: 'mismatch' + i, title: 'Bad ' + i } });
+    }
+    mockFetch({ changesResponses: [{ changes, rev: 23 }, { changes: [], rev: 23 }] });
+    const r = await syncNow(settings);
+    expect(r.skipped).toBe(23);
+    const q = await loadSyncQuarantine();
+    expect(q).toHaveLength(20);
+    // Oldest three (bad1..bad3) evicted; newest kept.
+    expect(q.some((e) => e.id === 'bad1')).toBe(false);
+    expect(q.some((e) => e.id === 'bad3')).toBe(false);
+    expect(q.some((e) => e.id === 'bad23')).toBe(true);
+    const ov = await loadSyncQuarantineOverflow();
+    expect(ov).not.toBeNull();
+    expect(ov!.count).toBe(3);
+    expect(ov!.lastReason).toContain('id mismatch');
+    expect(ov!.lastId).toBe('bad23');
+  });
+
+  it('stores oversized payloads truncated with their byte size, not the whole blob', async () => {
+    const big = 'x'.repeat(70 * 1024);
+    mockFetch({
+      changesResponses: [
+        { changes: [{ collection: 'tasks', id: 'big1', rev: 1, deleted: false, data: { id: 'other', title: big } }], rev: 1 },
+        { changes: [], rev: 1 },
+      ],
+    });
+    await syncNow(settings);
+    const q = await loadSyncQuarantine();
+    expect(q).toHaveLength(1);
+    expect(q[0].data).toMatchObject({ truncated: true });
+    expect((q[0].data as { bytes: number }).bytes).toBeGreaterThan(70 * 1024);
   });
 });
