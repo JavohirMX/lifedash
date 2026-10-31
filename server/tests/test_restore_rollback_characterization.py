@@ -34,8 +34,18 @@ def _isolated_db(tmp_path_factory):
     tmp = tmp_path_factory.mktemp("restore-char")
     dbmod.DB_PATH = str(tmp / "restore.db")
     BACKUP = dbmod.DB_PATH + ".characterization-backup"
+    # Endpoint code runs on anyio pool threads that persist ACROSS test
+    # modules and cache their connection in dbmod's thread-local. A thread
+    # that served an earlier module would otherwise keep writing to the
+    # shared default DB while this module snapshots and restores the tmp
+    # file. Swap the thread-local at module entry so every thread opens a
+    # fresh connection to the tmp file, create the schema deterministically
+    # from this thread, and swap again on exit for the modules that follow.
+    dbmod._local = threading.local()
+    dbmod.get_conn().execute("SELECT 1")
     yield
     dbmod.DB_PATH = orig_path
+    dbmod._local = threading.local()
 
 
 def _register(client):
