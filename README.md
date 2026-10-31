@@ -1,76 +1,85 @@
 # Lifedash
 
-**Your whole life in one dashboard.** Tasks, projects, habits, goals, notes,
-a journal and a day planner in one place. Local-first and installable as a
-PWA on desktop and mobile; an optional self-hosted sync server keeps your
-devices in step.
+**Your whole life in one calm, local-first dashboard.** Tasks, projects, habits, goals, notes, a daily reflection journal, and an hourly planner in one place. Local-first and installable as a PWA on desktop and mobile; an optional self-hosted sync server keeps your devices in step.
+
+<p align="center">
+  <img src="shots/home-desktop.png" alt="Lifedash Home - Daily briefing" width="100%">
+</p>
 
 <table>
   <tr>
-    <td><img src="shots/combined-home.png" alt="Home - day plan" width="100%"></td>
-    <td><img src="shots/week-nav-overdue.png" alt="Week view, dark" width="100%"></td>
-    <td><img src="shots/habits-past-toggle.png" alt="Habits with past days" width="100%"></td>
+    <td width="33.3%"><img src="shots/week-dark.png" alt="Week view in dark mode" width="100%"></td>
+    <td width="33.3%"><img src="shots/planner.png" alt="Hourly day planner" width="100%"></td>
+    <td width="33.3%"><img src="shots/habits.png" alt="Habits tracking with streak counts" width="100%"></td>
   </tr>
   <tr>
-    <td align="center"><sub>Home</sub></td>
-    <td align="center"><sub>Week, dark</sub></td>
-    <td align="center"><sub>Habits</sub></td>
+    <td align="center"><sub><strong>Week view</strong> (dark mode)</sub></td>
+    <td align="center"><sub><strong>Hourly planner</strong></sub></td>
+    <td align="center"><sub><strong>Habits tracking</strong></sub></td>
   </tr>
 </table>
 
 <details>
-<summary>Mobile preview</summary>
+<summary><strong>📱 Mobile preview</strong></summary>
 <br>
-<img src="shots/home-mobile.png" alt="Home on mobile" width="300">
+<p align="center">
+  <img src="shots/home-mobile.png" alt="Lifedash on mobile" width="340">
+</p>
 </details>
 
-More UI screenshots live in [`shots/`](shots/).
+More UI captures live in [`shots/`](shots/).
+
+---
 
 ## Why Lifedash
 
-- **Local-first.** Everything lives in your browser's IndexedDB and works
-  fully offline. No account is needed to use the app.
-- **Everything in one place.** Tasks, subtasks, projects, habits, goals,
-  rich-text notes, a daily journal and an hourly planner share one home.
-- **Yours to host.** The optional sync server is a small FastAPI + SQLite
-  service you run yourself - one Docker Compose file, no external services.
+- **Local-first & private.** Everything lives in your browser's IndexedDB and works fully offline. No account is needed to use the app, and no personal data ever leaves your device unless you choose to sync.
+- **Calm, intentional hierarchy.** "One thing at a time." The Home briefing surfaces your recommended next action and committed work without dumping an overwhelming wall of tasks in front of you.
+- **Everything in one place.** Tasks, subtasks, projects, recurring habits, long-horizon goals, rich-text notes, a daily reflection journal, and an hourly planner share one coherent design system.
+- **Yours to host.** The optional sync server is a lean FastAPI + SQLite service you run yourself — one Docker Compose command, no third-party cloud dependencies.
+- **16 crafted visual styles.** Built on a shared semantic token architecture. Features Paper (the default editorial aesthetic), Terminal, High Contrast, Modern Dark, Luxury, Retro, and more — each with first-class light and dark modes.
+
+---
 
 ## Features
 
-**Tasks**
-- Create, edit, complete, reorder (drag-and-drop on desktop, long-press on touch)
-- Subtasks, pinned tasks, priorities, tags, due dates and times
-- Rich-text task notes (TipTap: headings, lists, links, checklists) with media attachments
-- Recurring tasks (rrule: daily, weekly, monthly, every N days)
-- Dependencies: blocked-by relationships with warnings and cycle prevention
-- Natural-language quick add ("Call Sam tomorrow 9am #personal")
+### 🎯 Plan & Schedule
+- **Home:** Daily briefing with an unblocked next action hero, scheduled commitments, and today's open tasks.
+- **Planner:** Hourly day timeline with drag-and-drop time blocking or tap-to-schedule on touch devices.
+- **Week & Calendar:** Seven-day view with an overdue strip, alongside an interactive month calendar with day drill-down.
+- **Today & Upcoming:** Dedicated views for today's commitments and the next 14 days grouped by date.
+- **Backlog:** A safe parking lot for unscheduled ideas with quick review to pull tasks into Today.
 
-**Views**
-- Home: what matters now, with a suggested next action
-- Today: due today plus overdue; Upcoming: next 14 days grouped by day
-- Backlog: no-date parking lot, pull tasks into Today
-- Completed: grouped by completion day with counts
-- Week: seven columns with an overdue strip; Calendar: month grid with day drill-down
-- Planner: hourly timeline, drag tasks into time blocks or tap to schedule on touch
-- Projects with colors and per-project progress; Inbox for unsorted capture
+### ⚡ Capture & Tasks
+- **Natural-language quick add:** Instant entry with smart parsing (e.g., `"Review budget tomorrow 6pm #finance"`).
+- **Subtasks & dependencies:** Blocked-by relationships with visual alerts and cycle prevention.
+- **Recurring tasks:** Full RRULE support for daily, weekly, monthly, or custom interval cadences.
+- **Rich task notes:** TipTap-powered editor supporting headings, lists, links, checklists, and file attachments.
+- **Priorities & tags:** Filter, pin, and organize with custom project colors and tags.
 
-**Beyond tasks**
-- Goals: link tasks, track progress, set target dates
-- Habits: daily or chosen weekdays, streaks, completion rate, week grid with per-day toggles
-- Notes: rich text with pinning, filtering and one-click "checklist to tasks"
-- Journal: one entry per day with mood and jump-to-date
-- Global search across tasks, notes, journal and goals; command palette and keyboard shortcuts
+### 🌱 Habits & Goals
+- **Habits:** Daily or custom weekday tracking, streak counts, completion rates, and an interactive history matrix.
+- **Goals:** Set target dates, measure connected task completion, and track actionable next steps.
+- **Weekly Review:** Guided flow to review past-week progress and set goals for the coming week.
 
-**Data and appearance**
-- Import from Todoist CSV, generic CSV, Obsidian Markdown and Lifedash JSON;
-  export and restore a full JSON backup
-- Optional self-hosted sync (FastAPI + SQLite, see `server/`) with an offline queue
-- Automation rules: roll overdue tasks into Today; complete a parent when its subtasks finish
-- 16 selectable visual styles, each in light and dark; system theme respected
+### 📖 Notes & Journal
+- **Daily Journal:** Reflection workspace with mood tracking, daily highlights (synced to the TV dashboard), and rich notes.
+- **Notes:** Pinned notes, quick filtering, and one-click conversion from note checklists into active tasks.
+- **Command Palette (`Ctrl+K` / `/`):** Global fuzzy search and instant keyboard navigation across all tasks, notes, journal entries, and views.
 
-## Quick start
+### 🔒 Sync & Portability
+- **Self-hosted sync:** FastAPI + SQLite backend with incremental conflict-free sync and offline changes queue.
+- **Import & Export:** Direct import from Todoist CSV, generic CSV, Obsidian Markdown, and Lifedash JSON; complete one-click portable backup and restore.
+- **TV Dashboard:** Standalone full-screen kiosk dashboard for ambient displays.
+- **Optional Local AI & MCP:** Local AI task planner with privacy-preserving inspection, and a read-only Model Context Protocol (MCP) server for offline agents.
 
-The app (`app/`) needs Node 20+:
+---
+
+## Quick Start
+
+### Frontend App
+
+Requires Node 20+:
 
 ```bash
 cd app
@@ -78,10 +87,11 @@ npm install
 npm run dev        # http://localhost:5173
 ```
 
-Want a tour with fictional data? Open `http://localhost:5173/?sample` - a
-clearly marked sandbox that never touches your real database or sync account.
+> **Explore sample data:** Open `http://localhost:5173/?sample` to explore a fully populated, fictional sandbox that never touches your real database or sync settings.
 
-The sync server (`server/`, optional) needs Python 3.11+:
+### Optional Sync Server
+
+Requires Python 3.11+:
 
 ```bash
 cd server
@@ -89,7 +99,9 @@ pip install -r requirements-dev.txt
 SYNC_DB=./dev.db SYNC_OPEN_REGISTRATION=1 uvicorn app.main:app --port 8787 --no-proxy-headers
 ```
 
-## Self-host with Docker
+---
+
+## Self-Host with Docker
 
 From the repository root:
 
@@ -97,62 +109,57 @@ From the repository root:
 docker compose up --build
 ```
 
-App on http://localhost:8080, sync server on http://localhost:8787. Then open
-the bundled setup checklist at `http://localhost:8080/selfhost.html` - it walks
-through the first account, HTTPS and device URLs, sync limits and backups.
-Prefer a guided start? `make setup` runs the same checks interactively and asks
-before starting anything; `make setup-check` is the read-only preflight.
+- **App:** `http://localhost:8080`
+- **Sync Server:** `http://localhost:8787`
+- **Setup checklist:** Open `http://localhost:8080/selfhost.html` to run through first account registration, HTTPS configuration, sync limits, and backup guidelines.
 
-Put TLS in front before leaving localhost (the guide shows Caddy and Tailscale
-Funnel). Full deployment options: [server/SELFHOST.md](server/SELFHOST.md).
+Prefer a terminal walkthrough? `make setup` runs preflight checks interactively; `make setup-check` is the read-only inspection.
 
-> **Know before you restore:** restoring an *older* server backup can silently
-> corrupt multi-device sync (devices miss later changes). The cautious manual
-> path is documented in [server/SELFHOST.md](server/SELFHOST.md) - read it
-> before restoring anything. Day-to-day backups are unaffected.
+> [!WARNING]
+> **Know before you restore:** Restoring an older server database snapshot can cause devices to miss subsequent sync changes. Always review the cautious recovery guide in [server/SELFHOST.md](server/SELFHOST.md) before rolling back server state.
+
+---
 
 ## Documentation
 
-- [server/SELFHOST.md](server/SELFHOST.md) - full self-host guide: deploy, TLS, backups, recovery
-- [docs/self-host-hardening.md](docs/self-host-hardening.md) - limits, proxy/CORS settings, server environment variables
-- [docs/SPEC.md](docs/SPEC.md) - product spec · [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) - technical design · [docs/ROADMAP.md](docs/ROADMAP.md) - plans
+- [PRODUCT.md](PRODUCT.md) — Product truth, user principles, and design philosophy
+- [app/DESIGN.md](app/DESIGN.md) — Design system tokens, typography, layout rules, and accessibility standards
+- [server/SELFHOST.md](server/SELFHOST.md) — Production deployment, TLS termination (Caddy, Tailscale), and backup procedures
+- [docs/self-host-hardening.md](docs/self-host-hardening.md) — Security settings, proxy limits, CORS, and environment variables
+- [docs/SPEC.md](docs/SPEC.md) — Complete product specification
+- [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) — Technical architecture and sync protocol details
+- [docs/ROADMAP.md](docs/ROADMAP.md) — Development plans and milestones
+
+---
 
 ## Development
 
 ```bash
-make install   # one-time: npm deps + server venv with test deps
-make dev       # app (Vite) + sync server together; Ctrl-C stops both
-make test      # app unit tests + server tests
-make build     # production build of the app (app/dist)
-make help      # everything else (Docker, keyboard checks, self-host smoke)
+make install       # One-time install: npm dependencies + Python venv with test packages
+make dev           # Start frontend Vite server + Python sync server together
+make test          # Run frontend Vitest test suite + backend Pytest suite
+make test-keyboard # Run Playwright keyboard and accessibility regressions
+make build         # Compile production bundle (app/dist)
+make help          # View all automation targets (Docker, smoke tests, etc.)
 ```
 
-Requires Python 3 with venv, Node/npm and make; Docker targets additionally
-need Docker Engine with the Compose plugin. CI runs both test suites and the
-production build on every push to `main` and every PR.
+CI runs the unit test suites, keyboard checks, and production builds on every pull request and push to `main`.
 
-Server configuration lives in environment variables; the two you will meet
-first are `SYNC_DB` (SQLite path, default `/data/lifedash.db`) and
-`SYNC_OPEN_REGISTRATION` (`1` keeps registration open; otherwise it closes
-after the first account). The full table with limits and defaults is in
-[docs/self-host-hardening.md](docs/self-host-hardening.md).
+---
 
-## Project structure
+## Project Structure
 
 ```
-app/      React + TypeScript + Vite PWA (Dexie, TipTap, rrule)
-server/   FastAPI + SQLite sync server (Dockerfile, compose, self-host guide)
-docs/     spec, architecture, roadmap, hardening reference
-shots/    real-browser screenshots referenced by the README and PRs
+app/          React 18 + TypeScript + Vite PWA (Dexie, TipTap, Lucide, rrule)
+server/       FastAPI + SQLite sync server (Docker, migrations, self-host suite)
+mcp/          Optional read-only Model Context Protocol server for offline snapshot querying
+shots/        Curated high-resolution screenshots for desktop and mobile
+docs/         Specifications, architecture documentation, and hardening guides
+scripts/      Setup, backup verification, and deployment helpers
 ```
 
-## Status
-
-In active development. The app is offline-capable and covered by unit and
-real-browser checks; the sync server is aimed at self-hosters comfortable
-running a small service. Calendar exchange is manual ICS export/import; a
-provider integration is being explored but is not included.
+---
 
 ## License
 
-Not yet chosen.
+[MIT](LICENSE) © 2026 Lifedash contributors

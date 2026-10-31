@@ -1,6 +1,7 @@
 import { SAMPLE_MODE } from './dev/sampleMode';
 export const FONTS = [
   { id: 'style', name: 'Match style', family: '', description: 'Keep each style’s original typography.' },
+  { id: 'instrument', name: 'Instrument Sans', family: "'Instrument Sans Variable', 'Instrument Sans', ui-sans-serif, system-ui, sans-serif", description: 'Paper’s calm, slightly condensed everyday face.' },
   { id: 'inter', name: 'Inter', family: "'Inter Variable', ui-sans-serif, system-ui, sans-serif", description: 'Clean, open shapes. A focused everyday choice.' },
   { id: 'manrope', name: 'Manrope', family: "'Manrope Variable', ui-sans-serif, system-ui, sans-serif", description: 'Rounded, geometric and a little more expressive.' },
   { id: 'geist', name: 'Geist', family: "'Geist Variable', ui-sans-serif, system-ui, sans-serif", description: 'Compact, crisp interface lettering.' },
@@ -27,7 +28,7 @@ export const WALLPAPERS = [
 export type WallpaperId = typeof WALLPAPERS[number]['id'] | 'custom';
 export type WallpaperPrefs = { id: WallpaperId; intensity: number; image?: string };
 const DEFAULT_WALLPAPER: WallpaperPrefs = {id:'none',intensity:20};
-export function parseFont(value: string | null): FontId { return FONTS.some(f=>f.id===value) ? value as FontId : 'inter'; }
+export function parseFont(value: string | null): FontId { return FONTS.some(f=>f.id===value) ? value as FontId : 'style'; }
 export function parseWallpaper(value: string | null): WallpaperPrefs {
   try {
     const p = JSON.parse(value ?? 'null');
@@ -36,12 +37,13 @@ export function parseWallpaper(value: string | null): WallpaperPrefs {
     return {id:p.id, intensity:typeof p.intensity==='number' && Number.isFinite(p.intensity) ? Math.max(0,Math.min(35,Math.round(p.intensity))) :20, ...(p.id==='custom'?{image:p.image}:{})};
   } catch {return {...DEFAULT_WALLPAPER};}
 }
-// Product decision 2026-10-27: Inter is the default font; the style's own
-// typography renders only when the user explicitly picks "Match style".
-export function getFont(): FontId {try{return parseFont(localStorage.getItem(FONT_KEY));}catch{return 'inter';}}
+// Product decision 2026-10-31: "Match style" is the default, so Paper renders
+// Instrument Sans and every other style keeps its own typography. Explicit font
+// choices remain pinned across styles.
+export function getFont(): FontId {try{return parseFont(localStorage.getItem(FONT_KEY));}catch{return 'style';}}
 export function getWallpaper(): WallpaperPrefs {try{return parseWallpaper(localStorage.getItem(WALLPAPER_KEY));}catch{return {...DEFAULT_WALLPAPER};}}
 function renderFont(id:FontId) {
-  const font=FONTS.find(f=>f.id===id) ?? FONTS.find(f=>f.id==='inter')!;
+  const font=FONTS.find(f=>f.id===id) ?? FONTS.find(f=>f.id==='style')!;
   if(font.family) {document.documentElement.style.setProperty('--font',font.family);document.documentElement.style.setProperty('--font-display',font.family);}
   else {document.documentElement.style.removeProperty('--font');document.documentElement.style.removeProperty('--font-display');}
   document.documentElement.dataset.font=font.id;

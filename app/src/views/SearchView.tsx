@@ -5,6 +5,7 @@ import { db } from '../db';
 import { searchTasks, searchNotes, searchJournal, searchGoals, normalizeTag } from '../logic';
 import { renameTag } from '../repo';
 import TaskList from '../components/TaskList';
+import { PageHeader } from '../components/Page';
 import type { Task, Project } from '../types';
 import type { Selection } from '../components/Sidebar';
 
@@ -54,8 +55,12 @@ export default function SearchView(props: {
 
   return (
     <section>
-      <h1>Search <span className="date-sub">{total} result{total === 1 ? '' : 's'}</span></h1>
-      <p className="search-query">Results for <strong>{selection.query}</strong></p>
+      <PageHeader
+        eyebrow="Search · everything local"
+        title="Search"
+        meta={`${total} result${total === 1 ? '' : 's'}`}
+        description={<>Results for <strong>{selection.query}</strong></>}
+      />
       {renameStatus && <p className="date-sub" role="status">{renameStatus}</p>}
       {onlyTag && <TagRename key={onlyTag} tag={onlyTag} onRenamed={(to, status) => { setRenameStatus(status); props.onPatch({ query: `#${to}` }); }} />}
 

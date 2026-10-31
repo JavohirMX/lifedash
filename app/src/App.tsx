@@ -14,6 +14,7 @@ import QuickAdd from './components/QuickAdd';
 import CaptureDialog from './components/CaptureDialog';
 import BacklogSchedule from './components/BacklogSchedule';
 import TaskList, { TASK_DRAG_MIME } from './components/TaskList';
+import { EmptyState, PageHeader } from './components/Page';
 import HabitsView from './views/HabitsView';
 import PlannerView from './views/PlannerView';
 import WeekView from './views/WeekView';
@@ -283,15 +284,19 @@ export default function App() {
     const list = todayTasks(tasks, today);
     body = (
       <section>
-        <h1>Today <span className="date-sub">{weekdayLabel(today)}</span></h1>
-        <p className="workflow-hint">Due today and overdue</p>
+        <PageHeader
+          eyebrow="Tasks · due today and overdue"
+          title="Today"
+          meta={weekdayLabel(today)}
+          description={list.length === 0 ? 'A clear day. Pull something in from Backlog, or leave it open.' : `${list.length} task${list.length === 1 ? '' : 's'} need${list.length === 1 ? 's' : ''} a decision. Finish one before choosing the next.`}
+        />
         {counts.backlog > 0 && (
           <button className="nudge" onClick={() => setSelection({ kind: 'backlog' })}>
             {counts.backlog} task{counts.backlog === 1 ? '' : 's'} parked in Backlog
             <span className="nudge-cta">Review</span>
           </button>
         )}
-        {list.length === 0 && <p className="empty">Nothing due today. Enjoy, or pull something in from Backlog.</p>}
+        {list.length === 0 && <EmptyState>Nothing due today. Enjoy, or pull something in from Backlog.</EmptyState>}
         <TaskList tasks={list} allTasks={tasks} showDate onOpen={setOpenId} onTag={openTag}
           onReorder={(dragId, targetId, after) => moveTask(dragId, targetId, after, list)} />
       </section>
@@ -300,9 +305,12 @@ export default function App() {
     const groups = upcomingTasks(tasks, today);
     body = (
       <section>
-        <h1>Upcoming</h1>
-        <p className="workflow-hint">Next 14 days</p>
-        {groups.size === 0 && <p className="empty">Nothing scheduled in the next two weeks.</p>}
+        <PageHeader
+          eyebrow="Tasks · the next two weeks"
+          title="Upcoming"
+          description={groups.size === 0 ? 'Nothing scheduled in the next two weeks.' : 'Scheduled work, grouped by the day it is due. Drag to reorder within a day.'}
+        />
+        {groups.size === 0 && <EmptyState>Nothing scheduled in the next two weeks.</EmptyState>}
         {[...groups.entries()].map(([date, list]) => (
           <div key={date} className="day-group">
             <h2>{friendlyDate(date, today)} <span className="date-sub">{weekdayLabel(date)}</span></h2>
@@ -315,9 +323,12 @@ export default function App() {
     const list = backlogTasks(tasks);
     body = (
       <section>
-        <h1>Backlog</h1>
-        <p className="workflow-hint">No due date</p>
-        {list.length === 0 && <p className="empty">Backlog is empty. Quick-add below to park something here.</p>}
+        <PageHeader
+          eyebrow="Tasks · no due date"
+          title="Backlog"
+          description="A holding area, not a graveyard. Schedule what matters, archive what does not."
+        />
+        {list.length === 0 && <EmptyState>Backlog is empty. Quick-add below to park something here.</EmptyState>}
         {list.map((t) => (
           <div key={t.id} className="backlog-row">
             <div className="backlog-task"
@@ -338,8 +349,13 @@ export default function App() {
     const groups = groupCompletedByDay(list.slice(0, 200), today);
     body = (
       <section>
-        <h1>Completed {list.length > 0 && <span className="date-sub num">{list.length} task{list.length === 1 ? '' : 's'}</span>}</h1>
-        {list.length === 0 && <p className="empty">Nothing completed yet.</p>}
+        <PageHeader
+          eyebrow="History · most recent first"
+          title="Completed"
+          meta={list.length > 0 ? `${list.length} task${list.length === 1 ? '' : 's'}` : undefined}
+          description="A record of finished work. Reopen anything that needs another pass."
+        />
+        {list.length === 0 && <EmptyState>Nothing completed yet. Finished tasks will collect here.</EmptyState>}
         {groups.map((g) => (
           <div key={g.day || 'unknown'} className="day-group">
             <h2>{g.label} <span className="date-sub num">{g.tasks.length}</span></h2>
@@ -385,22 +401,23 @@ export default function App() {
     const projPct = projAll.length ? Math.round((projDone / projAll.length) * 100) : 0;
     body = (
       <section>
-        <h1>
-          <span className="dot" style={{ background: project?.color }} /> {project?.name ?? 'Project'}
-          {project && project.id !== INBOX_ID && (
-            <button className="icon-btn proj-edit-btn" aria-label="Project settings" title="Project settings" disabled={projSaving || projDeleteBusy}
+        <PageHeader
+          eyebrow="Project"
+          title={<><span className="dot" style={{ background: project?.color }} /> {project?.name ?? 'Project'}</>}
+          description="Includes subprojects · Top-level task progress"
+          actions={project && project.id !== INBOX_ID ? (
+            <button className="btn-secondary proj-edit-btn" aria-label="Project settings" title="Project settings" disabled={projSaving || projDeleteBusy}
               onClick={() => { setProjName(project.name); setProjColor(project.color); setProjEditing(!projEditing); setProjConfirmDelete(false); setProjSaveError(''); }}>
-              <Pencil size={15} strokeWidth={2} />
+              <Pencil size={15} strokeWidth={2} aria-hidden="true" /> Edit project
             </button>
-          )}
-          {projAll.length > 0 && (
-            <span className="proj-progress">
-              <span className="progress proj-bar"><span className="progress-fill" style={{ width: `${projPct}%` }} /></span>
-              <span className="date-sub num" title="Including subprojects">{projDone} of {projAll.length}</span>
-            </span>
-          )}
-        </h1>
-        <p className="workflow-hint">Includes subprojects · Top-level task progress</p>
+          ) : undefined}
+        />
+        {projAll.length > 0 && (
+          <div className="proj-progress page-progress">
+            <span className="progress proj-bar"><span className="progress-fill" style={{ width: `${projPct}%` }} /></span>
+            <span className="date-sub num" title="Including subprojects">{projDone} of {projAll.length} done</span>
+          </div>
+        )}
         {projEditing && project && (
           <fieldset className="goal-add proj-settings save-form" disabled={projSaving || projDeleteBusy} aria-busy={projSaving || projDeleteBusy}>
             <input

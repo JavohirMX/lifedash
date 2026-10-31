@@ -4,6 +4,7 @@ import { ArrowRight, ChevronLeft, ChevronRight } from 'lucide-react';
 import { updateTask } from '../repo';
 import TaskRow from '../components/TaskRow';
 import { TASK_DRAG_MIME } from '../components/TaskList';
+import { PageHeader } from '../components/Page';
 import { todayStr, addDays, parseLocalDate, friendlyDate } from '../dates';
 import type { Task } from '../types';
 
@@ -62,20 +63,25 @@ export default function WeekView(props: { tasks: Task[]; onOpen: (id: string) =>
 
   return (
     <section>
-      <h1>
-        Week <span className="date-sub">{rangeLabel}</span>
-        <span className="week-nav">
-          <button className="icon-btn" aria-label="Previous week" title="Previous week" onClick={() => setWeekOffset((w) => w - 1)}>
-            <ChevronLeft size={16} strokeWidth={2} aria-hidden="true" />
-          </button>
-          {weekOffset !== 0 && (
-            <button className="mini" onClick={() => setWeekOffset(0)}>Today</button>
-          )}
-          <button className="icon-btn" aria-label="Next week" title="Next week" onClick={() => setWeekOffset((w) => w + 1)}>
-            <ChevronRight size={16} strokeWidth={2} aria-hidden="true" />
-          </button>
-        </span>
-      </h1>
+      <PageHeader
+        eyebrow="Plan · Monday to Sunday"
+        title="Week"
+        meta={rangeLabel}
+        description="Open tasks by due date. Drag a task to another day to reschedule it."
+        actions={(
+          <span className="week-nav">
+            <button className="icon-btn" aria-label="Previous week" title="Previous week" onClick={() => setWeekOffset((w) => w - 1)}>
+              <ChevronLeft size={16} strokeWidth={2} aria-hidden="true" />
+            </button>
+            {weekOffset !== 0 && (
+              <button className="mini" onClick={() => setWeekOffset(0)}>Today</button>
+            )}
+            <button className="icon-btn" aria-label="Next week" title="Next week" onClick={() => setWeekOffset((w) => w + 1)}>
+              <ChevronRight size={16} strokeWidth={2} aria-hidden="true" />
+            </button>
+          </span>
+        )}
+      />
 
       {pending.size > 0 && <p className="workflow-hint" role="status">Scheduling…</p>}
       {Object.entries(errors).map(([id, error]) => <div key={id} className="sub-add-feedback">

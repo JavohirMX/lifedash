@@ -1,5 +1,6 @@
 import './workflow.css';
 import CompletionButton from '../components/CompletionButton';
+import { PageHeader } from '../components/Page';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Check, ChevronLeft, ChevronRight } from 'lucide-react';
 import { todayStr, addDays, friendlyDate, weekdayLabel } from '../dates';
@@ -66,22 +67,25 @@ export default function CalendarView(props: { tasks: Task[]; onOpen: (id: string
 
   return (
     <section>
-      <h1>
-        Calendar
-        <span className="date-sub">
-          <button className="icon-btn" aria-label="Previous month" onClick={() => navigateMonth(shiftMonth(month, -1))}>
-            <ChevronLeft size={15} strokeWidth={2} />
-          </button>
-          <strong className="cal-month">{monthLabel(month)}</strong>
-          <button className="icon-btn" aria-label="Next month" onClick={() => navigateMonth(shiftMonth(month, 1))}>
-            <ChevronRight size={15} strokeWidth={2} />
-          </button>
-          {month !== monthKey(today) && (
-            <button className="mini" onClick={() => navigateMonth(monthKey(today))}>Today</button>
-          )}
-        </span>
-      </h1>
-      <p className="workflow-hint">Top-level tasks, including completed</p>
+      <PageHeader
+        eyebrow="Plan · month overview"
+        title="Calendar"
+        description="Top-level tasks, including completed. Select a day to see everything due."
+        actions={(
+          <span className="cal-month-nav">
+            <button className="icon-btn" aria-label="Previous month" onClick={() => navigateMonth(shiftMonth(month, -1))}>
+              <ChevronLeft size={15} strokeWidth={2} />
+            </button>
+            <strong className="cal-month">{monthLabel(month)}</strong>
+            <button className="icon-btn" aria-label="Next month" onClick={() => navigateMonth(shiftMonth(month, 1))}>
+              <ChevronRight size={15} strokeWidth={2} />
+            </button>
+            {month !== monthKey(today) && (
+              <button className="mini" onClick={() => navigateMonth(monthKey(today))}>Today</button>
+            )}
+          </span>
+        )}
+      />
       <div className="cal-grid" role="grid" aria-label={monthLabel(month)}>
         {WEEKDAYS.map((d) => (
           <div key={d} className="cal-weekday">{d}</div>

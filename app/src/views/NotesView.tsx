@@ -9,6 +9,7 @@ import { extractChecklistItems, searchNotes } from '../logic';
 import { db } from '../db';
 import NoteEditor from '../components/NoteEditor';
 import NoteTitle, { discardDeletedNoteTitle } from '../components/NoteTitle';
+import { PageHeader } from '../components/Page';
 
 function excerpt(text: string, n = 90): string {
   const t = text.replace(/\s+/g, ' ').trim();
@@ -98,18 +99,17 @@ export default function NotesView(props: { initialOpenId?: string }) {
 
   return (
     <section>
-      <h1>
-        Notes <span className="date-sub">{filtering ? `${shown.length} of ${sorted.length}` : `${sorted.length} total`}</span>
-        <button
-          className="mini"
-          style={{ marginLeft: 'auto' }}
-          aria-label="New note"
-          disabled={isCreating}
-          onClick={() => void createNote()}
-        >
-          <Plus size={14} strokeWidth={2} aria-hidden="true" /> Note
-        </button>
-      </h1>
+      <PageHeader
+        eyebrow="Reference"
+        title="Notes"
+        meta={filtering ? `${shown.length} of ${sorted.length}` : `${sorted.length} total`}
+        description="Long-form thinking, checklists, and reference material. Link a note to a task when it belongs to one."
+        actions={(
+          <button className="btn-primary" aria-label="New note" disabled={isCreating} onClick={() => void createNote()}>
+            <Plus size={14} strokeWidth={2} aria-hidden="true" /> New note
+          </button>
+        )}
+      />
       {isCreating && <p className="workflow-hint" role="status">Creating note…</p>}
       {createError && <p className="workflow-hint" role="alert">{createError}</p>}
       {sorted.length > 4 && (

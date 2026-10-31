@@ -9,6 +9,7 @@ import { Check, ChevronDown, ChevronRight, Pencil, Plus, Target, X } from 'lucid
 import { db } from '../db';
 import { addGoal, updateGoal } from '../repo';
 import TaskList from '../components/TaskList';
+import { EmptyState, PageHeader } from '../components/Page';
 import { todayStr, friendlyDate } from '../dates';
 import type { Goal, Task } from '../types';
 
@@ -79,15 +80,21 @@ export default function GoalsView(props: { tasks: Task[]; onOpen: (id: string) =
 
   return (
     <section>
-      <h1>
-        Goals <span className="date-sub">{active.length} active</span>
-        <button className="mini" style={{ marginLeft: 'auto' }} disabled={saving !== null} onClick={() => { setAdding(!adding); setCreateError(''); setSaveStatus(''); }} aria-label="New goal">
-          <Plus size={14} strokeWidth={2} aria-hidden="true" /> Goal
-        </button>
-      </h1>
-      {!reviewOpen && <button className="mini" onClick={() => setReviewOpen(true)}>Weekly review</button>}
+      <PageHeader
+        eyebrow="Track · longer horizons"
+        title="Goals"
+        meta={active.length > 0 ? `${active.length} active` : undefined}
+        description="Progress tracks linked tasks. Marking a goal done is separate."
+        actions={(
+          <>
+            {!reviewOpen && <button className="btn-secondary" onClick={() => setReviewOpen(true)}>Weekly review</button>}
+            <button className="btn-primary" disabled={saving !== null} onClick={() => { setAdding(!adding); setCreateError(''); setSaveStatus(''); }} aria-label="New goal">
+              <Plus size={14} strokeWidth={2} aria-hidden="true" /> New goal
+            </button>
+          </>
+        )}
+      />
       {reviewOpen && <WeeklyReview tasks={props.tasks} onOpen={props.onOpen} onNavigate={props.onNavigate} onClose={() => setReviewOpen(false)} />}
-      <p className="workflow-hint">Progress tracks linked tasks. Marking a goal done is separate.</p>
       <p className="form-save-status" role="status">{saving ? 'Saving…' : saveStatus}</p>
       {statusError && <p className="form-save-error" role="alert">{statusError}</p>}
       {adding && (

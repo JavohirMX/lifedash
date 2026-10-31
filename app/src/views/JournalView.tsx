@@ -8,6 +8,7 @@ import { getOrCreateJournalEntry, updateJournalEntry } from '../repo';
 import { todayStr, addDays, friendlyDate } from '../dates';
 import NoteEditor from '../components/NoteEditor';
 import JournalHighlight from '../components/JournalHighlight';
+import { PageHeader } from '../components/Page';
 
 const MOODS = [
   { v: 1, Icon: CloudRain, label: 'Rough' },
@@ -51,9 +52,12 @@ export default function JournalView(props: { initialDate?: string }) {
 
   return (
     <section>
-      <h1>
-        Journal {streak > 0 && <span className="date-sub num">{streak}-day streak</span>}
-      </h1>
+      <PageHeader
+        eyebrow={date === today ? 'Today · reflection' : `${friendlyDate(date, today)} · reflection`}
+        title="Journal"
+        meta={streak > 0 ? `${streak}-day streak` : undefined}
+        description="A short daily record: how the day felt, one highlight, and anything worth keeping."
+      />
       {entry?.weeklyReview && <details className="journal-weekly-review"><summary>Weekly review</summary><h3>Reflection</h3><p style={{ whiteSpace: 'pre-wrap' }}>{entry.weeklyReview.reflection || 'No reflection'}</p><h3>Next week's focus</h3><p style={{ whiteSpace: 'pre-wrap' }}>{entry.weeklyReview.focus || 'No focus chosen'}</p></details>}
       <div className="journal-nav">
         <button className="icon-btn" aria-label="Previous day" onClick={() => setDate(addDays(date, -1))}>

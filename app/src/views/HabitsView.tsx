@@ -6,6 +6,7 @@ import { db } from '../db';
 import { addHabit, archiveHabit, restoreHabit, toggleHabitForDate, updateHabit } from '../repo';
 import { currentStreak, bestStreak, completionRate, weekGrid, logsByDate, isScheduledOn } from '../habits';
 import { todayStr, parseLocalDate } from '../dates';
+import { EmptyState, PageHeader } from '../components/Page';
 
 const COLORS = ['#6366f1', '#8b5cf6', '#22c55e', '#f59e0b', '#ef4444', '#38bdf8'];
 const DAY_LETTERS = ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'];
@@ -99,12 +100,17 @@ export default function HabitsView() {
 
   return (
     <section>
-      <h1>
-        Habits
-        <button className="mini" style={{ marginLeft: 'auto' }} disabled={saving !== null} onClick={() => { setAdding(!adding); setCreateError(''); setSaveStatus(''); }}>
-          {adding ? 'Cancel' : <><Plus size={14} strokeWidth={2} aria-hidden="true" /> New habit</>}
-        </button>
-      </h1>
+      <PageHeader
+        eyebrow="Track · daily practice"
+        title="Habits"
+        meta={active.length > 0 ? `${active.length} active` : undefined}
+        description="Small recurring actions, tracked one day at a time. Streaks follow the schedule you set."
+        actions={(
+          <button className="btn-secondary" disabled={saving !== null} onClick={() => { setAdding(!adding); setCreateError(''); setSaveStatus(''); }}>
+            {adding ? 'Cancel' : <><Plus size={14} strokeWidth={2} aria-hidden="true" /> New habit</>}
+          </button>
+        )}
+      />
 
       <p className="form-save-status" role="status">{saving ? 'Saving…' : saveStatus}</p>
       {archiveError && <p className="form-save-error" role="alert">{archiveError}</p>}
@@ -141,11 +147,11 @@ export default function HabitsView() {
       )}
 
       {active.length === 0 && !adding && (
-        <p className="empty">
+        <EmptyState>
           {archived.length > 0
             ? 'No active habits. Add one or restore an archived habit below.'
-            : 'No habits yet.'}
-        </p>
+            : 'No habits yet. Add one small practice to begin.'}
+        </EmptyState>
       )}
 
       {(logs !== undefined) &&

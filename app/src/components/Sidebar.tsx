@@ -105,6 +105,12 @@ export default function Sidebar(props: {
   const [sheet, setSheet] = useState(false);
   const moreButton = useRef<HTMLButtonElement>(null);
   const sheetPanel = useDialogFocus<HTMLDivElement>(() => setSheet(false), '[aria-label="Close menu"]', sheet);
+  useEffect(() => {
+    if (!sheet) return;
+    const previous = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => { document.body.style.overflow = previous; };
+  }, [sheet]);
   const openTool = (open: () => void) => {
     // A sheet action disappears when the dialog opens. Keep its persistent
     // opener focused so the dialog can return keyboard focus on close.
@@ -353,11 +359,15 @@ export default function Sidebar(props: {
   return (
     <>
       <nav className="sidebar">
-        <div className="brand"><Mark /><span>Lifedash</span></div>
-        {props.onCapture && <button className="sidebar-capture btn-secondary" aria-label="Capture task" onClick={props.onCapture}><Plus size={16} aria-hidden="true" />Capture task <kbd>n</kbd></button>}
-        {searchBox}
-        {navigation()}
-        {projectsBlock}
+        <div className="sidebar-top">
+          <div className="brand"><Mark /><span>Lifedash</span></div>
+          {props.onCapture && <button className="sidebar-capture btn-secondary" aria-label="Capture task" onClick={props.onCapture}><Plus size={16} aria-hidden="true" />Capture task <kbd>n</kbd></button>}
+          {searchBox}
+        </div>
+        <div className="sidebar-scroll">
+          {navigation()}
+          {projectsBlock}
+        </div>
         {footer}
       </nav>
 
@@ -395,6 +405,8 @@ export default function Sidebar(props: {
       </div>
 
       {sheet && (
+        <>
+        <div className="sheet-backdrop" aria-hidden="true" onClick={() => setSheet(false)} />
         <div ref={sheetPanel} className="mobile-sheet" role="dialog" aria-modal="true" aria-label="More navigation">
           <div className="sheet-head">
             <div className="brand"><Mark /><span>Lifedash</span></div>
@@ -408,6 +420,7 @@ export default function Sidebar(props: {
           {projectsBlock}
           {footer}
         </div>
+        </>
       )}
     </>
   );

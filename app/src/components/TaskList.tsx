@@ -100,7 +100,7 @@ export default function TaskList(props: {
       };
 
   return (
-    <div aria-busy={busy} ref={listRef} onDragEnd={() => setOver(null)} style={touchDrag ? { touchAction: 'none' } : undefined} {...listTouchProps}>
+    <div className="task-list" aria-busy={busy} ref={listRef} onDragEnd={() => setOver(null)} style={touchDrag ? { touchAction: 'none' } : undefined} {...listTouchProps}>
       {error && <p role="alert" className="task-feedback">{error}</p>}
       {props.tasks.map((t) => (
         <div

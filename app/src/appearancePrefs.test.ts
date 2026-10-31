@@ -1,7 +1,7 @@
 import { describe,it,expect,beforeEach } from 'vitest';
 import {parseFont,parseWallpaper} from './appearancePrefs';
 describe('appearance preference validation',()=>{
- it('accepts known fonts and uses Inter for missing or invalid preferences and preserves saved choices',()=>{expect(parseFont('inter')).toBe('inter');expect(parseFont('unknown')).toBe('inter');expect(parseFont(null)).toBe('inter');expect(parseFont('style')).toBe('style');expect(parseFont('geist')).toBe('geist');});
+ it('accepts known fonts and uses Match style for missing or invalid preferences and preserves saved choices',()=>{expect(parseFont('inter')).toBe('inter');expect(parseFont('unknown')).toBe('style');expect(parseFont(null)).toBe('style');expect(parseFont('style')).toBe('style');expect(parseFont('instrument')).toBe('instrument');expect(parseFont('geist')).toBe('geist');});
  it('clamps wallpaper intensity',()=>{expect(parseWallpaper('{"id":"blue","intensity":999}')).toEqual({id:'blue',intensity:35});expect(parseWallpaper('{"id":"blue","intensity":-1}').intensity).toBe(0);});
  it('rejects malformed and remote images',()=>{for(const value of ['bad','null','{"id":"unknown"}','{"id":"custom","image":"https://tracker.invalid/a.jpg"}','{"id":"custom","image":"data:image/svg+xml;base64,AAA"}'])expect(parseWallpaper(value).id).toBe('none');});
  it('accepts only bounded JPEG data for a custom wallpaper',()=>{expect(parseWallpaper('{"id":"custom","image":"data:image/jpeg;base64,AAAA","intensity":20}').id).toBe('custom');expect(parseWallpaper(JSON.stringify({id:'custom',image:'data:image/jpeg;base64,'+'A'.repeat(900000)})).id).toBe('none');});
@@ -32,22 +32,22 @@ describe('font rendering defaults', () => {
     } as unknown as Document;
   });
 
-  it('renders Inter when no font was ever chosen (product default, 2026-10-27)', async () => {
+  it('renders the style typography when no font was ever chosen (product default, 2026-10-31)', async () => {
     const { getFont, initAppearancePrefs } = await import('./appearancePrefs');
-    expect(getFont()).toBe('inter');
-    initAppearancePrefs();
-    expect(styleProps.get('--font')).toContain('Inter Variable');
-    expect(styleProps.get('--font-display')).toContain('Inter Variable');
-    expect(document.documentElement.dataset.font).toBe('inter');
-  });
-
-  it('renders the style typography only for an explicit Match style choice', async () => {
-    const { applyFont, initAppearancePrefs } = await import('./appearancePrefs');
-    applyFont('style');
+    expect(getFont()).toBe('style');
     initAppearancePrefs();
     expect(styleProps.has('--font')).toBe(false);
     expect(styleProps.has('--font-display')).toBe(false);
     expect(document.documentElement.dataset.font).toBe('style');
+  });
+
+  it('renders Instrument Sans when it is chosen explicitly', async () => {
+    const { applyFont, initAppearancePrefs } = await import('./appearancePrefs');
+    applyFont('instrument');
+    initAppearancePrefs();
+    expect(styleProps.get('--font')).toContain('Instrument Sans Variable');
+    expect(styleProps.get('--font-display')).toContain('Instrument Sans Variable');
+    expect(document.documentElement.dataset.font).toBe('instrument');
   });
 
   it('keeps an explicit saved font pinned across styles', async () => {
