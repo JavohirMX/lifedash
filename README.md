@@ -124,9 +124,9 @@ Or with Docker: `cd server && docker compose up -d --build`.
 ## Tests
 
 ```bash
-cd app && npm test          # 86 unit tests (Vitest)
+cd app && npm test          # unit tests (Vitest)
 cd app && npm run build     # type-check (tsc) + production build
-cd server && pytest         # 15 tests
+cd server && pytest         # sync server tests
 ```
 
 CI runs both suites on every push to `main` and every PR
