@@ -172,14 +172,18 @@ it if you need multiple versions.
 
 ## Test a backup before recovery
 
-A server backup contains account credentials/tokens and synced records. Treat it
-as private. It does not include device-only attachment files or focus history.
+A server backup contains account credentials/tokens and synced records, including
+attachment metadata and focus history, which both sync. Treat it as private.
+Attachment files are not inside the SQLite file: they live in the blob directory
+alongside it (`SYNC_BLOB_DIR`; inside `/data` in the shipped Compose files), so
+include that directory - or copy the whole data volume - in a server backup.
 Settings > Data & backups creates portable v3 JSON with attachment files, focus
 history and automation. Its generated contents are checked in a temporary database
 before download; confirm the file was saved and check that saved file too.
 Legacy Export JSON remains v2: focus history and attachment metadata, no file
-contents. Neither attachment metadata nor files are transported by server sync.
-Keep portable backups outside the browser and server. Never copy just the live SQLite file while writes
+contents. Attachment metadata and focus history sync; attachment files upload to the sync
+server and other devices fetch them from there. Keep portable backups outside
+the browser and server. Never copy just the live SQLite file while writes
 are active: use the online backup command above.
 
 To check the copied snapshot without modifying it, run on a host with Python:
@@ -228,9 +232,11 @@ first, as with anything that holds your data.
 - **Nothing syncs** - check `/api/health` from the device's network,
   then the browser console (auto-sync failures log there). The app
   needs to reach the server URL exactly as entered, including scheme.
-- **Attachments missing on the second device** - attachment blobs stay
-  local to each device in v1; attachment metadata does not sync either.
-  Portable backups from Settings > Data & backups include files. Legacy Export
-  JSON includes attachment metadata only. Tasks, projects, habits
-  habit logs, goals, notes and journal all sync. Focus-session history is local
-  only and included in JSON backups, not server sync.
+- **Attachments missing on the second device** - attachment metadata syncs
+  and the file uploads to the server; the second device fetches it from the
+  server when you choose Download on the attachment. Until the upload
+  completes, or if the server refused it, the source device marks the file as
+  on this device only, and refused uploads show a Retry. Portable backups from
+  Settings > Data & backups include files. Legacy Export JSON includes
+  attachment metadata only. Tasks, projects, habits, habit logs, goals, notes,
+  journal and focus-session history all sync.
