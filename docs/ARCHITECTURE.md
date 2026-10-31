@@ -17,8 +17,10 @@ target's webview (browser, Tauri, Capacitor), so one data layer covers all six
 platforms with zero native code. Swap-in SQLite later only if profiling demands.
 
 **Sync (Phase 4, shipped):** small self-hosted server (FastAPI + SQLite, in
-`server/`), single user, conflict strategy: last-writer-wins per field with
-tombstones. The web client queues changes offline and syncs when configured;
+`server/`), single user, conflict strategy: per-entity optimistic concurrency - a push must name
+the entity's current server revision (base_rev); a stale base_rev is
+rejected with a conflict and the client adopts the server's version
+wholesale. Deletes are retained as tombstones. The web client queues changes offline and syncs when configured;
 the app never requires it.
 
 **Rich text (shipped):** TipTap (ProseMirror). **Recurrence:** rrule.

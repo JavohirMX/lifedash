@@ -5,6 +5,10 @@ server with synthetic data. They are development tools: not shipped, not run
 by CI, never started by `npm test`. Each driver manages the sync server
 process itself and must be run on a machine with Chrome/Chromium and Python
 (the server's `requirements-dev.txt` installed for the user).
+Drivers reuse fixed database paths under /tmp (shown in each Run section and
+overridable via environment variables); a rerun after an interrupted run
+can hit stale state - delete the files or point the variables at fresh
+paths.
 
 ## attach-retry-drv.cjs
 
