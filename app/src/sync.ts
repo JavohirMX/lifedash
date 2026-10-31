@@ -191,6 +191,7 @@ async function runAutoSync(): Promise<void> {
 function summaryOf(r: SyncResult): string {
   const parts = [`pushed ${r.pushed}`, `pulled ${r.pulled}`];
   if (r.conflicts) parts.push(`${r.conflicts} conflict${r.conflicts === 1 ? '' : 's'} (server won)`);
+  if (r.skipped) parts.push(`${r.skipped} skipped (unreadable)`);
   return parts.join(', ');
 }
 
@@ -389,6 +390,8 @@ export interface SyncResult {
   pushed: number;
   conflicts: number;
   pulled: number;
+  /** Pulled entities that could not be applied and were skipped. */
+  skipped?: number;
   cursor: number;
 }
 
@@ -416,7 +419,7 @@ async function syncNowInner(settings: SyncSettings): Promise<SyncResult> {
   const headers = { 'Content-Type': 'application/json', Authorization: `Bearer ${settings.token}` };
 
   // Pull first so base_revs are fresh.
-  const pulled1 = await pull(base, headers);
+  const pull1 = await pull(base, headers);
   // Push all dirty entities.
   const dirtyRows = await db.syncmeta.where('key').startsWith('dirty:').toArray();
   const changes = [];
@@ -476,7 +479,7 @@ async function syncNowInner(settings: SyncSettings): Promise<SyncResult> {
     }
   }
   // Final pull to settle on anything the server applied.
-  const pulled2 = await pull(base, headers);
+  const pull2 = await pull(base, headers);
   // Blob backfill: locally created attachments carry bytes only in Dexie.
   // Upload a few per sync so agents and other devices can download them.
   // Failure handling: permanent refusals stop retrying (until the row is
@@ -509,15 +512,16 @@ async function syncNowInner(settings: SyncSettings): Promise<SyncResult> {
   // Server-wins drops the conflicting local edits: keep a persistent notice
   // so an auto-sync cannot erase awareness before the user sees it.
   await recordConflicts(replaced);
-  return { pushed, conflicts, pulled: pulled1 + pulled2, cursor: await getCursor() };
+  return { pushed, conflicts, pulled: pull1.applied + pull2.applied, skipped: pull1.skipped + pull2.skipped, cursor: await getCursor() };
 }
 
-async function pull(base: string, headers: Record<string, string>): Promise<number> {
+async function pull(base: string, headers: Record<string, string>): Promise<{ applied: number; skipped: number }> {
   const since = await getCursor();
   const res = await fetch(`${base}/api/changes?since=${since}`, { headers });
   if (!res.ok) throw new Error(`pull failed: ${res.status} ${await res.text()}`);
   const body = (await res.json()) as { changes: ServerEntity[]; rev: number };
   let applied = 0;
+  let skipped = 0;
   for (const e of body.changes) {
     const col = e.collection as Collection;
     if (!COLLECTIONS.includes(col)) continue;
@@ -530,11 +534,19 @@ async function pull(base: string, headers: Record<string, string>): Promise<numb
       // server's newer version - the bug this comment replaces.
       continue;
     }
-    await applyRemote(col, e);
-    applied += 1;
+    try {
+      await applyRemote(col, e);
+      applied += 1;
+    } catch (err) {
+      // One malformed entity must not abort the batch or wedge sync: skip
+      // it, keep applying the rest, and still advance the cursor below.
+      // Mirrors the server applying a batch per-entity.
+      skipped += 1;
+      console.warn('sync: skipped an entity that could not be applied', col, e.id, err);
+    }
   }
   await setMeta('cursor', body.rev);
-  return applied;
+  return { applied, skipped };
 }
 
 async function applyRemote(col: Collection, e: ServerEntity): Promise<void> {
@@ -546,6 +558,13 @@ async function applyRemote(col: Collection, e: ServerEntity): Promise<void> {
       // Attachment metadata syncs without its blob; never let a pulled row
       // wipe the blob this device already holds.
       let data = e.data as Record<string, unknown>;
+      // The server keys the blob externally; the local table keys rows by
+      // their inline id. Realign a blob that lost its id, and refuse one
+      // that contradicts its key (the pull loop skips it and moves on).
+      if (data && typeof data === 'object') {
+        if (data.id === undefined) data = { ...data, id: e.id };
+        else if (data.id !== e.id) throw new Error(`sync: entity id mismatch (key ${e.id}, data id ${String(data.id)})`);
+      }
       if (col === 'attachments' && data.blob === undefined) {
         const existing = (await table.get(e.id)) as { blob?: unknown } | undefined;
         if (existing?.blob !== undefined) data = { ...data, blob: existing.blob };

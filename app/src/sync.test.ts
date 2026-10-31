@@ -41,7 +41,7 @@ vi.mock('./db', () => ({
       const t = tables.get(col)!;
       return {
         get: async (id: string) => t.get(id),
-        put: async (obj: { id: string }) => { t.set(obj.id, obj); return obj.id; },
+        put: async (obj: { id: string }) => { if (obj.id === 'simulated-dexie-error') { const e = new Error('simulated DataError'); e.name = 'DataError'; throw e; } t.set(obj.id, obj); return obj.id; },
         delete: async (id: string) => { t.delete(id); },
         hook: (name: string, cb: (...args: unknown[]) => void) => { hooks[`${col}:${name}`] = cb; },
       };
@@ -749,5 +749,61 @@ describe('sync status persistence', () => {
     await syncNow(settings);
     expect(loadSyncStatus()).toMatchObject({ ok: true });
     expect(loadSyncStatus()?.persistenceFailed).toBeUndefined();
+  });
+});
+
+describe('pull resilience against malformed entities', () => {
+  it('realigns a blob that lost its inline id instead of wedging sync', async () => {
+    mockFetch({
+      changesResponses: [
+        { changes: [{ collection: 'tasks', id: 'noid', rev: 1, deleted: false, data: { title: 'Pulled task', projectId: 'inbox' } }], rev: 1 },
+        { changes: [], rev: 1 },
+      ],
+    });
+    const r = await syncNow(settings);
+    expect(r.pulled).toBe(1);
+    expect(r.skipped ?? 0).toBe(0);
+    expect(tables.get('tasks')!.get('noid')).toMatchObject({ id: 'noid', title: 'Pulled task' });
+    expect(meta.get('cursor')).toBe(1);
+    expect(loadSyncStatus()?.ok).toBe(true);
+  });
+
+  it('skips an entity whose data id contradicts its key, applies the rest, and advances the cursor', async () => {
+    mockFetch({
+      changesResponses: [
+        { changes: [
+          { collection: 'tasks', id: 'keyed', rev: 1, deleted: false, data: { id: 'different-id', title: 'Mismatched' } },
+          { collection: 'tasks', id: 'good', rev: 2, deleted: false, data: { id: 'good', title: 'Good task' } },
+        ], rev: 2 },
+        { changes: [], rev: 2 },
+      ],
+    });
+    const r = await syncNow(settings);
+    expect(r.pulled).toBe(1);
+    expect(r.skipped).toBe(1);
+    expect(tables.get('tasks')!.get('good')).toMatchObject({ title: 'Good task' });
+    expect(tables.get('tasks')!.has('keyed')).toBe(false);
+    expect(tables.get('tasks')!.has('different-id')).toBe(false);
+    expect(meta.get('cursor')).toBe(2);
+    expect(loadSyncStatus()?.ok).toBe(true);
+    expect(loadSyncStatus()?.summary).toContain('1 skipped (unreadable)');
+  });
+
+  it('survives a store-level put failure without aborting the batch (the live DataError wedge)', async () => {
+    mockFetch({
+      changesResponses: [
+        { changes: [
+          { collection: 'tasks', id: 'simulated-dexie-error', rev: 1, deleted: false, data: { id: 'simulated-dexie-error', title: 'Broken row' } },
+          { collection: 'tasks', id: 'after', rev: 2, deleted: false, data: { id: 'after', title: 'Later valid' } },
+        ], rev: 2 },
+        { changes: [], rev: 2 },
+      ],
+    });
+    const r = await syncNow(settings);
+    expect(r.pulled).toBe(1);
+    expect(r.skipped).toBe(1);
+    expect(tables.get('tasks')!.get('after')).toMatchObject({ title: 'Later valid' });
+    expect(meta.get('cursor')).toBe(2);
+    expect(loadSyncStatus()?.ok).toBe(true);
   });
 });
