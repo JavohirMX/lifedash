@@ -152,7 +152,7 @@ export function useGlobalKeys(handlers: {
 }) {
   useEffect(() => {
     const views: Record<string, Selection['kind']> = {
-      t: 'today', u: 'upcoming', b: 'backlog', p: 'planner', w: 'week', h: 'habits', c: 'completed',
+      m: 'home', t: 'today', u: 'upcoming', b: 'backlog', p: 'planner', w: 'week', l: 'calendar', h: 'habits', g: 'goals', o: 'notes', j: 'journal', c: 'completed',
     };
     function onKey(e: KeyboardEvent) {
       const target = e.target as HTMLElement;

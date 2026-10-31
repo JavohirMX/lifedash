@@ -116,8 +116,8 @@ describe('saveRules mirror', () => {
   });
 
   it('saveUserRules deletes removed rules individually to trigger delete hooks for sync', async () => {
-    tables.userRules.set('r1', rule({ id: 'r1' }) as Record<string, unknown>);
-    tables.userRules.set('r2', rule({ id: 'r2' }) as Record<string, unknown>);
+    tables.userRules.set('r1', rule({ id: 'r1' }) as unknown as Record<string, unknown>);
+    tables.userRules.set('r2', rule({ id: 'r2' }) as unknown as Record<string, unknown>);
     saveUserRules([rule({ id: 'r2' })]);
     await new Promise((r) => setTimeout(r, 0));
     expect(tables.userRules.get('r1')).toBeUndefined();

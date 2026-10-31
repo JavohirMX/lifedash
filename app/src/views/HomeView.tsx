@@ -15,7 +15,7 @@ import { saveWidgetVisibility } from '../widgetPreferences';
 import HomeHabitCheck from '../components/HomeHabitCheck';
 import HomeFocusStop from '../components/HomeFocusStop';
 import { runningSession, sessionSeconds, focusTotals, formatClock, formatDuration } from '../focus';
-import { todayTasks, upcomingTasks, suggestedTask, upNextGroups } from '../logic';
+import { todayTasks, upcomingTasks, suggestedTask, upNextGroups, sortTasks } from '../logic';
 import { currentStreak, isScheduledOn, logsByDate } from '../habits';
 import { todayStr, addDays, friendlyDate, weekdayLabel } from '../dates';
 import type { Task } from '../types';
@@ -69,12 +69,18 @@ export default function HomeView(props: { tasks: Task[]; onSelect: (kind: string
   const dueTodayAll = props.tasks.filter((t) => t.parentId === null && t.dueDate !== null && t.dueDate <= today && t.status !== 'archived');
   const openToday = todayTasks(props.tasks, today);
   const doneToday = dueTodayAll.filter((t) => t.status === 'done').length;
+  const currentMinutes = now.getHours() * 60 + now.getMinutes();
   const commitments = props.tasks.filter(t => t.status === 'active' && t.parentId === null).flatMap(t => {
-    const rows: { task: Task; date: string; time: string; kind: string }[] = [];
-    if (validDate(t.plannedDate) && minutes(t.plannedTime) !== null) rows.push({ task: t, date: t.plannedDate!, time: t.plannedTime!, kind: 'Planned work' });
-    if (validDate(t.dueDate) && minutes(t.dueTime) !== null) rows.push({ task: t, date: t.dueDate!, time: t.dueTime!, kind: 'Deadline' });
+    const rows: { task: Task; date: string; time: string; kind: string; overdue: boolean }[] = [];
+    const checkOverdue = (date: string, time: string) => date < today || (date === today && minutes(time)! < currentMinutes);
+    if (validDate(t.plannedDate) && minutes(t.plannedTime) !== null) {
+      rows.push({ task: t, date: t.plannedDate!, time: t.plannedTime!, kind: 'Planned work', overdue: checkOverdue(t.plannedDate!, t.plannedTime!) });
+    }
+    if (validDate(t.dueDate) && minutes(t.dueTime) !== null) {
+      rows.push({ task: t, date: t.dueDate!, time: t.dueTime!, kind: 'Deadline', overdue: checkOverdue(t.dueDate!, t.dueTime!) });
+    }
     return rows;
-  }).filter(item => item.date > today || (item.date === today && minutes(item.time)! >= now.getHours() * 60 + now.getMinutes()))
+  }).filter(item => item.date >= today)
     .sort((a, b) => `${a.date} ${a.time}`.localeCompare(`${b.date} ${b.time}`));
   const commitment = commitments[0];
   const noNextAction = goalsWithoutNextAction(goals ?? [], props.tasks).length;
@@ -91,7 +97,7 @@ export default function HomeView(props: { tasks: Task[]; onSelect: (kind: string
   const maxLoad = Math.max(1, ...weekLoad.map((d) => d.count));
   const dayTasks = (d: string): Task[] =>
     d === today
-      ? [...dueTodayAll].sort((a, b) => (a.status === 'done' ? 1 : 0) - (b.status === 'done' ? 1 : 0))
+      ? sortTasks(dueTodayAll).sort((a, b) => (a.status === 'done' ? 1 : 0) - (b.status === 'done' ? 1 : 0))
       : (upcoming.get(d) ?? []);
 
   const sug = upNextGroups(props.tasks, today, now.getTime());
@@ -216,7 +222,7 @@ export default function HomeView(props: { tasks: Task[]; onSelect: (kind: string
                 <div className="home-commitment-body">
                   <p className="home-commitment-time num">
                     <time>{commitment.time}</time>
-                    <span>{friendlyDate(commitment.date, today)} · {commitment.kind}</span>
+                    <span>{friendlyDate(commitment.date, today)} · {commitment.kind}{commitment.overdue ? ' (overdue)' : ''}</span>
                   </p>
                   <button className="widget-task home-commitment-title" onClick={() => props.onOpen(commitment.task.id)}>{commitment.task.title}</button>
                   <p className="widget-meta">

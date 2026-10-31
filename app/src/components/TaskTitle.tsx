@@ -34,6 +34,7 @@ function TitleInput(props: { id: string; title: string }) {
   const [draft, setDraft] = useState(drafts.get(key)?.title ?? props.title);
   const [state, setState] = useState<'idle' | 'saving' | 'saved' | 'error'>(drafts.get(key)?.state ?? 'idle');
   const latest = useRef(draft);
+  const debounceTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(() => {
     if (!drafts.has(key)) { setDraft(props.title); latest.current = props.title; }
   }, [key, props.title]);
@@ -43,9 +44,19 @@ function TitleInput(props: { id: string; title: string }) {
       setState(drafts.get(key)?.state ?? 'saved');
     };
     window.addEventListener(changed, reconcile);
-    return () => { window.removeEventListener(changed, reconcile); };
+    return () => {
+      window.removeEventListener(changed, reconcile);
+      if (debounceTimer.current) {
+        clearTimeout(debounceTimer.current);
+        flush(latest.current);
+      }
+    };
   }, [key]);
-  function save(title: string) {
+  function flush(title: string) {
+    if (debounceTimer.current) {
+      clearTimeout(debounceTimer.current);
+      debounceTimer.current = null;
+    }
     const snapshot: Draft = { title, state: 'saving' };
     drafts.set(key, snapshot);
     setState('saving');
@@ -59,13 +70,24 @@ function TitleInput(props: { id: string; title: string }) {
     queues.set(key, write);
     void write.finally(() => { if (queues.get(key) === write) queues.delete(key); });
   }
+  function save(title: string) {
+    const snapshot: Draft = { title, state: 'saving' };
+    drafts.set(key, snapshot);
+    setState('saving');
+    if (debounceTimer.current) clearTimeout(debounceTimer.current);
+    debounceTimer.current = setTimeout(() => {
+      debounceTimer.current = null;
+      flush(title);
+    }, 250);
+  }
   return <div className="task-title-field">
     <input className="detail-title" value={draft} placeholder="Task title" aria-label="Task title"
-      onChange={(event) => { setDraft(event.target.value); latest.current = event.target.value; save(event.target.value); }} />
+      onChange={(event) => { setDraft(event.target.value); latest.current = event.target.value; save(event.target.value); }}
+      onBlur={() => { if (debounceTimer.current) flush(latest.current); }} />
     <span className="task-title-status" role="status">{state === 'saving' ? 'Saving title…' : state === 'saved' ? 'Title saved on this device' : ''}</span>
     {state === 'error' && <div className="task-title-error">
       <p role="alert">Title not saved. Your text is kept here.</p>
-      <button className="mini" onClick={() => save(latest.current)}>Retry title</button>
+      <button className="mini" onClick={() => flush(latest.current)}>Retry title</button>
     </div>}
   </div>;
 }

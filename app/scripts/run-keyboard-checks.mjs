@@ -1,8 +1,18 @@
 // Start an isolated local Vite server and run sample-only keyboard regressions.
 import { spawn } from 'node:child_process';
+import { existsSync } from 'node:fs';
 import { setTimeout as delay } from 'node:timers/promises';
 const port = process.env.KEYBOARD_TEST_PORT ?? '4174';
 const url = `http://127.0.0.1:${port}`;
+const chromeCandidates = [
+  process.env.CHROME_PATH,
+  '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
+  '/usr/bin/google-chrome',
+  '/usr/bin/chromium-browser',
+  '/usr/bin/chromium',
+].filter(Boolean);
+const detectedChrome = chromeCandidates.find(p => existsSync(p));
+const chromeEnv = detectedChrome ? { CHROME_PATH: detectedChrome } : {};
 const server = spawn(process.execPath, ['node_modules/vite/bin/vite.js', '--host', '127.0.0.1', '--port', port, '--strictPort'], { stdio: ['ignore', 'pipe', 'pipe'] });
 let output = '';
 server.stdout.on('data', chunk => { output += chunk; });
@@ -28,7 +38,7 @@ try {
   for (const script of ['dialog-keyboard-smoke.mjs', 'palette-keyboard-smoke.mjs']) {
     if (stopping) throw new Error('Keyboard checks interrupted.');
     const code = await new Promise((resolve, reject) => {
-      child = spawn(process.execPath, [`scripts/${script}`], { stdio: 'inherit', env: { ...process.env, BASE_URL: url } });
+      child = spawn(process.execPath, [`scripts/${script}`], { stdio: 'inherit', env: { ...process.env, ...chromeEnv, BASE_URL: url } });
       child.on('error', reject);
       child.on('exit', (code, signal) => resolve(signal ? 1 : code));
     });

@@ -541,7 +541,7 @@ export default function App() {
         onSelect={setSelection}
         onOpenTask={setOpenId}
         onNewTask={quickAddFocus}
-        onToggleTheme={() => cycleTheme()}
+        onToggleTheme={() => { cycleTheme(); publishLocalSettings(); }}
         onAppearance={() => { setSettingsChild(null); setAppearanceOpen(true); }}
         onShortcuts={() => setShortcutsOpen(true)}
       />

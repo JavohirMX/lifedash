@@ -24,14 +24,18 @@ setup-check: ## Read-only Docker/Compose/config preflight (never starts services
 test-setup: ## Test setup safety paths with mocked subprocesses (no Docker)
 	$(PYTHON) -m unittest discover -s scripts -p test_setup.py
 
-install: ## Install app and server dependencies
+install: ## Install app, mcp, and server dependencies
 	cd app && npm ci
+	cd mcp && npm ci
 	cd server && $(UV) sync --all-groups
 
-test: test-app test-server ## Run all tests
+test: test-app test-server test-mcp ## Run all tests
 
 test-app: ## Run app unit tests
 	cd app && npm test
+
+test-mcp: ## Run mcp tests
+	cd mcp && npm test
 
 test-keyboard: ## Run sample-only desktop/phone keyboard browser checks (Chrome required)
 	cd app && npm run test:keyboard

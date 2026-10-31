@@ -4,6 +4,7 @@
 
 import { addDays, todayStr } from './dates';
 import { makeRecurrence, type RecurrenceKind } from './logic';
+import { validDate } from './planning';
 
 export interface NaturalParse {
   title: string;
@@ -117,15 +118,20 @@ export function parseNatural(raw: string, now: Date = new Date()): NaturalParse 
       continue;
     }
     const iso = lw.match(/^(\d{4})-(\d{2})-(\d{2})$/);
-    if (iso) { dueDate = iso[0]; i++; continue; }
+    if (iso && validDate(iso[0])) { dueDate = iso[0]; i++; continue; }
     const monDay = lw.match(/^([a-z]{3,9})$/) && next?.match(/^(\d{1,2})(?:st|nd|rd|th)?$/);
     if (monDay && next) {
       const mk = lw.slice(0, 3);
       if (mk in MONTHS) {
         const y = today.slice(0, 4);
-        const cand = `${y}-${String(MONTHS[mk]).padStart(2, '0')}-${String(Number(next.match(/^\d+/)![0])).padStart(2, '0')}`;
-        dueDate = cand >= today ? cand : `${Number(y) + 1}-${cand.slice(5)}`;
-        i += 2; continue;
+        const dayNum = Number(next.match(/^\d+/)![0]);
+        const cand = `${y}-${String(MONTHS[mk]).padStart(2, '0')}-${String(dayNum).padStart(2, '0')}`;
+        const target = cand >= today ? cand : `${Number(y) + 1}-${cand.slice(5)}`;
+        if (validDate(target)) {
+          dueDate = target;
+          i += 2;
+          continue;
+        }
       }
     }
 

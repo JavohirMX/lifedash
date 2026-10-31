@@ -40,6 +40,11 @@ async function downloadAttachment(a: Attachment): Promise<void> {
       { headers: { Authorization: `Bearer ${settings.token}` } });
     if (!res.ok) throw new Error(`blob fetch failed: ${res.status}`);
     blob = await res.blob();
+    try {
+      await db.attachments.update(a.id, { blob, blobOnServer: true });
+    } catch {
+      /* caching is best-effort; don't block download if local write fails */
+    }
   }
   const url = URL.createObjectURL(blob);
   const link = document.createElement('a');

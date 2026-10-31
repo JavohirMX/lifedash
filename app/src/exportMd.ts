@@ -10,7 +10,6 @@ import { sortTasks } from './logic';
  */
 export function tasksToMarkdown(tasks: Task[], projects: Project[]): string {
   const lines: string[] = [];
-  const byId = new Map(projects.map((p) => [p.id, p]));
   const orderedProjects = [...projects].sort((a, b) => a.order - b.order);
 
   const emitTask = (t: Task, depth: number) => {

@@ -1,8 +1,16 @@
 // Isolated sample-data keyboard check. Start Vite, then run:
 // BASE_URL=http://127.0.0.1:5173 node scripts/dialog-keyboard-smoke.mjs
 import assert from 'node:assert/strict';
+import { existsSync } from 'node:fs';
 import { chromium } from 'playwright-core';
-const browser = await chromium.launch({ executablePath: process.env.CHROME_PATH ?? '/usr/bin/google-chrome', headless: true, args: ['--no-sandbox'] });
+const chromePath = [
+  process.env.CHROME_PATH,
+  '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
+  '/usr/bin/google-chrome',
+  '/usr/bin/chromium-browser',
+  '/usr/bin/chromium',
+].find(p => p && existsSync(p)) ?? '/usr/bin/google-chrome';
+const browser = await chromium.launch({ executablePath: chromePath, headless: true, args: ['--no-sandbox'] });
 try {
   for (const width of [1440, 390]) {
     const page = await browser.newPage({ viewport: { width, height: 900 } });

@@ -13,12 +13,17 @@ const GROUPS: { title: string; rows: [string, string][] }[] = [
   {
     title: 'Go to',
     rows: [
+      ['m', 'Home'],
       ['t', 'Today'],
       ['u', 'Upcoming'],
       ['b', 'Backlog'],
       ['p', 'Planner'],
       ['w', 'Week'],
+      ['l', 'Calendar'],
       ['h', 'Habits'],
+      ['g', 'Goals'],
+      ['o', 'Notes'],
+      ['j', 'Journal'],
       ['c', 'Completed'],
     ],
   },

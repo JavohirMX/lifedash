@@ -23,7 +23,7 @@ function DateField({ id, field, value: saved, label, type }: Props) {
     if (writing.current) return;
     writing.current = true; deferred.current = false; setValue(next); setBusy(true); setError('');
     try {
-      await updateTask(id, field === 'dueDate' ? { dueDate: next || null } : { dueTime: next || null });
+      await updateTask(id, field === 'dueDate' ? (next ? { dueDate: next } : { dueDate: null, dueTime: null }) : { dueTime: next || null });
       failed.current = false;
     } catch {
       failed.current = true;

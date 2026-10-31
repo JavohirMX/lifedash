@@ -30,6 +30,9 @@ describe('parseNatural - dates', () => {
     expect(parse('Renew passport 2026-11-05').dueDate).toBe('2026-11-05');
     expect(parse('Mom birthday nov 12').dueDate).toBe('2026-11-12');
     expect(parse('File taxes jan 15').dueDate).toBe('2027-01-15'); // past this year -> next
+    expect(parse('Meeting feb 31').dueDate).toBeNull();
+    expect(parse('Meeting apr 31').dueDate).toBeNull();
+    expect(parse('Meeting 2026-02-31').dueDate).toBeNull();
   });
 });
 
