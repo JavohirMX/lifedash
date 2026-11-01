@@ -1,11 +1,3 @@
-// Attachment upload failure/retry live scenario driver (dev tool, not shipped).
-// Pinned at branch fix/ux-repairs-combined; written against checkpoint b64b2228.
-// Reproduces and proves, against a real local sync server with synthetic
-// files: prompt-upload outcomes are unrecorded by design (backfill owns
-// tallies), transient 413 (quota) -> exponential backoff -> manual Sync now
-// re-attempts -> heal; permanent 413 (file too large) -> auto-sync
-// suppression -> manual Sync now re-attempts -> UI Retry heals. See README.md
-// in this directory for how to run. NOT run by CI; requires Chrome + python.
 // Live validation of attachment upload failure/retry paths against the local
 // sync server, synthetic files only. Prompt (immediate) upload outcomes are
 // intentionally unrecorded; the sync backfill owns failure tallies, backoff
@@ -18,11 +10,11 @@
 // Dev-only driver; never committed.
 const { chromium } = require('playwright-core');
 const { spawn } = require('child_process');
-const EXE = process.env.CHROME_EXE || '/usr/bin/google-chrome-stable';
-const APP = process.env.APP_URL || 'http://127.0.0.1:4174';
-const PORT = Number(process.env.SYNC_PORT || 8787);
+const EXE = '/usr/bin/google-chrome-stable';
+const APP = 'http://127.0.0.1:4174';
+const PORT = 8787;
 const SYNC = `http://127.0.0.1:${PORT}`;
-const SERVER_DIR = process.env.SERVER_DIR || require('path').resolve(__dirname, '..', '..', 'server');
+const SERVER_DIR = '/home/sandbox/lifedash/server';
 const PNG_B64 = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==';
 const PNG_BUF = Buffer.from(PNG_B64, 'base64');
 
@@ -30,7 +22,7 @@ let server = null;
 let serverLog = [];
 async function startServer(db, extraEnv) {
   serverLog = [];
-  server = spawn('python3', ['-m', 'uvicorn', 'app.main:app', '--host', '127.0.0.1', '--port', String(PORT), '--no-proxy-headers'],
+  server = spawn('uv', ['run', 'uvicorn', 'app.main:app', '--host', '127.0.0.1', '--port', String(PORT), '--no-proxy-headers'],
     { cwd: SERVER_DIR, env: { ...process.env, SYNC_DB: db, SYNC_OPEN_REGISTRATION: '1', ...extraEnv } });
   server.stdout.on('data', (d) => serverLog.push(...d.toString().split('\n')));
   server.stderr.on('data', (d) => serverLog.push(...d.toString().split('\n')));
@@ -124,7 +116,7 @@ const idb = (page) => page.evaluate(async () => {
 
   // ---------- Scenario A: transient (quota exhausted) ----------
   console.log('--- scenario A: transient 413 (quota), backoff, manual retry, heal');
-  await startServer(process.env.RETRY_DB_A || '/tmp/retry-a.db', { SYNC_ATTACHMENT_QUOTA_MB: '0' });
+  await startServer('/tmp/retry-a.db', { SYNC_ATTACHMENT_QUOTA_MB: '0' });
   let { page, token } = await makePage('retry-a');
   await step(page, 'A1 create task and let it push to server', async () => {
     await createTaskAndOpen(page, 'Transient host');
@@ -177,7 +169,7 @@ const idb = (page) => page.evaluate(async () => {
   });
   await step(page, 'A6 once the server has room, manual Sync now heals; bytes identical', async () => {
     await stopServer();
-    await startServer(process.env.RETRY_DB_A || '/tmp/retry-a.db', {});
+    await startServer('/tmp/retry-a.db', {});
     await manualSyncNow(page);
     if (postCount(201) !== 1) throw new Error('expected 1 blob POST 201 after heal, saw ' + postCount(201));
     const { att, fails } = await idb(page);
@@ -192,7 +184,7 @@ const idb = (page) => page.evaluate(async () => {
 
   // ---------- Scenario B: permanent (per-file size) ----------
   console.log('--- scenario B: permanent 413 (file too large), suppression, UI Retry heals');
-  await startServer(process.env.RETRY_DB_B || '/tmp/retry-b.db', { SYNC_ATTACHMENT_MAX_FILE_MB: '0' });
+  await startServer('/tmp/retry-b.db', { SYNC_ATTACHMENT_MAX_FILE_MB: '0' });
   ({ page, token } = await makePage('retry-b'));
   await step(page, 'B1 create task and let it push to server', async () => {
     await createTaskAndOpen(page, 'Permanent host');
@@ -237,7 +229,7 @@ const idb = (page) => page.evaluate(async () => {
   });
   await step(page, 'B6 once the server accepts the size, the UI Retry button heals it', async () => {
     await stopServer();
-    await startServer(process.env.RETRY_DB_B || '/tmp/retry-b.db', {});
+    await startServer('/tmp/retry-b.db', {});
     await openTaskAside(page, 'Permanent host');
     await page.locator('.att-state-warn button', { hasText: 'Retry' }).click({ timeout: 8000 });
     await page.waitForTimeout(2500);
