@@ -929,7 +929,7 @@ describe('restore-rollback characterization (current behavior, not the desired o
 describe('sync hooks - attachment bookkeeping writes', () => {
   const tick = () => new Promise((r) => setTimeout(r, 0));
 
-  it('does not mark a row dirty for blobOnServer acknowledgement or download-cache writes', async () => {
+  it('does not mark a row dirty for blob/blobOnServer-only bookkeeping writes', async () => {
     installSyncHooks();
     const updating = hooks['attachments:updating'];
     expect(typeof updating).toBe('function');
@@ -937,20 +937,21 @@ describe('sync hooks - attachment bookkeeping writes', () => {
     updating({ blobOnServer: true }, 'att-1');
     // Attachments download path caching server bytes locally
     updating({ blob: {}, blobOnServer: true }, 'att-2');
+    // Dexie strips unchanged keys: the same cache write arrives as { blob }
+    // alone when the stored row already has blobOnServer: true.
+    updating({ blob: {} }, 'att-3');
+    updating({ blob: {}, blobOnServer: false }, 'att-4');
     await tick();
-    expect(meta.has('dirty:attachments:att-1')).toBe(false);
-    expect(meta.has('dirty:attachments:att-2')).toBe(false);
+    for (const id of ['att-1', 'att-2', 'att-3', 'att-4']) expect(meta.has('dirty:attachments:' + id)).toBe(false);
   });
 
-  it('still marks real attachment edits dirty, including a blob-only update', async () => {
+  it('still marks real attachment metadata edits dirty', async () => {
     installSyncHooks();
     const updating = hooks['attachments:updating'];
-    updating({ name: 'renamed.pdf' }, 'att-3');
-    updating({ blob: {} }, 'att-4'); // no blobOnServer: a future re-upload flow must stay syncable
-    updating({ blob: {}, blobOnServer: false }, 'att-5'); // local-only blob, not yet on server
+    updating({ name: 'renamed.pdf' }, 'att-5');
+    updating({ name: 'renamed.pdf', blob: {} }, 'att-6'); // metadata edit that also touches blob
     await tick();
-    expect(meta.get('dirty:attachments:att-3')).toEqual({ deleted: false });
-    expect(meta.get('dirty:attachments:att-4')).toEqual({ deleted: false });
     expect(meta.get('dirty:attachments:att-5')).toEqual({ deleted: false });
+    expect(meta.get('dirty:attachments:att-6')).toEqual({ deleted: false });
   });
 });
