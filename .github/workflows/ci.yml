@@ -1,20 +1,23 @@
 name: CI
 
 on:
-  # All branches: backup pushes keep CI coverage. When a PR is open for the
-  # same head, the concurrency group below cancels the duplicate push run.
+  # All branches: backup pushes keep CI coverage. When an open PR already
+  # covers the branch, the push run's jobs self-skip via the check below;
+  # PR runs are keyed by PR number and are never cancelled by push runs.
   push:
   pull_request:
 
 concurrency:
-  # Key on the head SHA, not the ref: a push run and its pull_request twin
-  # share a group, so the later one cancels the other instead of doubling
-  # the billable minutes for identical content.
-  group: ci-${{ github.workflow }}-${{ github.event.pull_request.head.sha || github.sha }}
+  # PR runs group per PR number (latest update wins, merge-ref validation
+  # always retained); push runs group per ref (rapid re-pushes dedupe).
+  group: ci-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
-# The app (app/) and sync server (server/) land on main via separate PR
-# chains. Each job no-ops until its directory exists on the branch.
+# The app (app/), sync server (server/) and MCP server (mcp/) land on main
+# via separate PR chains. Each job no-ops until its directory exists on
+# the branch, and skips on push events when an open PR already covers the
+# branch (the PR run validates the merge result). The check fails open:
+# on any API error the full suite runs.
 jobs:
   app:
     runs-on: ubuntu-latest
@@ -22,42 +25,33 @@ jobs:
       run:
         working-directory: app
     steps:
+      - name: Check for an open PR covering this branch
+        id: dup
+        if: github.event_name == 'push'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          count=$(curl -sf -H "Authorization: Bearer $GH_TOKEN" \
+            "https://api.github.com/repos/${{ github.repository }}/pulls?state=open&head=${{ github.repository_owner }}:${{ github.ref_name }}" \
+            | jq -r 'length' || echo 0)
+          if [ "$count" -gt 0 ]; then echo "skip=true" >> "$GITHUB_OUTPUT"; else echo "skip=false" >> "$GITHUB_OUTPUT"; fi
       - uses: actions/checkout@v4
+        if: steps.dup.outputs.skip != 'true'
       - uses: actions/setup-node@v4
-        if: hashFiles('app/package.json') != ''
+        if: steps.dup.outputs.skip != 'true' && hashFiles('app/package.json') != ''
         with:
           node-version: 20
           cache: npm
           cache-dependency-path: app/package-lock.json
       - name: Install dependencies
-        if: hashFiles('app/package.json') != ''
+        if: steps.dup.outputs.skip != 'true' && hashFiles('app/package.json') != ''
         run: npm ci
       - name: Run tests
-        if: hashFiles('app/package.json') != ''
+        if: steps.dup.outputs.skip != 'true' && hashFiles('app/package.json') != ''
         run: npm test
       - name: Build
-        if: hashFiles('app/package.json') != ''
+        if: steps.dup.outputs.skip != 'true' && hashFiles('app/package.json') != ''
         run: npm run build
-
-  mcp:
-    runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: mcp
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        if: hashFiles('mcp/package.json') != ''
-        with:
-          node-version: 20
-          cache: npm
-          cache-dependency-path: mcp/package-lock.json
-      - name: Install dependencies
-        if: hashFiles('mcp/package.json') != ''
-        run: npm ci
-      - name: Run tests
-        if: hashFiles('mcp/package.json') != ''
-        run: npm test
 
   server:
     runs-on: ubuntu-latest
@@ -65,14 +59,60 @@ jobs:
       run:
         working-directory: server
     steps:
+      - name: Check for an open PR covering this branch
+        id: dup
+        if: github.event_name == 'push'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          count=$(curl -sf -H "Authorization: Bearer $GH_TOKEN" \
+            "https://api.github.com/repos/${{ github.repository }}/pulls?state=open&head=${{ github.repository_owner }}:${{ github.ref_name }}" \
+            | jq -r 'length' || echo 0)
+          if [ "$count" -gt 0 ]; then echo "skip=true" >> "$GITHUB_OUTPUT"; else echo "skip=false" >> "$GITHUB_OUTPUT"; fi
       - uses: actions/checkout@v4
+        if: steps.dup.outputs.skip != 'true'
       - name: Install uv
+        if: steps.dup.outputs.skip != 'true'
         uses: astral-sh/setup-uv@v5
         with:
           enable-cache: true
       - name: Set up Python
+        if: steps.dup.outputs.skip != 'true'
         run: uv python install 3.11
       - name: Install dependencies
+        if: steps.dup.outputs.skip != 'true'
         run: uv sync --all-groups
       - name: Run tests
+        if: steps.dup.outputs.skip != 'true'
         run: uv run pytest
+
+  mcp:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: mcp
+    steps:
+      - name: Check for an open PR covering this branch
+        id: dup
+        if: github.event_name == 'push'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          count=$(curl -sf -H "Authorization: Bearer $GH_TOKEN" \
+            "https://api.github.com/repos/${{ github.repository }}/pulls?state=open&head=${{ github.repository_owner }}:${{ github.ref_name }}" \
+            | jq -r 'length' || echo 0)
+          if [ "$count" -gt 0 ]; then echo "skip=true" >> "$GITHUB_OUTPUT"; else echo "skip=false" >> "$GITHUB_OUTPUT"; fi
+      - uses: actions/checkout@v4
+        if: steps.dup.outputs.skip != 'true'
+      - uses: actions/setup-node@v4
+        if: steps.dup.outputs.skip != 'true' && hashFiles('mcp/package.json') != ''
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: mcp/package-lock.json
+      - name: Install dependencies
+        if: steps.dup.outputs.skip != 'true' && hashFiles('mcp/package.json') != ''
+        run: npm ci
+      - name: Run tests
+        if: steps.dup.outputs.skip != 'true' && hashFiles('mcp/package.json') != ''
+        run: npm test
