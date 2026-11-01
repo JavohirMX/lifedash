@@ -39,6 +39,26 @@ jobs:
         if: hashFiles('app/package.json') != ''
         run: npm run build
 
+  mcp:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: mcp
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        if: hashFiles('mcp/package.json') != ''
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: mcp/package-lock.json
+      - name: Install dependencies
+        if: hashFiles('mcp/package.json') != ''
+        run: npm ci
+      - name: Run tests
+        if: hashFiles('mcp/package.json') != ''
+        run: npm test
+
   server:
     runs-on: ubuntu-latest
     defaults:
