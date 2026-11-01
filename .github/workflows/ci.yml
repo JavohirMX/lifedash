@@ -28,6 +28,7 @@ jobs:
       - name: Check for an open PR covering this branch
         id: dup
         if: github.event_name == 'push'
+        working-directory: .  # runs before checkout; job default dir does not exist yet
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
@@ -62,6 +63,7 @@ jobs:
       - name: Check for an open PR covering this branch
         id: dup
         if: github.event_name == 'push'
+        working-directory: .  # runs before checkout; job default dir does not exist yet
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
@@ -95,6 +97,7 @@ jobs:
       - name: Check for an open PR covering this branch
         id: dup
         if: github.event_name == 'push'
+        working-directory: .  # runs before checkout; job default dir does not exist yet
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
