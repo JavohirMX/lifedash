@@ -13,6 +13,10 @@ concurrency:
   group: ci-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
+permissions:
+  contents: read
+  pull-requests: read
+
 # The app (app/), sync server (server/) and MCP server (mcp/) land on main
 # via separate PR chains. Each job no-ops until its directory exists on
 # the branch, and skips on push events when an open PR already covers the
@@ -32,10 +36,11 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          count=$(curl -sf -H "Authorization: Bearer $GH_TOKEN" \
-            "https://api.github.com/repos/${{ github.repository }}/pulls?state=open&head=${{ github.repository_owner }}:${{ github.ref_name }}" \
-            | jq -r 'length' || echo 0)
-          if [ "$count" -gt 0 ]; then echo "skip=true" >> "$GITHUB_OUTPUT"; else echo "skip=false" >> "$GITHUB_OUTPUT"; fi
+          code=$(curl -s -o prs.json -w "%{http_code}" -H "Authorization: Bearer $GH_TOKEN" \
+            "https://api.github.com/repos/${{ github.repository }}/pulls?state=open&head=${{ github.repository_owner }}:${{ github.ref_name }}")
+          count=$(jq -r 'if type == "array" then length else 0 end' prs.json 2>/dev/null || echo 0)
+          echo "open-pr check: http=$code count=$count"
+          if [ "${count:-0}" -gt 0 ] 2>/dev/null; then echo "skip=true" >> "$GITHUB_OUTPUT"; else echo "skip=false" >> "$GITHUB_OUTPUT"; fi
       - uses: actions/checkout@v4
         if: steps.dup.outputs.skip != 'true'
       - uses: actions/setup-node@v4
@@ -67,10 +72,11 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          count=$(curl -sf -H "Authorization: Bearer $GH_TOKEN" \
-            "https://api.github.com/repos/${{ github.repository }}/pulls?state=open&head=${{ github.repository_owner }}:${{ github.ref_name }}" \
-            | jq -r 'length' || echo 0)
-          if [ "$count" -gt 0 ]; then echo "skip=true" >> "$GITHUB_OUTPUT"; else echo "skip=false" >> "$GITHUB_OUTPUT"; fi
+          code=$(curl -s -o prs.json -w "%{http_code}" -H "Authorization: Bearer $GH_TOKEN" \
+            "https://api.github.com/repos/${{ github.repository }}/pulls?state=open&head=${{ github.repository_owner }}:${{ github.ref_name }}")
+          count=$(jq -r 'if type == "array" then length else 0 end' prs.json 2>/dev/null || echo 0)
+          echo "open-pr check: http=$code count=$count"
+          if [ "${count:-0}" -gt 0 ] 2>/dev/null; then echo "skip=true" >> "$GITHUB_OUTPUT"; else echo "skip=false" >> "$GITHUB_OUTPUT"; fi
       - uses: actions/checkout@v4
         if: steps.dup.outputs.skip != 'true'
       - name: Install uv
@@ -101,10 +107,11 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          count=$(curl -sf -H "Authorization: Bearer $GH_TOKEN" \
-            "https://api.github.com/repos/${{ github.repository }}/pulls?state=open&head=${{ github.repository_owner }}:${{ github.ref_name }}" \
-            | jq -r 'length' || echo 0)
-          if [ "$count" -gt 0 ]; then echo "skip=true" >> "$GITHUB_OUTPUT"; else echo "skip=false" >> "$GITHUB_OUTPUT"; fi
+          code=$(curl -s -o prs.json -w "%{http_code}" -H "Authorization: Bearer $GH_TOKEN" \
+            "https://api.github.com/repos/${{ github.repository }}/pulls?state=open&head=${{ github.repository_owner }}:${{ github.ref_name }}")
+          count=$(jq -r 'if type == "array" then length else 0 end' prs.json 2>/dev/null || echo 0)
+          echo "open-pr check: http=$code count=$count"
+          if [ "${count:-0}" -gt 0 ] 2>/dev/null; then echo "skip=true" >> "$GITHUB_OUTPUT"; else echo "skip=false" >> "$GITHUB_OUTPUT"; fi
       - uses: actions/checkout@v4
         if: steps.dup.outputs.skip != 'true'
       - uses: actions/setup-node@v4
