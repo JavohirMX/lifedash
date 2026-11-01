@@ -335,9 +335,16 @@ export function installSyncHooks(): void {
     };
     table.hook('creating', (_pk, obj) => mark((obj as { id: string }).id));
     table.hook('updating', (mods, pk) => {
-      // uploadAttachmentBlob's blobOnServer:true write is bookkeeping; the
-      // server already knows. Marking it dirty would push a redundant row.
-      if (col === 'attachments' && Object.keys(mods as object).every((k) => k === 'blobOnServer')) return;
+      // Attachment writes that touch only blob/blobOnServer are bookkeeping or
+      // local caching, never metadata edits: uploadAttachmentBlob's
+      // blobOnServer:true acknowledgement and the download path's blob cache
+      // both describe bytes the server already has. Marking them dirty would
+      // push a redundant row and schedule a sync cycle. Dexie strips unchanged
+      // keys from mods, so blobOnServer may be absent here even when the caller
+      // passed it. Uploads do not depend on this dirty mark: the backfill scans
+      // for rows with a blob and blobOnServer !== true, and new attachments
+      // arrive via the creating hook.
+      if (col === 'attachments' && Object.keys(mods as object).every((k) => k === 'blob' || k === 'blobOnServer')) return;
       mark(String(pk));
     });
     table.hook('deleting', (pk) => mark(String(pk), true));

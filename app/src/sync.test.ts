@@ -9,7 +9,9 @@ globalThis.localStorage = {
   get length() { return this.store.size; },
 } as Storage;
 // Node env has no window; saveSyncStatus dispatches an event on it.
-(globalThis as { window?: unknown }).window = { dispatchEvent: () => true };
+// scheduleSync debounces via window timers; stub them so hook-triggered
+// scheduling is a no-op in tests (dirty-mark state is what tests assert).
+(globalThis as { window?: unknown }).window = { dispatchEvent: () => true, clearTimeout: () => undefined, setTimeout: () => 0 };
 
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -60,7 +62,7 @@ vi.mock('./db', () => ({
   },
 }));
 
-import { acknowledgeConflictNotice, attachmentUploadFailures, getConflictNotice, loadSyncQuarantine, loadSyncQuarantineOverflow, loadSyncStatus, logout, promptAttachmentUploadIfTaskSynced, retryAttachmentUpload, saveSyncSettings, syncNow, uploadAttachmentBlob } from './sync';
+import { acknowledgeConflictNotice, attachmentUploadFailures, getConflictNotice, installSyncHooks, loadSyncQuarantine, loadSyncQuarantineOverflow, loadSyncStatus, logout, promptAttachmentUploadIfTaskSynced, retryAttachmentUpload, saveSyncSettings, syncNow, uploadAttachmentBlob } from './sync';
 
 const settings = { url: 'http://test', username: 'u', token: 'tok' };
 
@@ -921,5 +923,35 @@ describe('restore-rollback characterization (current behavior, not the desired o
     const r = await syncNow(settings);
     expect(r).toMatchObject({ pushed: 0, pulled: 0, conflicts: 0 });
     expect(meta.get('cursor')).toBe(2); // moved BACKWARD, silently
+  });
+});
+
+describe('sync hooks - attachment bookkeeping writes', () => {
+  const tick = () => new Promise((r) => setTimeout(r, 0));
+
+  it('does not mark a row dirty for blob/blobOnServer-only bookkeeping writes', async () => {
+    installSyncHooks();
+    const updating = hooks['attachments:updating'];
+    expect(typeof updating).toBe('function');
+    // uploadAttachmentBlob's acknowledgement write
+    updating({ blobOnServer: true }, 'att-1');
+    // Attachments download path caching server bytes locally
+    updating({ blob: {}, blobOnServer: true }, 'att-2');
+    // Dexie strips unchanged keys: the same cache write arrives as { blob }
+    // alone when the stored row already has blobOnServer: true.
+    updating({ blob: {} }, 'att-3');
+    updating({ blob: {}, blobOnServer: false }, 'att-4');
+    await tick();
+    for (const id of ['att-1', 'att-2', 'att-3', 'att-4']) expect(meta.has('dirty:attachments:' + id)).toBe(false);
+  });
+
+  it('still marks real attachment metadata edits dirty', async () => {
+    installSyncHooks();
+    const updating = hooks['attachments:updating'];
+    updating({ name: 'renamed.pdf' }, 'att-5');
+    updating({ name: 'renamed.pdf', blob: {} }, 'att-6'); // metadata edit that also touches blob
+    await tick();
+    expect(meta.get('dirty:attachments:att-5')).toEqual({ deleted: false });
+    expect(meta.get('dirty:attachments:att-6')).toEqual({ deleted: false });
   });
 });
