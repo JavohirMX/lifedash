@@ -335,9 +335,14 @@ export function installSyncHooks(): void {
     };
     table.hook('creating', (_pk, obj) => mark((obj as { id: string }).id));
     table.hook('updating', (mods, pk) => {
-      // uploadAttachmentBlob's blobOnServer:true write is bookkeeping; the
-      // server already knows. Marking it dirty would push a redundant row.
-      if (col === 'attachments' && Object.keys(mods as object).every((k) => k === 'blobOnServer')) return;
+      // Attachment bookkeeping writes are not local edits: uploadAttachmentBlob's
+      // blobOnServer:true acknowledgement and the download path's local blob cache
+      // ({ blob, blobOnServer: true }) both describe bytes the server already has.
+      // Marking them dirty would push a redundant row and schedule a sync cycle.
+      // A blob-only update (no blobOnServer) still marks dirty so any future
+      // re-upload flow keeps working.
+      const keys = Object.keys(mods as object);
+      if (col === 'attachments' && (mods as { blobOnServer?: unknown }).blobOnServer === true && keys.every((k) => k === 'blob' || k === 'blobOnServer')) return;
       mark(String(pk));
     });
     table.hook('deleting', (pk) => mark(String(pk), true));
