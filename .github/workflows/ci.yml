@@ -1,12 +1,16 @@
 name: CI
 
 on:
+  # All branches: backup pushes keep CI coverage. When a PR is open for the
+  # same head, the concurrency group below cancels the duplicate push run.
   push:
-    branches: [main, fix/ux-repairs-combined]
   pull_request:
 
 concurrency:
-  group: ci-${{ github.workflow }}-${{ github.ref }}
+  # Key on the head SHA, not the ref: a push run and its pull_request twin
+  # share a group, so the later one cancels the other instead of doubling
+  # the billable minutes for identical content.
+  group: ci-${{ github.workflow }}-${{ github.event.pull_request.head.sha || github.sha }}
   cancel-in-progress: true
 
 # The app (app/) and sync server (server/) land on main via separate PR
