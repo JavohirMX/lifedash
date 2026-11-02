@@ -90,6 +90,7 @@ function TaskAttachments(props: { taskId: string }) {
     if (outcome === 'missing') { setStatus(''); setError('The file is not saved on this device.'); }
     else if (outcome === 'ok') setStatus(`Uploaded ${name} to your sync server.`);
     else if (outcome === 'unconfigured') { setStatus(''); setError('Set up sync in Settings to upload this file.'); }
+    else if (outcome === 'halted') { setStatus(''); setError('Sync is paused - see Settings > Sync. The file stays on this device and uploads after sync resumes.'); }
     else { setStatus(''); setError(`Couldn't upload ${name} yet. It is still saved on this device; Sync now retries.`); }
   }
 

@@ -80,7 +80,11 @@ export default function SyncDialog(props: { onClose: () => void; onBack?: () => 
       const saved = loadSyncStatus();
       setStatus(saved && saved.ok ? `Done: ${saved.summary}.` : 'Done.');
     } catch (e) {
-      fail(e,'sync');
+      // syncNow already persisted the real reason (including the rollback
+      // pause warning); show it verbatim instead of a generic line.
+      const saved = loadSyncStatus();
+      if (saved && !saved.ok) { setFeedback('error'); setStatus(saved.summary); }
+      else fail(e,'sync');
     } finally {
       working.current = false;
       setBusy(false);

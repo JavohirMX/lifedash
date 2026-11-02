@@ -75,6 +75,9 @@ export function saveSyncSettings(s: SyncSettings | null): void {
   if (SAMPLE_MODE) return;
   if (s) localStorage.setItem(SETTINGS_KEY, JSON.stringify(s));
   else localStorage.removeItem(SETTINGS_KEY);
+  // Connecting or disconnecting re-arms rollback detection: the next sync
+  // checks against the live server and re-halts if it is still behind.
+  clearSyncHalt();
   // A new or removed sync account makes old upload-failure tallies stale.
   void resetAllAttachmentUploadFailures();
 }
@@ -253,6 +256,74 @@ let autoSyncStarted = false;
 let syncing = false;
 let debounceTimer: number | undefined;
 
+const HALT_KEY = 'lifedash-sync-halted';
+
+export interface SyncHalt {
+  at: number;
+  cursor: number;
+  serverRev: number;
+}
+
+/**
+ * Set when the server reports a LOWER revision counter than this device's
+ * stored cursor - the signature of the server having been restored from an
+ * older backup (or this device pointing at a different database). While
+ * set, sync and every independent blob write refuse to run: fail closed,
+ * never automatic. Limited guard (protocol v1): it fires only while the
+ * server counter is still below the cursor, so a restore whose counter has
+ * already caught up is undetectable - that boundary is documented.
+ */
+export function getSyncHalt(): SyncHalt | null {
+  if (SAMPLE_MODE) return null;
+  try {
+    const raw = localStorage.getItem(HALT_KEY);
+    return raw ? (JSON.parse(raw) as SyncHalt) : null;
+  } catch {
+    return null;
+  }
+}
+
+export function isSyncHalted(): boolean {
+  return getSyncHalt() !== null;
+}
+
+function setSyncHalt(cursor: number, serverRev: number): void {
+  try {
+    localStorage.setItem(HALT_KEY, JSON.stringify({ at: Date.now(), cursor, serverRev } satisfies SyncHalt));
+  } catch {
+    /* the thrown RollbackDetectedError still surfaces the reason */
+  }
+}
+
+function clearSyncHalt(): void {
+  try {
+    localStorage.removeItem(HALT_KEY);
+  } catch {
+    /* ignore */
+  }
+}
+
+export class RollbackDetectedError extends Error {
+  cursor: number;
+  serverRev: number;
+  constructor(cursor: number, serverRev: number) {
+    super(`sync rollback detected (device cursor ${cursor}, server rev ${serverRev})`);
+    this.name = 'RollbackDetectedError';
+    this.cursor = cursor;
+    this.serverRev = serverRev;
+  }
+}
+
+export function rollbackWarningText(h: { cursor: number; serverRev: number }): string {
+  return `Sync paused: the server is behind this device (server rev ${h.serverRev}, this device rev ${h.cursor}). This happens after the server was restored from an older backup, or if this device was pointed at a different database. Nothing was sent or overwritten. Sync resumes after you disconnect and reconnect once the server is fixed - see the self-host restore guide.`;
+}
+
+/** Failure status that preserves the rollback pause warning verbatim. */
+function syncErrorStatus(e: unknown): SyncStatus {
+  const halt = getSyncHalt();
+  return { at: Date.now(), ok: false, summary: halt ? rollbackWarningText(halt) : syncFailureMessage(e, 'sync') };
+}
+
 const AUTO_INTERVAL_MS = 5 * 60 * 1000;
 const EDIT_DEBOUNCE_MS = 4 * 1000;
 
@@ -269,7 +340,7 @@ async function runAutoSync(): Promise<void> {
     const r = await syncNow(settings); // syncNow owns the in-flight guard
     saveSyncStatus({ at: Date.now(), ok: true, summary: await summaryWithNotice(r) });
   } catch (e) {
-    saveSyncStatus({ at: Date.now(), ok: false, summary: syncFailureMessage(e, 'sync') });
+    saveSyncStatus(syncErrorStatus(e));
     console.warn('auto-sync failed', e);
   }
 }
@@ -361,14 +432,60 @@ export async function dirtyCount(): Promise<number> {
  * answers an identical re-upload idempotently. Returns false offline or on
  * refusal; the row stays local and the next sync's backfill retries.
  */
-export type BlobUploadOutcome = 'ok' | 'transient' | 'permanent' | 'unconfigured';
+export type BlobUploadOutcome = 'ok' | 'transient' | 'permanent' | 'unconfigured' | 'halted';
 
-export async function uploadAttachmentBlob(att: Pick<Attachment, 'id' | 'taskId' | 'name'> & { blob: Blob }): Promise<BlobUploadOutcome> {
+let timelinePreflight: Promise<boolean> | null = null;
+
+/**
+ * Fresh timeline check for independent blob writes. Attach-time and manual
+ * retry uploads run outside syncNow's pull-first ordering, so a cached
+ * session flag would go stale in a long-lived tab if the server were
+ * restored mid-session: each independent write checks the LIVE server
+ * counter first. The check reuses the pull endpoint and reads only the
+ * counter; any returned changes are discarded (the cursor does not move,
+ * so the next real pull re-fetches them). Concurrent writes share one
+ * in-flight check. A failed or unreachable check is NOT evidence of a
+ * rollback, so it fails open and the upload's own error handling applies.
+ */
+async function preflightTimeline(base: string, token: string): Promise<boolean> {
+  if (isSyncHalted()) return false;
+  if (!timelinePreflight) {
+    timelinePreflight = (async () => {
+      try {
+        const since = await getCursor();
+        const res = await fetch(`${base}/api/changes?since=${since}`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (res.ok) {
+          const body = (await res.json()) as { rev?: number };
+          if (typeof body.rev === 'number' && body.rev < since) {
+            setSyncHalt(since, body.rev);
+            saveSyncStatus({ at: Date.now(), ok: false, summary: rollbackWarningText({ cursor: since, serverRev: body.rev }) });
+            return false;
+          }
+        }
+        return true;
+      } catch {
+        return true;
+      } finally {
+        timelinePreflight = null;
+      }
+    })();
+  }
+  return timelinePreflight;
+}
+
+export async function uploadAttachmentBlob(att: Pick<Attachment, 'id' | 'taskId' | 'name'> & { blob: Blob }, opts?: { preflightDone?: boolean }): Promise<BlobUploadOutcome> {
   if (SAMPLE_MODE) return 'unconfigured';
   try {
     const settings = loadSyncSettings();
     if (!settings) return 'unconfigured';
+    // Fail closed while a restore rollback is detected: no blob writes.
+    if (isSyncHalted()) return 'halted';
     const base = settings.url.replace(/\/$/, '');
+    // Independent writes need their own fresh timeline check; writes from
+    // inside syncNow pass preflightDone because pull1/pull2 already checked.
+    if (!opts?.preflightDone && !(await preflightTimeline(base, settings.token))) return 'halted';
     const q = `task_id=${encodeURIComponent(att.taskId)}&filename=${encodeURIComponent(att.name)}&id=${encodeURIComponent(att.id)}`;
     const res = await fetch(`${base}/api/attachments?${q}`, {
       method: 'POST',
@@ -410,6 +527,9 @@ export async function uploadAttachmentBlob(att: Pick<Attachment, 'id' | 'taskId'
 export async function promptAttachmentUploadIfTaskSynced(att: Pick<Attachment, 'id' | 'taskId' | 'name'> & { blob: Blob }): Promise<boolean> {
   const taskSynced = (await getMeta(revKey('tasks', att.taskId))) !== undefined;
   if (!taskSynced) return false;
+  // Fail closed: while a restore rollback is detected the metadata-first
+  // backfill path owns the file once sync resumes.
+  if (isSyncHalted()) return false;
   void uploadAttachmentBlob(att);
   return true;
 }
@@ -462,7 +582,8 @@ export async function retryAttachmentUpload(id: string): Promise<BlobUploadOutco
   const row = await db.attachments.get(id);
   if (!row?.blob) return 'missing';
   const outcome = await uploadAttachmentBlob(row as Attachment & { blob: Blob });
-  if (outcome !== 'ok' && outcome !== 'unconfigured') await recordAttachmentUploadFailure(id, outcome);
+  // 'halted' is the rollback pause, not a refusal: no failure tally.
+  if (outcome !== 'ok' && outcome !== 'unconfigured' && outcome !== 'halted') await recordAttachmentUploadFailure(id, outcome);
   return outcome;
 }
 
@@ -513,6 +634,13 @@ export interface SyncResult {
 export async function syncNow(settings: SyncSettings, opts?: { retryFailedUploads?: boolean }): Promise<SyncResult> {
   if (SAMPLE_MODE) throw new Error('Sync is disabled in the sample-data sandbox.');
   installSyncHooks();
+  // Fail closed: while a restore rollback is detected, sync does not run -
+  // nothing is pulled, pushed or uploaded until the user reconnects.
+  const halt = getSyncHalt();
+  if (halt) {
+    saveSyncStatus({ at: Date.now(), ok: false, summary: rollbackWarningText(halt) });
+    throw new RollbackDetectedError(halt.cursor, halt.serverRev);
+  }
   if (opts?.retryFailedUploads) await resetAllAttachmentUploadFailures();
   if (syncing) return { pushed: 0, conflicts: 0, pulled: 0, cursor: await getCursor() };
   syncing = true;
@@ -522,7 +650,7 @@ export async function syncNow(settings: SyncSettings, opts?: { retryFailedUpload
     return r;
   } catch (e) {
     // A thrown sync must not leave the last success standing as if current.
-    saveSyncStatus({ at: Date.now(), ok: false, summary: syncFailureMessage(e, 'sync') });
+    saveSyncStatus(syncErrorStatus(e));
     throw e;
   } finally {
     syncing = false;
@@ -614,10 +742,11 @@ async function syncNowInner(settings: SyncSettings): Promise<SyncResult> {
       if (eligible.length >= 5) break;
     }
     for (const a of eligible) {
-      const outcome = await uploadAttachmentBlob(a);
+      const outcome = await uploadAttachmentBlob(a, { preflightDone: true });
       if (outcome === 'ok') {
         await db.syncmeta.delete(BLOB_FAIL_KEY(a.id));
-      } else if (outcome !== 'unconfigured') {
+      } else if (outcome !== 'unconfigured' && outcome !== 'halted') {
+        // 'halted' is the rollback pause, not a refusal: no failure tally.
         await recordAttachmentUploadFailure(a.id, outcome);
       }
     }
@@ -635,6 +764,15 @@ async function pull(base: string, headers: Record<string, string>): Promise<{ ap
   const res = await fetch(`${base}/api/changes?since=${since}`, { headers });
   if (!res.ok) throw new Error(`pull failed: ${res.status} ${await res.text()}`);
   const body = (await res.json()) as { changes: ServerEntity[]; rev: number };
+  if (body.rev < since) {
+    // Restored-from-older-backup (or different-database) signature: the
+    // server counter moved BACKWARD. Fail closed: halt sync and blob
+    // writes, and never adopt the lower counter as the cursor. Limited
+    // guard: this fires only while the counter is still below the cursor.
+    setSyncHalt(since, body.rev);
+    saveSyncStatus({ at: Date.now(), ok: false, summary: rollbackWarningText({ cursor: since, serverRev: body.rev }) });
+    throw new RollbackDetectedError(since, body.rev);
+  }
   let applied = 0;
   let skipped = 0;
   let skippedTruncated = 0;
