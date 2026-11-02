@@ -458,6 +458,8 @@ describe('sync edit-edit conflicts', () => {
     });
     // Server refuses this file for good (422 empty upload).
     vi.stubGlobal('fetch', vi.fn(async (url: string, init?: RequestInit) => {
+      // Healthy rollback-guard preflight: this test characterizes the refusal path.
+      if (String(url).includes('/api/changes?')) return { ok: true, json: async () => ({ changes: [], rev: 0 }) } as Response;
       if (String(url).includes('/api/attachments?') && init?.method === 'POST') {
         return { ok: false, status: 422 } as Response;
       }
@@ -486,6 +488,8 @@ describe('sync edit-edit conflicts', () => {
       blob: { size: 3, type: 'application/octet-stream' }, createdAt: 1,
     });
     const stub413 = (body: unknown) => vi.stubGlobal('fetch', vi.fn(async (url: string, init?: RequestInit) => {
+      // Healthy rollback-guard preflight: this test characterizes the 413 classes.
+      if (String(url).includes('/api/changes?')) return { ok: true, json: async () => ({ changes: [], rev: 0 }) } as Response;
       if (String(url).includes('/api/attachments?') && init?.method === 'POST') {
         return { ok: false, status: 413, json: async () => body } as Response;
       }
@@ -930,6 +934,8 @@ describe('restore-rollback guard (fail closed on a backward server counter)', ()
     expect(status?.summary).toContain('Sync paused');
     expect(status?.summary).toContain('server rev 2');
     expect(status?.summary).toContain('this device rev 5');
+    expect(status?.summary).toContain('no further changes are sent or merged');
+    expect(status?.summary).not.toContain('Nothing was sent or overwritten');
   });
 
   it('while halted, sync makes no network calls at all', async () => {
@@ -959,6 +965,11 @@ describe('restore-rollback guard (fail closed on a backward server counter)', ()
     await expect(syncNow(settings)).rejects.toThrow('sync rollback detected');
     expect(getSyncHalt()).toMatchObject({ cursor: 5, serverRev: 2 });
     expect(blobUploads).toHaveLength(0); // backfill never ran
+    // The push above already sent a write this sync, so the warning must
+    // not claim nothing was sent: it only promises no FURTHER changes.
+    const summary = loadSyncStatus()?.summary ?? '';
+    expect(summary).toContain('no further changes are sent or merged');
+    expect(summary).not.toContain('Nothing was sent or overwritten');
   });
 
   it('an equal counter does not halt (normal sync keeps working)', async () => {
@@ -1024,16 +1035,35 @@ describe('restore-rollback guard (fail closed on a backward server counter)', ()
     expect(getSyncHalt()).toBeNull();
   });
 
-  it('a failed preflight is not rollback evidence: the upload proceeds and its own error handling applies', async () => {
+  it('a failed preflight defers the write: nothing is sent and no halt is recorded', async () => {
+    // An unreachable server is not rollback evidence, but it is not
+    // permission to skip the guard either: without a successful check the
+    // write is deferred (retryable), never sent.
     meta.set('cursor', 5);
     tables.set('attachments', new Map([['att-1', { id: 'att-1', taskId: 'task-1', name: 'p.png', blob: new Blob(['px']), blobOnServer: false, createdAt: 1 }]]));
     vi.stubGlobal('fetch', vi.fn(async (url: string, init?: RequestInit) => {
       if (String(url).includes('/api/changes?')) throw new Error('network down');
-      if (String(url).includes('/api/attachments?') && init?.method === 'POST') return { ok: false, status: 500 } as Response;
+      if (String(url).includes('/api/attachments?') && init?.method === 'POST') return { ok: true, json: async () => ({ rev: 6 }) } as Response;
       throw new Error(`unexpected fetch ${url}`);
     }));
     const outcome = await retryAttachmentUpload('att-1');
-    expect(outcome).toBe('transient');
+    expect(outcome).toBe('unverified');
+    expect(blobUploads).toHaveLength(0);
+    expect(getSyncHalt()).toBeNull();
+    expect(meta.get('blobfail:att-1')).toBeUndefined(); // a deferral is not a refusal
+  });
+
+  it('an HTTP-error preflight defers the write the same way', async () => {
+    meta.set('cursor', 5);
+    tables.set('attachments', new Map([['att-1', { id: 'att-1', taskId: 'task-1', name: 'p.png', blob: new Blob(['px']), blobOnServer: false, createdAt: 1 }]]));
+    vi.stubGlobal('fetch', vi.fn(async (url: string, init?: RequestInit) => {
+      if (String(url).includes('/api/changes?')) return { ok: false, status: 503 } as Response;
+      if (String(url).includes('/api/attachments?') && init?.method === 'POST') return { ok: true, json: async () => ({ rev: 6 }) } as Response;
+      throw new Error(`unexpected fetch ${url}`);
+    }));
+    const outcome = await retryAttachmentUpload('att-1');
+    expect(outcome).toBe('unverified');
+    expect(blobUploads).toHaveLength(0);
     expect(getSyncHalt()).toBeNull();
   });
 

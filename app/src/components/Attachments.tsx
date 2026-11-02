@@ -91,6 +91,7 @@ function TaskAttachments(props: { taskId: string }) {
     else if (outcome === 'ok') setStatus(`Uploaded ${name} to your sync server.`);
     else if (outcome === 'unconfigured') { setStatus(''); setError('Set up sync in Settings to upload this file.'); }
     else if (outcome === 'halted') { setStatus(''); setError('Sync is paused - see Settings > Sync. The file stays on this device and uploads after sync resumes.'); }
+    else if (outcome === 'unverified') { setStatus(''); setError(`Couldn't verify the server before sending, so nothing was sent. ${name} stays on this device; check the connection and try again.`); }
     else { setStatus(''); setError(`Couldn't upload ${name} yet. It is still saved on this device; Sync now retries.`); }
   }
 

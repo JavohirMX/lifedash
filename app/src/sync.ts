@@ -315,7 +315,7 @@ export class RollbackDetectedError extends Error {
 }
 
 export function rollbackWarningText(h: { cursor: number; serverRev: number }): string {
-  return `Sync paused: the server is behind this device (server rev ${h.serverRev}, this device rev ${h.cursor}). This happens after the server was restored from an older backup, or if this device was pointed at a different database. Nothing was sent or overwritten. Sync resumes after you disconnect and reconnect once the server is fixed - see the self-host restore guide.`;
+  return `Sync paused: the server is behind this device (server rev ${h.serverRev}, this device rev ${h.cursor}). This happens after the server was restored from an older backup, or if this device was pointed at a different database. Syncing is stopped so no further changes are sent or merged. Sync resumes after you disconnect and reconnect once the server is fixed - see the self-host restore guide.`;
 }
 
 /** Failure status that preserves the rollback pause warning verbatim. */
@@ -432,9 +432,9 @@ export async function dirtyCount(): Promise<number> {
  * answers an identical re-upload idempotently. Returns false offline or on
  * refusal; the row stays local and the next sync's backfill retries.
  */
-export type BlobUploadOutcome = 'ok' | 'transient' | 'permanent' | 'unconfigured' | 'halted';
+export type BlobUploadOutcome = 'ok' | 'transient' | 'permanent' | 'unconfigured' | 'halted' | 'unverified';
 
-let timelinePreflight: Promise<boolean> | null = null;
+let timelinePreflight: Promise<'ok' | 'rollback' | 'unverified'> | null = null;
 
 /**
  * Fresh timeline check for independent blob writes. Attach-time and manual
@@ -445,28 +445,30 @@ let timelinePreflight: Promise<boolean> | null = null;
  * counter; any returned changes are discarded (the cursor does not move,
  * so the next real pull re-fetches them). Concurrent writes share one
  * in-flight check. A failed or unreachable check is NOT evidence of a
- * rollback, so it fails open and the upload's own error handling applies.
+ * rollback, but it is not permission to skip the guard either: without a
+ * successful check the write is deferred ('unverified'), never sent. The
+ * deferred file keeps blobOnServer: false, so the next successful sync's
+ * backfill completes it.
  */
-async function preflightTimeline(base: string, token: string): Promise<boolean> {
-  if (isSyncHalted()) return false;
+async function preflightTimeline(base: string, token: string): Promise<'ok' | 'rollback' | 'unverified'> {
+  if (isSyncHalted()) return 'rollback';
   if (!timelinePreflight) {
-    timelinePreflight = (async () => {
+    timelinePreflight = (async (): Promise<'ok' | 'rollback' | 'unverified'> => {
       try {
         const since = await getCursor();
         const res = await fetch(`${base}/api/changes?since=${since}`, {
           headers: { Authorization: `Bearer ${token}` },
         });
-        if (res.ok) {
-          const body = (await res.json()) as { rev?: number };
-          if (typeof body.rev === 'number' && body.rev < since) {
-            setSyncHalt(since, body.rev);
-            saveSyncStatus({ at: Date.now(), ok: false, summary: rollbackWarningText({ cursor: since, serverRev: body.rev }) });
-            return false;
-          }
+        if (!res.ok) return 'unverified';
+        const body = (await res.json()) as { rev?: number };
+        if (typeof body.rev === 'number' && body.rev < since) {
+          setSyncHalt(since, body.rev);
+          saveSyncStatus({ at: Date.now(), ok: false, summary: rollbackWarningText({ cursor: since, serverRev: body.rev }) });
+          return 'rollback';
         }
-        return true;
+        return 'ok';
       } catch {
-        return true;
+        return 'unverified';
       } finally {
         timelinePreflight = null;
       }
@@ -485,7 +487,13 @@ export async function uploadAttachmentBlob(att: Pick<Attachment, 'id' | 'taskId'
     const base = settings.url.replace(/\/$/, '');
     // Independent writes need their own fresh timeline check; writes from
     // inside syncNow pass preflightDone because pull1/pull2 already checked.
-    if (!opts?.preflightDone && !(await preflightTimeline(base, settings.token))) return 'halted';
+    // 'rollback' pauses sync; 'unverified' defers this write without sending
+    // anything - neither outcome is a refusal, so neither is tallied.
+    if (!opts?.preflightDone) {
+      const pre = await preflightTimeline(base, settings.token);
+      if (pre === 'rollback') return 'halted';
+      if (pre === 'unverified') return 'unverified';
+    }
     const q = `task_id=${encodeURIComponent(att.taskId)}&filename=${encodeURIComponent(att.name)}&id=${encodeURIComponent(att.id)}`;
     const res = await fetch(`${base}/api/attachments?${q}`, {
       method: 'POST',
@@ -583,7 +591,7 @@ export async function retryAttachmentUpload(id: string): Promise<BlobUploadOutco
   if (!row?.blob) return 'missing';
   const outcome = await uploadAttachmentBlob(row as Attachment & { blob: Blob });
   // 'halted' is the rollback pause, not a refusal: no failure tally.
-  if (outcome !== 'ok' && outcome !== 'unconfigured' && outcome !== 'halted') await recordAttachmentUploadFailure(id, outcome);
+  if (outcome !== 'ok' && outcome !== 'unconfigured' && outcome !== 'halted' && outcome !== 'unverified') await recordAttachmentUploadFailure(id, outcome);
   return outcome;
 }
 
@@ -745,7 +753,7 @@ async function syncNowInner(settings: SyncSettings): Promise<SyncResult> {
       const outcome = await uploadAttachmentBlob(a, { preflightDone: true });
       if (outcome === 'ok') {
         await db.syncmeta.delete(BLOB_FAIL_KEY(a.id));
-      } else if (outcome !== 'unconfigured' && outcome !== 'halted') {
+      } else if (outcome !== 'unconfigured' && outcome !== 'halted' && outcome !== 'unverified') {
         // 'halted' is the rollback pause, not a refusal: no failure tally.
         await recordAttachmentUploadFailure(a.id, outcome);
       }
