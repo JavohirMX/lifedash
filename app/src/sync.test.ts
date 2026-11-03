@@ -102,7 +102,7 @@ function mockFetch(script: { changesResponses: object[]; pushResults?: object[] 
 }
 const blobUploads: { id: string | null; taskId: string | null; size: number }[] = [];
 
-const serverTask = (id: string, title: string) => ({ id, title, projectId: 'inbox' });
+const serverTask = (id: string, title: string) => ({ id, title, projectId: 'inbox', status: 'active' });
 
 beforeEach(() => {
   meta.clear();
@@ -764,7 +764,7 @@ describe('pull resilience against malformed entities', () => {
   it('realigns a blob that lost its inline id instead of wedging sync', async () => {
     mockFetch({
       changesResponses: [
-        { changes: [{ collection: 'tasks', id: 'noid', rev: 1, deleted: false, data: { title: 'Pulled task', projectId: 'inbox' } }], rev: 1 },
+        { changes: [{ collection: 'tasks', id: 'noid', rev: 1, deleted: false, data: { title: 'Pulled task', projectId: 'inbox', status: 'active' } }], rev: 1 },
         { changes: [], rev: 1 },
       ],
     });
@@ -781,7 +781,7 @@ describe('pull resilience against malformed entities', () => {
       changesResponses: [
         { changes: [
           { collection: 'tasks', id: 'keyed', rev: 1, deleted: false, data: { id: 'different-id', title: 'Mismatched' } },
-          { collection: 'tasks', id: 'good', rev: 2, deleted: false, data: { id: 'good', title: 'Good task' } },
+          { collection: 'tasks', id: 'good', rev: 2, deleted: false, data: { id: 'good', title: 'Good task', status: 'active' } },
         ], rev: 2 },
         { changes: [], rev: 2 },
       ],
@@ -803,11 +803,33 @@ describe('pull resilience against malformed entities', () => {
     expect(q[0].reason).toContain('id mismatch');
   });
 
+  it('quarantines a task with an unreadable status instead of letting it vanish from every view', async () => {
+    mockFetch({
+      changesResponses: [
+        { changes: [
+          { collection: 'tasks', id: 'bad-status', rev: 1, deleted: false, data: { id: 'bad-status', title: 'Hand-pushed', status: 'open' } },
+          { collection: 'tasks', id: 'good2', rev: 2, deleted: false, data: { id: 'good2', title: 'Good task', status: 'active' } },
+        ], rev: 2 },
+        { changes: [], rev: 2 },
+      ],
+    });
+    const r = await syncNow(settings);
+    expect(r.pulled).toBe(1);
+    expect(r.skipped).toBe(1);
+    expect(tables.get('tasks')!.has('bad-status')).toBe(false);
+    expect(tables.get('tasks')!.get('good2')).toMatchObject({ title: 'Good task' });
+    expect(meta.get('cursor')).toBe(2);
+    const q = await loadSyncQuarantine();
+    expect(q).toHaveLength(1);
+    expect(q[0]).toMatchObject({ collection: 'tasks', id: 'bad-status' });
+    expect(q[0].reason).toContain('status');
+  });
+
   it('treats a store-level put failure as transient: cursor stays, nothing is lost, retry recovers', async () => {
     const responses = () => [
       { changes: [
-        { collection: 'tasks', id: 'simulated-dexie-error', rev: 1, deleted: false, data: { id: 'simulated-dexie-error', title: 'Broken row' } },
-        { collection: 'tasks', id: 'after', rev: 2, deleted: false, data: { id: 'after', title: 'Later valid' } },
+        { collection: 'tasks', id: 'simulated-dexie-error', rev: 1, deleted: false, data: { id: 'simulated-dexie-error', title: 'Broken row', status: 'active' } },
+        { collection: 'tasks', id: 'after', rev: 2, deleted: false, data: { id: 'after', title: 'Later valid', status: 'active' } },
       ], rev: 2 },
       { changes: [], rev: 2 },
     ];
@@ -824,7 +846,7 @@ describe('pull resilience against malformed entities', () => {
     mockFetch({ changesResponses: [
       { changes: [
         { collection: 'tasks', id: 'simulated-dexie-error', rev: 1, deleted: true, data: {} },
-        { collection: 'tasks', id: 'after', rev: 2, deleted: false, data: { id: 'after', title: 'Later valid' } },
+        { collection: 'tasks', id: 'after', rev: 2, deleted: false, data: { id: 'after', title: 'Later valid', status: 'active' } },
       ], rev: 2 },
       { changes: [], rev: 2 },
     ] });
