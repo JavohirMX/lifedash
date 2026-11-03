@@ -840,6 +840,22 @@ async function applyRemote(col: Collection, e: ServerEntity): Promise<void> {
         // cleanly and vanish from every list. Quarantine it for review.
         throw new MalformedEntityError(`sync: task status is unreadable (${String(data.status)})`);
       }
+      if (col === 'tasks') {
+        // Views depend on required fields being present (parentId === null
+        // marks a top-level task; undefined fails that check). The pull path
+        // is the only writer that can store a field-missing task, so fill
+        // absent keys with the same defaults a local create uses - the same
+        // normalisation the Dexie upgrades apply to older local rows. Only
+        // absent keys are filled; delivered values pass through untouched.
+        const now = Date.now();
+        data = {
+          note: '', noteDoc: null, parentId: null, goalId: null, noteId: null,
+          pinned: false, priority: 0, dueDate: null, dueTime: null, recurrence: null,
+          blockedBy: [], tags: [], order: 0, seriesId: null,
+          createdAt: now, updatedAt: now, completedAt: null,
+          ...data,
+        };
+      }
       if (col === 'attachments' && data.blob === undefined) {
         const existing = (await table.get(e.id)) as { blob?: unknown } | undefined;
         if (existing?.blob !== undefined) data = { ...data, blob: existing.blob };

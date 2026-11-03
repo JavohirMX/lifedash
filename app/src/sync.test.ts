@@ -825,6 +825,30 @@ describe('pull resilience against malformed entities', () => {
     expect(q[0].reason).toContain('status');
   });
 
+  it('fills absent required fields on a pulled task so list views can see it', async () => {
+    mockFetch({
+      changesResponses: [
+        { changes: [{ collection: 'tasks', id: 'sparse', rev: 1, deleted: false, data: { id: 'sparse', title: 'Sparse task', status: 'active', projectId: 'inbox', dueDate: '2026-01-02' } }], rev: 1 },
+        { changes: [], rev: 1 },
+      ],
+    });
+    const r = await syncNow(settings);
+    expect(r.pulled).toBe(1);
+    expect(r.skipped ?? 0).toBe(0);
+    const row = tables.get('tasks')!.get('sparse') as Record<string, unknown>;
+    // The strict parentId === null check every list view relies on:
+    expect(row.parentId).toBeNull();
+    expect(row.blockedBy).toEqual([]);
+    expect(row.tags).toEqual([]);
+    expect(row.pinned).toBe(false);
+    expect(row.order).toBe(0);
+    expect(row.createdAt).toEqual(expect.any(Number));
+    // Delivered values pass through untouched:
+    expect(row.title).toBe('Sparse task');
+    expect(row.dueDate).toBe('2026-01-02');
+    expect(await loadSyncQuarantine()).toHaveLength(0);
+  });
+
   it('treats a store-level put failure as transient: cursor stays, nothing is lost, retry recovers', async () => {
     const responses = () => [
       { changes: [
