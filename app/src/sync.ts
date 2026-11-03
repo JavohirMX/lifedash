@@ -815,6 +815,25 @@ async function pull(base: string, headers: Record<string, string>): Promise<{ ap
   return { applied, skipped, skippedTruncated };
 }
 
+
+/** First supplied-but-mistyped task field, or null. Absent keys pass:
+ * applyRemote fills those with structural defaults after this check. */
+function taskFieldTypeError(d: Record<string, unknown>): string | null {
+  const strOrNull = ['parentId', 'goalId', 'noteId', 'seriesId', 'dueDate', 'dueTime', 'plannedDate', 'plannedTime', 'recurrence'];
+  for (const k of strOrNull) {
+    if (d[k] !== undefined && d[k] !== null && typeof d[k] !== 'string') return `${k}: expected string|null`;
+  }
+  if (d.note !== undefined && typeof d.note !== 'string') return 'note: expected string';
+  if (d.pinned !== undefined && typeof d.pinned !== 'boolean') return 'pinned: expected boolean';
+  for (const k of ['priority', 'order', 'durationMinutes', 'completedAt'] as const) {
+    if (d[k] !== undefined && d[k] !== null && typeof d[k] !== 'number') return `${k}: expected number|null`;
+  }
+  for (const k of ['blockedBy', 'tags', 'skippedDates'] as const) {
+    if (d[k] !== undefined && (!Array.isArray(d[k]) || (d[k] as unknown[]).some((v) => typeof v !== 'string'))) return `${k}: expected string[]`;
+  }
+  return null;
+}
+
 async function applyRemote(col: Collection, e: ServerEntity): Promise<void> {
   applyingRemote = true;
   try {
@@ -855,6 +874,14 @@ async function applyRemote(col: Collection, e: ServerEntity): Promise<void> {
         if (typeof data.title !== 'string' || typeof data.createdAt !== 'number' || typeof data.updatedAt !== 'number') {
           throw new MalformedEntityError(`sync: task is missing its title or history fields (key ${e.id})`);
         }
+        // Supplied values must at least carry the type the views consume:
+        // a string in tags reaches TaskRow's .map and crashes the list.
+        // Only presence is optional; a present value must be well-typed.
+        // Referential soundness (a parentId pointing at a task that does
+        // not exist) is deliberately NOT checked here: the parent may
+        // legitimately arrive later in the same or a future pull.
+        const typeErr = taskFieldTypeError(data);
+        if (typeErr) throw new MalformedEntityError(`sync: task field has an unreadable type (${typeErr})`);
         data = {
           note: '', noteDoc: null, parentId: null, goalId: null, noteId: null,
           pinned: false, priority: 0, dueDate: null, dueTime: null, recurrence: null,

@@ -872,6 +872,69 @@ describe('pull resilience against malformed entities', () => {
     expect(q[0].reason).toContain('history');
   });
 
+  it('quarantines a supplied tags value that is not a string list (the render-crash class)', async () => {
+    mockFetch({
+      changesResponses: [
+        { changes: [
+          { collection: 'tasks', id: 'bad-tags', rev: 1, deleted: false, data: { id: 'bad-tags', title: 'Bad tags', status: 'active', createdAt: 1700000000000, updatedAt: 1700000001000, tags: 'urgent' } },
+          { collection: 'tasks', id: 'good4', rev: 2, deleted: false, data: { id: 'good4', title: 'Good task', status: 'active', createdAt: 1700000000000, updatedAt: 1700000001000 } },
+        ], rev: 2 },
+        { changes: [], rev: 2 },
+      ],
+    });
+    const r = await syncNow(settings);
+    expect(r.pulled).toBe(1);
+    expect(r.skipped).toBe(1);
+    expect(tables.get('tasks')!.has('bad-tags')).toBe(false);
+    const q = await loadSyncQuarantine();
+    expect(q).toHaveLength(1);
+    expect(q[0]).toMatchObject({ collection: 'tasks', id: 'bad-tags' });
+    expect(q[0].reason).toContain('tags');
+  });
+
+  it('quarantines supplied mistyped scalar and array fields without touching valid rows', async () => {
+    mockFetch({
+      changesResponses: [
+        { changes: [
+          { collection: 'tasks', id: 'bad-order', rev: 1, deleted: false, data: { id: 'bad-order', title: 'Bad order', status: 'active', createdAt: 1700000000000, updatedAt: 1700000001000, order: 'high' } },
+          { collection: 'tasks', id: 'bad-blockers', rev: 2, deleted: false, data: { id: 'bad-blockers', title: 'Bad blockers', status: 'active', createdAt: 1700000000000, updatedAt: 1700000001000, blockedBy: 't1' } },
+          { collection: 'tasks', id: 'bad-pinned', rev: 3, deleted: false, data: { id: 'bad-pinned', title: 'Bad pinned', status: 'active', createdAt: 1700000000000, updatedAt: 1700000001000, pinned: 1 } },
+        ], rev: 3 },
+        { changes: [], rev: 3 },
+      ],
+    });
+    const r = await syncNow(settings);
+    expect(r.pulled).toBe(0);
+    expect(r.skipped).toBe(3);
+    expect(tables.get('tasks')!.size ?? 0).toBe(0);
+    const q = await loadSyncQuarantine();
+    expect(q.map((e) => e.id).sort()).toEqual(['bad-blockers', 'bad-order', 'bad-pinned']);
+    expect(q.find((e) => e.id === 'bad-order')!.reason).toContain('order');
+    expect(q.find((e) => e.id === 'bad-blockers')!.reason).toContain('blockedBy');
+    expect(q.find((e) => e.id === 'bad-pinned')!.reason).toContain('pinned');
+  });
+
+  it('applies a fully specified task verbatim, supplied nulls and values intact', async () => {
+    const full = {
+      id: 'full-1', title: 'Full task', note: 'a note', noteDoc: null, projectId: 'inbox',
+      parentId: null, goalId: null, noteId: null, status: 'done', pinned: true, priority: 1,
+      dueDate: null, dueTime: null, plannedDate: null, plannedTime: null, durationMinutes: null,
+      recurrence: null, skippedDates: ['2026-01-01'], blockedBy: [], tags: ['x'], order: 42,
+      seriesId: null, createdAt: 1700000000000, updatedAt: 1700000001000, completedAt: 1700000002000,
+    };
+    mockFetch({
+      changesResponses: [
+        { changes: [{ collection: 'tasks', id: 'full-1', rev: 1, deleted: false, data: full }], rev: 1 },
+        { changes: [], rev: 1 },
+      ],
+    });
+    const r = await syncNow(settings);
+    expect(r.pulled).toBe(1);
+    expect(r.skipped ?? 0).toBe(0);
+    expect(tables.get('tasks')!.get('full-1')).toEqual(full);
+    expect(await loadSyncQuarantine()).toHaveLength(0);
+  });
+
   it('treats a store-level put failure as transient: cursor stays, nothing is lost, retry recovers', async () => {
     const responses = () => [
       { changes: [
