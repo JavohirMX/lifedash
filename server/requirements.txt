@@ -1,5 +1,6 @@
-# Runtime deps, pinned from a known-good install (Oct 2026) so
-# Docker builds are reproducible. Update deliberately, then re-test.
+# Runtime deps, pinned from a known-good install (Oct 2026) for the pip
+# install path; Docker builds pin via uv.lock instead. Update deliberately,
+# then re-test.
 fastapi==0.162.0
 uvicorn[standard]==0.54.0
 anyio==4.15.1

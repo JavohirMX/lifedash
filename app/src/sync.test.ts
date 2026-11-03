@@ -62,7 +62,7 @@ vi.mock('./db', () => ({
   },
 }));
 
-import { acknowledgeConflictNotice, attachmentUploadFailures, getConflictNotice, installSyncHooks, loadSyncQuarantine, loadSyncQuarantineOverflow, loadSyncStatus, logout, promptAttachmentUploadIfTaskSynced, retryAttachmentUpload, saveSyncSettings, syncNow, uploadAttachmentBlob } from './sync';
+import { acknowledgeConflictNotice, attachmentUploadFailures, getConflictNotice, getSyncHalt, installSyncHooks, loadSyncQuarantine, loadSyncQuarantineOverflow, loadSyncStatus, logout, promptAttachmentUploadIfTaskSynced, retryAttachmentUpload, saveSyncSettings, syncNow, uploadAttachmentBlob } from './sync';
 
 const settings = { url: 'http://test', username: 'u', token: 'tok' };
 
@@ -428,8 +428,10 @@ describe('sync edit-edit conflicts', () => {
     await syncNow(settings);
     expect(blobUploads).toEqual([]);
     // Same refusal, older than a day: retried (task may exist now, proxy healed).
+    // The counter stays monotonic (rev 1 settled above): rev 0 here would
+    // correctly trip the rollback guard.
     meta.set('blobfail:OLD', { count: 1, lastAt: Date.now() - 25 * 60 * 60 * 1000, permanent: true });
-    mockFetch({ changesResponses: [{ changes: [], rev: 0 }, { changes: [], rev: 1 }] });
+    mockFetch({ changesResponses: [{ changes: [], rev: 1 }, { changes: [], rev: 1 }] });
     await syncNow(settings);
     expect(blobUploads.map((u) => u.id)).toEqual(['OLD']);
     expect(meta.get('blobfail:OLD')).toBeUndefined();
@@ -456,6 +458,8 @@ describe('sync edit-edit conflicts', () => {
     });
     // Server refuses this file for good (422 empty upload).
     vi.stubGlobal('fetch', vi.fn(async (url: string, init?: RequestInit) => {
+      // Healthy rollback-guard preflight: this test characterizes the refusal path.
+      if (String(url).includes('/api/changes?')) return { ok: true, json: async () => ({ changes: [], rev: 0 }) } as Response;
       if (String(url).includes('/api/attachments?') && init?.method === 'POST') {
         return { ok: false, status: 422 } as Response;
       }
@@ -484,6 +488,8 @@ describe('sync edit-edit conflicts', () => {
       blob: { size: 3, type: 'application/octet-stream' }, createdAt: 1,
     });
     const stub413 = (body: unknown) => vi.stubGlobal('fetch', vi.fn(async (url: string, init?: RequestInit) => {
+      // Healthy rollback-guard preflight: this test characterizes the 413 classes.
+      if (String(url).includes('/api/changes?')) return { ok: true, json: async () => ({ changes: [], rev: 0 }) } as Response;
       if (String(url).includes('/api/attachments?') && init?.method === 'POST') {
         return { ok: false, status: 413, json: async () => body } as Response;
       }
@@ -553,9 +559,9 @@ describe('sync edit-edit conflicts', () => {
     mockFetch({ changesResponses: [{ changes: [], rev: 0 }, { changes: [], rev: 1 }] });
     await syncNow(settings);
     expect(blobUploads).toEqual([]);
-    // Backoff elapsed: retried and delivered.
+    // Backoff elapsed: retried and delivered. Counter stays monotonic.
     meta.set('blobfail:FLAKY', { count: 2, lastAt: Date.now() - 10 * 60 * 1000 });
-    mockFetch({ changesResponses: [{ changes: [], rev: 0 }, { changes: [], rev: 1 }] });
+    mockFetch({ changesResponses: [{ changes: [], rev: 1 }, { changes: [], rev: 1 }] });
     await syncNow(settings);
     expect(blobUploads.map((u) => u.id)).toEqual(['FLAKY']);
     expect(meta.get('blobfail:FLAKY')).toBeUndefined(); // tally cleared on success
@@ -910,19 +916,174 @@ describe('prompt attachment upload ordering', () => {
   });
 });
 
-describe('restore-rollback characterization (current behavior, not the desired one)', () => {
-  it('regresses the stored cursor when a pull reports a LOWER counter (a restored server is invisible)', async () => {
-    // The client was synced up to rev 5. The server was then restored from
-    // an older backup whose counter is 2. The pull answers 200 with an
-    // empty page and the current counter - and the client adopts that
-    // LOWER counter as its new cursor without any signal. Post-restore
-    // entities stamped with revs 3..5 before this pull are now permanently
-    // invisible to this client.
+describe('restore-rollback guard (fail closed on a backward server counter)', () => {
+  // Setup shared by these tests: the client was synced up to rev 5; the
+  // server was then restored from an older backup whose counter is 2.
+  // Approved behavior (John, 2026-11-02): pause sync with a clear warning;
+  // never overwrite or merge automatically. Limited guard: detection fires
+  // only while the server counter is still below the client cursor.
+
+  it('detects a LOWER counter: cursor never regresses, sync halts with a visible warning', async () => {
     meta.set('cursor', 5);
     mockFetch({ changesResponses: [{ changes: [], rev: 2 }, { changes: [], rev: 2 }] });
+    await expect(syncNow(settings)).rejects.toThrow('sync rollback detected');
+    expect(meta.get('cursor')).toBe(5); // never moves backward
+    expect(getSyncHalt()).toMatchObject({ cursor: 5, serverRev: 2 });
+    const status = loadSyncStatus();
+    expect(status?.ok).toBe(false);
+    expect(status?.summary).toContain('Sync paused');
+    expect(status?.summary).toContain('server rev 2');
+    expect(status?.summary).toContain('this device rev 5');
+    expect(status?.summary).toContain('no further changes are sent or merged');
+    expect(status?.summary).not.toContain('Nothing was sent or overwritten');
+  });
+
+  it('while halted, sync makes no network calls at all', async () => {
+    meta.set('cursor', 5);
+    mockFetch({ changesResponses: [{ changes: [], rev: 2 }] });
+    await expect(syncNow(settings)).rejects.toThrow('sync rollback detected');
+    expect(getSyncHalt()).not.toBeNull();
+    const fetchSpy = vi.fn();
+    vi.stubGlobal('fetch', fetchSpy);
+    await expect(syncNow(settings)).rejects.toThrow('sync rollback detected');
+    expect(fetchSpy).not.toHaveBeenCalled();
+    expect(loadSyncStatus()?.summary).toContain('Sync paused');
+  });
+
+  it('detects a rollback on the post-push pull too, before any backfill upload runs', async () => {
+    // Restore landing mid-sync: pull1 is healthy, the push goes out (the
+    // documented residual - those writes are discarded by the restore
+    // itself), and pull2 must still halt before the blob backfill writes.
+    meta.set('cursor', 5);
+    meta.set('dirty:tasks:t1', { deleted: false });
+    tables.set('tasks', new Map([['t1', serverTask('t1', 'Edited locally')]]));
+    tables.set('attachments', new Map([['att-1', { id: 'att-1', taskId: 't1', name: 'p.png', blob: new Blob(['px']), blobOnServer: false, createdAt: 1 }]]));
+    mockFetch({
+      changesResponses: [{ changes: [], rev: 5 }, { changes: [], rev: 2 }],
+      pushResults: [{ collection: 'tasks', id: 't1', status: 'ok', rev: 6 }],
+    });
+    await expect(syncNow(settings)).rejects.toThrow('sync rollback detected');
+    expect(getSyncHalt()).toMatchObject({ cursor: 5, serverRev: 2 });
+    expect(blobUploads).toHaveLength(0); // backfill never ran
+    // The push above already sent a write this sync, so the warning must
+    // not claim nothing was sent: it only promises no FURTHER changes.
+    const summary = loadSyncStatus()?.summary ?? '';
+    expect(summary).toContain('no further changes are sent or merged');
+    expect(summary).not.toContain('Nothing was sent or overwritten');
+  });
+
+  it('an equal counter does not halt (normal sync keeps working)', async () => {
+    meta.set('cursor', 5);
+    mockFetch({ changesResponses: [{ changes: [], rev: 5 }, { changes: [], rev: 5 }] });
     const r = await syncNow(settings);
-    expect(r).toMatchObject({ pushed: 0, pulled: 0, conflicts: 0 });
-    expect(meta.get('cursor')).toBe(2); // moved BACKWARD, silently
+    expect(r.cursor).toBe(5);
+    expect(getSyncHalt()).toBeNull();
+    expect(loadSyncStatus()?.ok).toBe(true);
+  });
+
+  it('disconnect/reconnect re-arms detection: a still-behind server re-halts', async () => {
+    meta.set('cursor', 5);
+    mockFetch({ changesResponses: [{ changes: [], rev: 2 }] });
+    await expect(syncNow(settings)).rejects.toThrow('sync rollback detected');
+    expect(getSyncHalt()).not.toBeNull();
+    saveSyncSettings(null); // disconnect clears the halt
+    expect(getSyncHalt()).toBeNull();
+    saveSyncSettings(settings); // reconnect
+    mockFetch({ changesResponses: [{ changes: [], rev: 2 }] });
+    await expect(syncNow(settings)).rejects.toThrow('sync rollback detected');
+    expect(getSyncHalt()).toMatchObject({ cursor: 5, serverRev: 2 });
+  });
+
+  it('an independent blob upload preflights the LIVE server and refuses to write (stale-session case)', async () => {
+    // Long-lived tab: sync was healthy earlier, the server was restored
+    // afterwards. The attach path must not trust the stale session - it
+    // checks the live counter before writing, and the retry path then
+    // reports 'halted' without talling a refusal.
+    meta.set('cursor', 5);
+    meta.set('rev:tasks:task-1', 5);
+    tables.set('attachments', new Map([['att-1', { id: 'att-1', taskId: 'task-1', name: 'pixel.png', blob: new Blob(['px']), blobOnServer: false, createdAt: 1 }]]));
+    mockFetch({ changesResponses: [{ changes: [], rev: 2 }] }); // preflight sees the rollback
+    await promptAttachmentUploadIfTaskSynced({ id: 'att-1', taskId: 'task-1', name: 'pixel.png', blob: new Blob(['px'], { type: 'image/png' }) });
+    await new Promise((r) => setTimeout(r, 0)); // let the fire-and-forget upload settle
+    expect(blobUploads).toHaveLength(0);
+    expect(getSyncHalt()).toMatchObject({ cursor: 5, serverRev: 2 });
+    const outcome = await retryAttachmentUpload('att-1');
+    expect(outcome).toBe('halted');
+    expect(blobUploads).toHaveLength(0);
+    expect(meta.get('blobfail:att-1')).toBeUndefined(); // a halt is not a refusal
+  });
+
+  it('prompt upload refuses immediately while halted', async () => {
+    meta.set('cursor', 5);
+    mockFetch({ changesResponses: [{ changes: [], rev: 2 }] });
+    await expect(syncNow(settings)).rejects.toThrow('sync rollback detected');
+    meta.set('rev:tasks:task-1', 5);
+    const fetchSpy = vi.fn();
+    vi.stubGlobal('fetch', fetchSpy);
+    const attempted = await promptAttachmentUploadIfTaskSynced({ id: 'att-9', taskId: 'task-1', name: 'p.png', blob: new Blob(['px']) });
+    expect(attempted).toBe(false);
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  it('a healthy preflight lets an independent upload through', async () => {
+    meta.set('cursor', 5);
+    tables.set('attachments', new Map([['att-1', { id: 'att-1', taskId: 'task-1', name: 'p.png', blob: new Blob(['px']), blobOnServer: false, createdAt: 1 }]]));
+    mockFetch({ changesResponses: [{ changes: [], rev: 5 }] });
+    const outcome = await retryAttachmentUpload('att-1');
+    expect(outcome).toBe('ok');
+    expect(blobUploads).toHaveLength(1);
+    expect(getSyncHalt()).toBeNull();
+  });
+
+  it('a failed preflight defers the write: nothing is sent and no halt is recorded', async () => {
+    // An unreachable server is not rollback evidence, but it is not
+    // permission to skip the guard either: without a successful check the
+    // write is deferred (retryable), never sent.
+    meta.set('cursor', 5);
+    tables.set('attachments', new Map([['att-1', { id: 'att-1', taskId: 'task-1', name: 'p.png', blob: new Blob(['px']), blobOnServer: false, createdAt: 1 }]]));
+    vi.stubGlobal('fetch', vi.fn(async (url: string, init?: RequestInit) => {
+      if (String(url).includes('/api/changes?')) throw new Error('network down');
+      if (String(url).includes('/api/attachments?') && init?.method === 'POST') return { ok: true, json: async () => ({ rev: 6 }) } as Response;
+      throw new Error(`unexpected fetch ${url}`);
+    }));
+    const outcome = await retryAttachmentUpload('att-1');
+    expect(outcome).toBe('unverified');
+    expect(blobUploads).toHaveLength(0);
+    expect(getSyncHalt()).toBeNull();
+    expect(meta.get('blobfail:att-1')).toBeUndefined(); // a deferral is not a refusal
+  });
+
+  it('an HTTP-error preflight defers the write the same way', async () => {
+    meta.set('cursor', 5);
+    tables.set('attachments', new Map([['att-1', { id: 'att-1', taskId: 'task-1', name: 'p.png', blob: new Blob(['px']), blobOnServer: false, createdAt: 1 }]]));
+    vi.stubGlobal('fetch', vi.fn(async (url: string, init?: RequestInit) => {
+      if (String(url).includes('/api/changes?')) return { ok: false, status: 503 } as Response;
+      if (String(url).includes('/api/attachments?') && init?.method === 'POST') return { ok: true, json: async () => ({ rev: 6 }) } as Response;
+      throw new Error(`unexpected fetch ${url}`);
+    }));
+    const outcome = await retryAttachmentUpload('att-1');
+    expect(outcome).toBe('unverified');
+    expect(blobUploads).toHaveLength(0);
+    expect(getSyncHalt()).toBeNull();
+  });
+
+  it('backfill uploads ride the sync pulls - no extra preflight round-trip', async () => {
+    tables.set('attachments', new Map([['att-1', { id: 'att-1', taskId: 'task-1', name: 'p.png', blob: new Blob(['px']), blobOnServer: false, createdAt: 1 }]]));
+    let gets = 0;
+    vi.stubGlobal('fetch', vi.fn(async (url: string, init?: RequestInit) => {
+      if (String(url).includes('/api/changes?')) { gets++; return { ok: true, json: async () => ({ changes: [], rev: 1 }) } as Response; }
+      if (String(url).endsWith('/api/changes') && init?.method === 'POST') return { ok: true, json: async () => ({ results: [] }) } as Response;
+      if (String(url).includes('/api/attachments?') && init?.method === 'POST') {
+        const u = new URL(String(url));
+        blobUploads.push({ id: u.searchParams.get('id'), taskId: u.searchParams.get('task_id'), size: 2 });
+        return { ok: true, json: async () => ({ rev: 7 }) } as Response;
+      }
+      throw new Error(`unexpected fetch ${url}`);
+    }));
+    await syncNow(settings);
+    expect(gets).toBe(2); // pull1 + pull2 only
+    expect(blobUploads).toHaveLength(1);
+    expect(loadSyncStatus()?.ok).toBe(true);
   });
 });
 
