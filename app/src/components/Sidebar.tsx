@@ -2,18 +2,14 @@ import { useDialogFocus } from '../hooks/useDialogFocus';
 import { useEffect, useRef, useState } from 'react';
 import { Settings, CalendarClock,
   Sun, CalendarDays, Archive, Clock, CalendarRange, Repeat, CheckCircle2,
-  Search, Plus, Menu, X, Download, Upload, Palette, Zap, House, Target, StickyNote, BookOpen, Monitor,
+  Search, Plus, Menu, X, Palette, Zap, House, Target, StickyNote, BookOpen, Monitor,
 } from 'lucide-react';
 import { projectTree } from '../projects';
 import type { Project } from '../types';
-import { addProject, countAttachments, exportJson } from '../repo';
-import { db } from '../db';
-import { tasksToMarkdown } from '../exportMd';
-import { tasksToIcs } from '../ics';
-import { todayStr } from '../dates';
+import { addProject } from '../repo';
 
 export type Selection =
-  | { kind: 'home' | 'today' | 'upcoming' | 'backlog' | 'completed' | 'habits' | 'planner' | 'week' | 'goals' | 'calendar' }
+  | { kind: 'home' | 'today' | 'upcoming' | 'backlog' | 'completed' | 'habits' | 'planner' | 'week' | 'goals' | 'calendar' | 'settings' }
   | { kind: 'notes'; openId?: string }
   | { kind: 'journal'; date?: string }
   | { kind: 'project'; id: string }
@@ -67,8 +63,6 @@ export default function Sidebar(props: {
   counts: { today: number; backlog: number };
   activeByProject?: Record<string, number>;
   onScheduleToday?: (taskId: string) => void;
-  onImport: () => void;
-  onRestore: () => void;
   onAutomation: () => void;
   journalNudge: boolean;
   onToggleJournalNudge: () => void;
@@ -240,101 +234,10 @@ export default function Sidebar(props: {
     </>
   );
 
-  const [exportMenu, setExportMenu] = useState(false);
-  const exportWrap = useRef<HTMLDivElement>(null);
-  const exportTrigger = useRef<HTMLButtonElement>(null);
-  useEffect(() => {
-    if (exportMenu) exportWrap.current?.querySelector<HTMLButtonElement>('[role=menuitem]')?.focus();
-  }, [exportMenu]);
-  const closeExport = () => { setExportMenu(false); exportTrigger.current?.focus(); };
-  useEffect(() => {
-    if (!exportMenu) return;
-    const outside = (e: PointerEvent) => { if (!exportWrap.current?.contains(e.target as Node)) setExportMenu(false); };
-    document.addEventListener('pointerdown', outside);
-    return () => document.removeEventListener('pointerdown', outside);
-  }, [exportMenu]);
-
-  const downloadFile = (content: string, type: string, name: string) => {
-    const blob = new Blob([content], { type });
-    const a = document.createElement('a');
-    a.href = URL.createObjectURL(blob);
-    a.download = name;
-    a.click();
-    URL.revokeObjectURL(a.href);
-  };
-
-  const exporting = useRef(false);
-  const [exportBusy, setExportBusy] = useState(false), [exportError, setExportError] = useState('');
-  async function exportData(format: 'JSON' | 'Markdown' | 'Calendar') {
-    if (exporting.current) return;
-    exporting.current = true; setExportBusy(true); setExportError(''); closeExport();
-    try {
-      if (format === 'JSON') {
-        const [json, files] = await Promise.all([exportJson(), countAttachments()]);
-        downloadFile(json, 'application/json', `lifedash-export-${new Date().toISOString().slice(0, 10)}.json`);
-        if (files > 0) window.alert(`Exported. Note: ${files} attachment file${files === 1 ? ' stays' : 's stay'} on this device - the export keeps only their names and metadata.`);
-      } else {
-        const [tasks, projects] = await Promise.all([db.tasks.toArray(), db.projects.toArray()]);
-        if (format === 'Markdown') downloadFile(tasksToMarkdown(tasks, projects), 'text/markdown', `lifedash-tasks-${todayStr()}.md`);
-        else downloadFile(tasksToIcs(tasks, projects), 'text/calendar', `lifedash-tasks-${todayStr()}.ics`);
-      }
-    } catch { setExportError(`Couldn't prepare the ${format} export. Open Export and choose ${format} again.`); }
-    finally { exporting.current = false; setExportBusy(false); }
-  }
-
-  const exportBtn = (
-    <div ref={exportWrap} className="export-wrap" onBlur={e => { if (!e.currentTarget.contains(e.relatedTarget as Node)) setExportMenu(false); }} onKeyDown={e => {
-      if (e.key === 'Escape' && exportMenu) { e.preventDefault(); e.stopPropagation(); closeExport(); }
-      const items = Array.from(e.currentTarget.querySelectorAll<HTMLButtonElement>('[role=menuitem]'));
-      if (!items.length) return;
-      const index = items.indexOf(document.activeElement as HTMLButtonElement);
-      const next = e.key === 'ArrowDown' ? (index + 1) % items.length : e.key === 'ArrowUp' ? (index + items.length - 1) % items.length : e.key === 'Home' ? 0 : e.key === 'End' ? items.length - 1 : null;
-      if (next !== null) { e.preventDefault(); e.stopPropagation(); items[next].focus(); }
-    }}>
-      <button
-        disabled={exportBusy}
-        ref={exportTrigger}
-        className="nav foot-action"
-        aria-haspopup="menu"
-        onKeyDown={e => { if (e.key === 'ArrowDown' || e.key === 'ArrowUp') { e.preventDefault(); setExportMenu(true); } }}
-        aria-expanded={exportMenu}
-        onClick={() => setExportMenu(!exportMenu)}
-      >
-        <Download size={16} strokeWidth={1.75} aria-hidden="true" />
-        <span>Export</span>
-      </button>
-      {exportBusy && <p className="sub-add-feedback" role="status">Preparing export…</p>}
-      {exportError && <p className="sub-add-feedback" role="alert">{exportError}</p>}
-      {exportMenu && (
-        <div className="export-menu" role="menu" aria-label="Export format">
-          <button type="button" role="menuitem" className="export-item" onClick={() => void exportData('JSON')}>
-            <strong>JSON backup</strong>
-            <span>App data and attachment metadata; files stay on this device</span>
-          </button>
-          <button type="button" role="menuitem" className="export-item" onClick={() => void exportData('Markdown')}>
-            <strong>Markdown</strong>
-            <span>Tasks only, readable anywhere</span>
-          </button>
-          <button type="button" role="menuitem" className="export-item" onClick={() => void exportData('Calendar')}>
-            <strong>Calendar (.ics)</strong>
-            <span>Open dated tasks; calendar import file, not live sync</span>
-          </button>
-        </div>
-      )}
-    </div>
-  );
-
   const tvBtn = (
     <button className="nav foot-action" onClick={() => { window.location.hash = '/tv'; }}>
       <Monitor size={16} strokeWidth={1.75} aria-hidden="true" />
       <span>TV dashboard</span>
-    </button>
-  );
-
-  const restoreBtn = (
-    <button className="nav foot-action" onClick={() => openTool(props.onRestore)}>
-      <Upload size={16} strokeWidth={1.75} aria-hidden="true" />
-      <span>Restore backup</span>
     </button>
   );
 
@@ -344,9 +247,7 @@ export default function Sidebar(props: {
       {props.onAI && <button className="nav foot-action" onClick={() => { openTool(() => props.onAI?.()); }}>Plan with AI</button>}
       <button className="nav foot-action" onClick={() => { openTool(props.onAutomation); }}><Zap size={16} aria-hidden="true" /> Automation</button>
       {tvBtn}
-      <button className="nav foot-action" onClick={() => { openTool(props.onImport); }}><Upload size={16} aria-hidden="true" /> Import</button>
-      {restoreBtn}{exportBtn}
-      <button className="nav foot-action" onClick={() => { openTool(props.onSettings); }}><Settings size={16} aria-hidden="true" /> Settings</button>
+      <button className="nav foot-action" aria-current={props.selection.kind === 'settings' ? 'page' : undefined} onClick={() => { openTool(props.onSettings); }}><Settings size={16} aria-hidden="true" /> Settings</button>
     </div>
   );
   const navigation = (after?: () => void) => NAV_GROUPS.map(group => (

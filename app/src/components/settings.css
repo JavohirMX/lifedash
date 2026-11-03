@@ -1,0 +1,26 @@
+/* Scoped settings presentation. Keep behavior and global theme tokens intact. */
+.settings-scope .settings-group { min-width: 0; }
+.settings-scope .settings-group h3 { margin: 2px 0 6px; font-size: var(--fs-small); color: var(--muted); font-weight: 600; }
+.settings-scope .settings-group + .settings-group { margin-top: 6px; }
+.settings-scope .settings-row { padding: 14px 0; gap: 12px; color: var(--text); cursor: pointer; }
+.settings-scope .settings-row small { line-height: 1.5; }
+.settings-scope .settings-row > span:last-child { flex: none; }
+.settings-scope .settings-state { min-width: 42px; padding: 4px 7px; border: 1px solid var(--border); border-radius: var(--radius-control); text-align: center; font-weight: 600; background: var(--surface-2); }
+.settings-scope .settings-state[data-active='true'] { color: var(--accent); border-color: var(--accent); }
+.settings-scope .settings-help { margin: 4px 0 0; font-size: var(--fs-small); line-height: 1.5; color: var(--muted); }
+.settings-scope .settings-state-help { margin: 8px 0 12px; }
+@media (max-width: 360px) {
+  .settings-scope .settings-row { gap: 10px; }
+  .settings-scope .settings-row > svg { width: 17px; }
+  .settings-scope .settings-state { min-width: 0; padding: 4px 5px; }
+}
+
+.agent-key-token {
+  display: block;
+  word-break: break-all;
+  user-select: all;
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: var(--surface-2, rgba(127, 127, 127, 0.12));
+  font-size: 13px;
+}

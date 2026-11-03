@@ -34,7 +34,7 @@ import TVDashboard from './views/TVDashboard';
 import SyncDialog from './components/SyncDialog';
 import AppearanceDialog from './components/AppearanceDialog';
 import GoogleCalendarDialog from './components/GoogleCalendarDialog';
-import SettingsDialog from './components/SettingsDialog';
+import SettingsView from './views/SettingsView';
 import AgentKeysDialog from './components/AgentKeysDialog';
 import { cycleTheme } from './theme';
 import { projectWithDescendants } from './projects';
@@ -122,7 +122,6 @@ export default function App() {
   const [aiOpen, setAiOpen] = useState(false);
   const [appearanceOpen, setAppearanceOpen] = useState(false);
   const [googleCalendarOpen,setGoogleCalendarOpen]=useState(false);
-  const [settingsOpen, setSettingsOpen] = useState(false);
   const [agentKeysOpen, setAgentKeysOpen] = useState(false);
   const [dataBackupOpen, setDataBackupOpen] = useState(false);
   const [settingsChild, setSettingsChild] = useState<'appearance' | 'sync' | null>(null);
@@ -273,11 +272,30 @@ export default function App() {
     return { projectId: INBOX_ID, dueDate: null };
   })();
   const openTag = (tag: string) => setSelection({ kind: 'search', query: `#${tag}` });
-  const showQuickAdd = selection.kind !== 'completed' && selection.kind !== 'search' && selection.kind !== 'habits' && selection.kind !== 'planner' && selection.kind !== 'week' && selection.kind !== 'home' && selection.kind !== 'goals' && selection.kind !== 'notes' && selection.kind !== 'journal' && selection.kind !== 'calendar';
+  const showQuickAdd = selection.kind !== 'completed' && selection.kind !== 'search' && selection.kind !== 'habits' && selection.kind !== 'planner' && selection.kind !== 'week' && selection.kind !== 'home' && selection.kind !== 'goals' && selection.kind !== 'notes' && selection.kind !== 'journal' && selection.kind !== 'calendar' && selection.kind !== 'settings';
 
   if (isTv) return <TVDashboard />;
 
   let body;
+  if (selection.kind === 'settings') {
+    body = (
+      <SettingsView
+        onDataBackup={() => setDataBackupOpen(true)}
+        onSync={() => { setSettingsChild('sync'); setSyncOpen(true); }}
+        onAppearance={() => { setSettingsChild('appearance'); setAppearanceOpen(true); }}
+        onGoogleCalendar={() => setGoogleCalendarOpen(true)}
+        onAgentKeys={() => setAgentKeysOpen(true)}
+        onImport={() => setImportPreset(null)}
+        onRestore={() => setImportPreset('lifedash-json')}
+        reminders={reminderGate(remindOn)}
+        onToggleReminders={() => void toggleReminders()}
+        journalNudge={nudgeOn}
+        onToggleJournalNudge={toggleJournalNudge}
+        notificationError={notificationError}
+        notificationBusy={notificationBusy}
+      />
+    );
+  }
   if (selection.kind === 'home') {
     body = <HomeView tasks={tasks} onNavigate={setSelection} onSelect={(kind) => setSelection({ kind } as Selection)} onOpen={setOpenId} />;
   } else if (selection.kind === 'today') {
@@ -479,14 +497,14 @@ export default function App() {
         onToggleJournalNudge={toggleJournalNudge}
         onToggleReminders={() => void toggleReminders()}
         onScheduleToday={(id) => void scheduleDroppedToday(id, today)}
-        onAI={() => setAiOpen(true)} onImport={() => setImportPreset(null)} onRestore={() => setImportPreset('lifedash-json')} onAutomation={() => setAutomationOpen(true)} onSync={() => { setSettingsChild(null); setSyncOpen(true); }} onAppearance={() => { setSettingsChild(null); setAppearanceOpen(true); }} onSettings={() => setSettingsOpen(true)} />
+        onAI={() => setAiOpen(true)} onAutomation={() => setAutomationOpen(true)} onSync={() => { setSettingsChild(null); setSyncOpen(true); }} onAppearance={() => { setSettingsChild(null); setAppearanceOpen(true); }} onSettings={() => setSelection({ kind: 'settings' })} />
       <main className={selection.kind === 'home' ? 'home-main' : ['week', 'calendar'].includes(selection.kind) ? 'schedule-main' : undefined}>
         {SAMPLE_MODE && <div className="sample-banner" role="status">Sample-data sandbox · Fictional data · <a href="/">Exit to your real data</a></div>}
         <SyncConflictBanner />
         {weeklyFailed && !automationOpen && <div role="alert"><p>Couldn't finish running weekly rules. Some tasks may have been created or rule history may not have been saved. Check tasks and rules before trying again.</p><button className="btn-secondary" onClick={() => setWeeklyFailed(false)}>Dismiss weekly-rule notice</button></div>}
         {rolloverFailed && !automationOpen && <div role="alert"><p>Couldn't finish moving overdue tasks to Today. Part of the change may have been saved. Check task dates before trying again. Your automation setting is unchanged.</p><button className="btn-secondary" onClick={() => setRolloverFailed(false)}>Dismiss rollover notice</button></div>}
         <CompletionFailureNotice />
-        {notificationError && !settingsOpen && <p className="form-save-error" role="alert">{notificationError}</p>}
+        {notificationError && selection.kind !== 'settings' && <p className="form-save-error" role="alert">{notificationError}</p>}
         {showQuickAdd && (
           <QuickAdd
             projectId={quickAddContext.projectId}
@@ -512,25 +530,11 @@ export default function App() {
       {importPreset !== false && <ImportDialog projects={projects} initialSource={importPreset} onRestoreSettled={() => { setRules(loadRules()); setUserRules(loadUserRules()); }} onClose={() => setImportPreset(false)} />}
       {automationOpen && <AutomationDialog weeklyFailed={weeklyFailed} onDismissWeekly={() => setWeeklyFailed(false)} rolloverFailed={rolloverFailed} onDismissRollover={() => setRolloverFailed(false)} rules={rules} onChange={changeRules} userRules={userRules} onUserRulesChange={changeUserRules} projects={projects} onClose={() => setAutomationOpen(false)} />}
       {aiOpen && <AssistantDialog tasks={tasks} onClose={() => setAiOpen(false)} />}
-      {syncOpen && <SyncDialog onClose={() => setSyncOpen(false)} onBack={settingsChild === 'sync' ? () => { setSyncOpen(false); setSettingsOpen(true); } : undefined} />}
-      {googleCalendarOpen && <GoogleCalendarDialog onClose={()=>setGoogleCalendarOpen(false)} onBack={()=>{setGoogleCalendarOpen(false);setSettingsOpen(true);}}/>}
-      {dataBackupOpen && <DataBackupDialog onClose={() => { setDataBackupOpen(false); setSettingsOpen(true); }} />}
-      {agentKeysOpen && <AgentKeysDialog onClose={() => { setAgentKeysOpen(false); setSettingsOpen(true); }} />}
-      {settingsOpen && <SettingsDialog
-        onDataBackup={() => { setSettingsOpen(false); setDataBackupOpen(true); }}
-        onClose={() => setSettingsOpen(false)}
-        onGoogleCalendar={()=>{setSettingsOpen(false);setGoogleCalendarOpen(true);}}
-        onAgentKeys={() => { setSettingsOpen(false); setAgentKeysOpen(true); }}
-        onSync={() => { setSettingsChild('sync'); setSettingsOpen(false); setSyncOpen(true); }}
-        onAppearance={() => { setSettingsChild('appearance'); setSettingsOpen(false); setAppearanceOpen(true); }}
-        reminders={reminderGate(remindOn)}
-        onToggleReminders={() => void toggleReminders()}
-        journalNudge={nudgeOn}
-        onToggleJournalNudge={toggleJournalNudge}
-        notificationError={notificationError}
-        notificationBusy={notificationBusy}
-      />}
-      {appearanceOpen && <AppearanceDialog onClose={() => setAppearanceOpen(false)} onBack={settingsChild === 'appearance' ? () => { setAppearanceOpen(false); setSettingsOpen(true); } : undefined} />}
+      {syncOpen && <SyncDialog onClose={() => setSyncOpen(false)} onBack={settingsChild === 'sync' ? () => setSyncOpen(false) : undefined} />}
+      {googleCalendarOpen && <GoogleCalendarDialog onClose={()=>setGoogleCalendarOpen(false)} onBack={()=>setGoogleCalendarOpen(false)}/>}
+      {dataBackupOpen && <DataBackupDialog onClose={() => setDataBackupOpen(false)} />}
+      {agentKeysOpen && <AgentKeysDialog onClose={() => setAgentKeysOpen(false)} />}
+      {appearanceOpen && <AppearanceDialog onClose={() => setAppearanceOpen(false)} onBack={settingsChild === 'appearance' ? () => setAppearanceOpen(false) : undefined} />}
       {shortcutsOpen && <ShortcutsDialog onClose={() => setShortcutsOpen(false)} />}
       <CommandPalette
         open={paletteOpen}
