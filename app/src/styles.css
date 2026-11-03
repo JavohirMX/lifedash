@@ -2649,3 +2649,28 @@ main.tv-grid { max-width: none; width: 100%; }
 }
 .att-state-warn { color: var(--danger, #b91c1c); }
 .att-state .mini { margin-left: 6px; }
+
+/* First-run onboarding (full-screen, own layer above the app) */
+.onboarding {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: var(--ground);
+}
+.onboarding-card {
+  max-width: 460px;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.onboarding-card h1 { margin: 0; }
+.onboarding-card p { margin: 0; color: var(--muted); line-height: 1.6; }
+.onboarding-actions { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 6px; }
+.onboarding-actions .btn-primary, .onboarding-actions .btn-secondary {
+  display: inline-flex; align-items: center; gap: 8px;
+}
