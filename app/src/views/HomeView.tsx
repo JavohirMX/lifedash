@@ -50,7 +50,7 @@ export default function HomeView(props: { tasks: Task[]; onSelect: (kind: string
   const goals = useLiveQuery(() => db.goals.orderBy('order').toArray(), []);
   const today = todayStr();
   const journalEntry = useLiveQuery(() => db.journal.get(today), [today]);
-  const suggestion = suggestedTask(props.tasks, today);
+  const suggestion = suggestedTask(props.tasks, today, { tomorrowFallback: true });
   const [clock, setClock] = useState(() => Date.now());
   useEffect(() => { const timer = setInterval(() => setClock(Date.now()), 30_000); return () => clearInterval(timer); }, []);
   const now = new Date(clock);
@@ -339,11 +339,34 @@ export default function HomeView(props: { tasks: Task[]; onSelect: (kind: string
               <button className="btn-secondary" onClick={() => setReviewOpen(true)}>Review this week</button>
             </section>
           )}
+
+        {!hidden.includes('upcoming') && (
+          <section className="home-upcoming widget">
+            <div className="widget-head">
+              <h2>Upcoming</h2>
+              <button className="widget-link" onClick={() => props.onSelect('upcoming')}>
+                Open <ArrowRight size={13} strokeWidth={2} aria-hidden="true" />
+              </button>
+            </div>
+            {upNext.length === 0 ? (
+              <p className="widget-empty">Nothing scheduled for the rest of the week.</p>
+            ) : (
+              <ul className="widget-list">
+                {upNext.map(({ d, t }) => (
+                  <li key={t.id}>
+                    <button className="widget-task" onClick={() => props.onOpen(t.id)}>{t.title}</button>
+                    <span className="widget-when">{friendlyDate(d, today)}</span>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </section>
+        )}
         </aside>
       </div>
 
       <details className="home-extra-widgets">
-        <summary>More insights · week, goals and upcoming</summary>
+        <summary>More insights · week and goals</summary>
         <p className="widget-meta">Optional detail, kept out of your next-action view. Show or hide each widget using Customize widgets.</p>
         <div className="home-extra-grid">
           {!hidden.includes('week') && (
@@ -419,28 +442,6 @@ export default function HomeView(props: { tasks: Task[]; onSelect: (kind: string
             </section>
           )}
 
-          {!hidden.includes('upcoming') && (
-            <section className="home-upcoming widget">
-              <div className="widget-head">
-                <h2>Upcoming</h2>
-                <button className="widget-link" onClick={() => props.onSelect('upcoming')}>
-                  Open <ArrowRight size={13} strokeWidth={2} aria-hidden="true" />
-                </button>
-              </div>
-              {upNext.length === 0 ? (
-                <p className="widget-empty">Nothing scheduled for the rest of the week.</p>
-              ) : (
-                <ul className="widget-list">
-                  {upNext.map(({ d, t }) => (
-                    <li key={t.id}>
-                      <button className="widget-task" onClick={() => props.onOpen(t.id)}>{t.title}</button>
-                      <span className="widget-when">{friendlyDate(d, today)}</span>
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </section>
-          )}
         </div>
       </details>
 

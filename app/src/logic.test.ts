@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { upcomingTasks, parseQuickAdd, groupCompletedByDay, renamedTags, completeTask, skipOccurrence, searchJournal, blockerCandidates, extractChecklistItems, filterNewChecklistItems, describeRecurrence, recurrenceChoice, isRecurrenceValid, nextOccurrenceDate, makeRecurrence, upNextGroups } from './logic';
+import { upcomingTasks, suggestedTask, parseQuickAdd, groupCompletedByDay, renamedTags, completeTask, skipOccurrence, searchJournal, blockerCandidates, extractChecklistItems, filterNewChecklistItems, describeRecurrence, recurrenceChoice, isRecurrenceValid, nextOccurrenceDate, makeRecurrence, upNextGroups } from './logic';
 import type { Task } from './types';
 
 describe('parseQuickAdd', () => {
@@ -381,5 +381,46 @@ describe('upcoming day order', () => {
     const task = (id: string, dueDate: string, priority: number) => ({id, title:id, status:'active', parentId:null, dueDate, priority, pinned:false, order:0} as Task);
     const groups = upcomingTasks([task('later','2026-10-30',1),task('sooner','2026-10-29',0)],'2026-10-27');
     expect([...groups.keys()]).toEqual(['2026-10-29','2026-10-30']);
+  });
+});
+
+describe('suggestedTask tomorrow fallback (Home, approved 2026-11-03)', () => {
+  // Home suggests tomorrow's task only when nothing is due today; the
+  // default (no opt-in) keeps today-only behavior for other callers.
+  const task = (id: string, dueDate: string | null, extra: Partial<Task> = {}) =>
+    ({ id, title: id, status: 'active', parentId: null, dueDate, priority: 0, pinned: false, order: 0, blockedBy: [], ...extra } as Task);
+
+  it('suggests tomorrow when nothing is due today, labelled honestly', () => {
+    const t = task('tmr', '2026-10-28');
+    expect(suggestedTask([t], '2026-10-27', { tomorrowFallback: true })).toMatchObject({ task: { id: 'tmr' }, reason: 'Due tomorrow' });
+  });
+
+  it('still prefers a due-today task over tomorrow', () => {
+    const today = task('tdy', '2026-10-27');
+    const tmr = task('tmr', '2026-10-28');
+    expect(suggestedTask([tmr, today], '2026-10-27', { tomorrowFallback: true })?.task.id).toBe('tdy');
+  });
+
+  it('does not reach past tomorrow', () => {
+    const later = task('later', '2026-10-29');
+    expect(suggestedTask([later], '2026-10-27', { tomorrowFallback: true })).toBeNull();
+  });
+
+  it('excludes blocked and subtasks from the tomorrow fallback', () => {
+    const blocker = task('blocker', null);
+    const blocked = task('blocked', '2026-10-28', { blockedBy: ['blocker'] });
+    const child = task('child', '2026-10-28', { parentId: 'blocker' });
+    expect(suggestedTask([blocker, blocked, child], '2026-10-27', { tomorrowFallback: true })).toBeNull();
+  });
+
+  it('picks among tomorrow tasks by priority, then time, then age', () => {
+    const low = task('low', '2026-10-28', { priority: 3, createdAt: 1 });
+    const high = task('high', '2026-10-28', { priority: 1, createdAt: 2 });
+    expect(suggestedTask([low, high], '2026-10-27', { tomorrowFallback: true })?.task.id).toBe('high');
+  });
+
+  it('without the opt-in, tomorrow stays invisible (baseline pinned)', () => {
+    const t = task('tmr', '2026-10-28');
+    expect(suggestedTask([t], '2026-10-27')).toBeNull();
   });
 });

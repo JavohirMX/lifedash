@@ -425,20 +425,36 @@ export function searchGoals(goals: Goal[], query: string): Goal[] {
 // The one task most worth doing right now: overdue first, then priority,
 // then anything due today with a time, then earliest due. Blocked and
 // subtasks don't qualify.
-export function suggestedTask(tasks: Task[], today: string): { task: Task; reason: string } | null {
-  const candidates = tasks.filter(
-    (t) => t.status === 'active' && t.parentId === null && activeBlockers(tasks, t).length === 0 && t.dueDate !== null && t.dueDate <= today,
-  );
-  if (candidates.length === 0) return null;
-  const overdue = candidates.filter((t) => t.dueDate! < today);
-  const pool = overdue.length > 0 ? overdue : candidates;
+export function suggestedTask(tasks: Task[], today: string, opts?: { tomorrowFallback?: boolean }): { task: Task; reason: string } | null {
+  const unblocked = (t: Task) => t.status === 'active' && t.parentId === null && activeBlockers(tasks, t).length === 0 && t.dueDate !== null;
+  const candidates = tasks.filter((t) => unblocked(t) && t.dueDate! <= today);
+  // Home only (approved 2026-11-03): when nothing is due today, suggest
+  // tomorrow's task so a near deadline is never invisible. Other callers
+  // keep today-only behavior by default.
+  const tomorrow = addDays(today, 1);
+  const pool =
+    candidates.length > 0
+      ? (candidates.some((t) => t.dueDate! < today) ? candidates.filter((t) => t.dueDate! < today) : candidates)
+      : opts?.tomorrowFallback
+        ? tasks.filter((t) => unblocked(t) && t.dueDate! === tomorrow)
+        : [];
+  if (pool.length === 0) return null;
   pool.sort((a, b) => {
     if (a.priority !== b.priority) return (a.priority || 4) - (b.priority || 4);
     if ((a.dueTime ?? '99') !== (b.dueTime ?? '99')) return (a.dueTime ?? '99').localeCompare(b.dueTime ?? '99');
     return a.createdAt - b.createdAt;
   });
   const top = pool[0];
-  const reason = overdue.length > 0 ? 'Overdue' : top.priority === 1 ? 'Top priority' : top.dueTime ? `Due ${top.dueTime}` : 'Due today';
+  const reason =
+    candidates.length === 0
+      ? 'Due tomorrow'
+      : candidates.some((t) => t.dueDate! < today)
+        ? 'Overdue'
+        : top.priority === 1
+          ? 'Top priority'
+          : top.dueTime
+            ? `Due ${top.dueTime}`
+            : 'Due today';
   return { task: top, reason };
 }
 
