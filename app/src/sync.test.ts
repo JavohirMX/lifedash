@@ -13,7 +13,7 @@ globalThis.localStorage = {
 // scheduling is a no-op in tests (dirty-mark state is what tests assert).
 (globalThis as { window?: unknown }).window = { dispatchEvent: () => true, clearTimeout: () => undefined, setTimeout: () => 0 };
 
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 // In-memory stand-in for the Dexie db. sync.ts only uses:
 // syncmeta.get/put/delete/where('key').startsWith(...).toArray()/count(),
@@ -1246,5 +1246,85 @@ describe('sync hooks - attachment bookkeeping writes', () => {
     await tick();
     expect(meta.get('dirty:attachments:att-5')).toEqual({ deleted: false });
     expect(meta.get('dirty:attachments:att-6')).toEqual({ deleted: false });
+  });
+});
+
+describe('automatic sync triggers', () => {
+  const realWindow = (globalThis as { window?: unknown }).window;
+  const realDocument = (globalThis as { document?: unknown }).document;
+  const hadNavigator = 'navigator' in globalThis;
+
+  function stubDom() {
+    const winListeners = new Map<string, ((ev?: unknown) => void)[]>();
+    const docListeners = new Map<string, ((ev?: unknown) => void)[]>();
+    const add = (m: Map<string, ((ev?: unknown) => void)[]>) => (t: string, fn: (ev?: unknown) => void) => {
+      m.set(t, [...(m.get(t) ?? []), fn]);
+    };
+    (globalThis as { window?: unknown }).window = {
+      dispatchEvent: () => true,
+      clearTimeout: () => undefined,
+      setTimeout: () => 0,
+      setInterval: () => 0,
+      addEventListener: add(winListeners),
+      location: { search: '' },
+    };
+    (globalThis as { document?: unknown }).document = {
+      visibilityState: 'visible',
+      addEventListener: add(docListeners),
+    };
+    Object.defineProperty(globalThis, 'navigator', { value: { onLine: true }, configurable: true, writable: true });
+    return { winListeners, docListeners };
+  }
+
+  function countPulls() {
+    let pulls = 0;
+    vi.stubGlobal('fetch', vi.fn(async (url: string) => {
+      if (String(url).includes('/api/changes?')) { pulls += 1; return { ok: true, json: async () => ({ changes: [], rev: 0 }) } as Response; }
+      if (String(url).endsWith('/api/changes')) return { ok: true, json: async () => ({ results: [] }) } as Response;
+      throw new Error(`unexpected fetch ${url}`);
+    }));
+    return () => pulls;
+  }
+
+  afterEach(() => {
+    (globalThis as { window?: unknown }).window = realWindow;
+    (globalThis as { document?: unknown }).document = realDocument;
+    if (!hadNavigator) delete (globalThis as { navigator?: unknown }).navigator;
+  });
+
+  it('syncs immediately on app start when connected', async () => {
+    stubDom();
+    vi.resetModules();
+    const mod = await import('./sync');
+    const pulls = countPulls();
+    mod.saveSyncSettings(settings);
+    mod.startAutoSync();
+    await new Promise((r) => setTimeout(r, 20));
+    expect(pulls()).toBeGreaterThan(0);
+  });
+
+  it('syncs when the app returns to a visible tab', async () => {
+    const { docListeners } = stubDom();
+    vi.resetModules();
+    const mod = await import('./sync');
+    const pulls = countPulls();
+    mod.saveSyncSettings(settings);
+    mod.startAutoSync();
+    await new Promise((r) => setTimeout(r, 20));
+    const afterStart = pulls();
+    for (const fn of docListeners.get('visibilitychange') ?? []) fn();
+    await new Promise((r) => setTimeout(r, 20));
+    expect(pulls()).toBeGreaterThan(afterStart);
+  });
+
+  it('does not sync on start when no server is connected', async () => {
+    stubDom();
+    vi.resetModules();
+    const mod = await import('./sync');
+    const pulls = countPulls();
+    localStorage.removeItem('lifedash-sync');
+    mod.startAutoSync();
+    await new Promise((r) => setTimeout(r, 20));
+    expect(pulls()).toBe(0);
   });
 });
