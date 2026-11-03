@@ -36,7 +36,7 @@ import AppearanceDialog from './components/AppearanceDialog';
 import GoogleCalendarDialog from './components/GoogleCalendarDialog';
 import SettingsView from './views/SettingsView';
 import Onboarding from './components/Onboarding';
-import { isOnboardingDone, markOnboardingDone } from './onboarding';
+import { isFreshInstallPending, markFreshInstall, markOnboardingDone } from './onboarding';
 import { loadSyncSettings } from './sync';
 import AgentKeysDialog from './components/AgentKeysDialog';
 import { cycleTheme } from './theme';
@@ -68,7 +68,6 @@ export default function App() {
   const notes = useLiveQuery(() => db.notes.toArray(), []);
   const journal = useLiveQuery(() => db.journal.toArray(), []);
   const [selection, setSelection] = useState<Selection>({ kind: 'home' });
-  const [onboarded, setOnboarded] = useState(isOnboardingDone);
   // null = not known yet (seed check pending): onboarding never renders
   // before freshness is established, so upgrading users never flash it.
   const [freshInstall, setFreshInstall] = useState<boolean | null>(null);
@@ -186,7 +185,11 @@ export default function App() {
 
   useEffect(() => {
     void ensureSeed().then(async (seeded) => {
-      setFreshInstall(seeded);
+      // First creation of the database: record the durable fresh-install
+      // marker. Later loads (and reloads before any dismissal) re-read the
+      // marker, so the welcome survives until Skip or a successful connect.
+      if (seeded) markFreshInstall();
+      setFreshInstall(isFreshInstallPending());
       // Move legacy localStorage automation config into Dexie (once), adopt
       // any config sync already delivered, then re-read the cache.
       await hydrateAutomation();
@@ -538,19 +541,19 @@ export default function App() {
       {importPreset !== false && <ImportDialog projects={projects} initialSource={importPreset} onRestoreSettled={() => { setRules(loadRules()); setUserRules(loadUserRules()); }} onClose={() => setImportPreset(false)} />}
       {automationOpen && <AutomationDialog weeklyFailed={weeklyFailed} onDismissWeekly={() => setWeeklyFailed(false)} rolloverFailed={rolloverFailed} onDismissRollover={() => setRolloverFailed(false)} rules={rules} onChange={changeRules} userRules={userRules} onUserRulesChange={changeUserRules} projects={projects} onClose={() => setAutomationOpen(false)} />}
       {aiOpen && <AssistantDialog tasks={tasks} onClose={() => setAiOpen(false)} />}
-      {syncOpen && <SyncDialog onClose={() => { setSyncOpen(false); if (loadSyncSettings()) { markOnboardingDone(); setOnboarded(true); } }} onBack={settingsChild === 'sync' ? () => setSyncOpen(false) : undefined} />}
+      {syncOpen && <SyncDialog onClose={() => { setSyncOpen(false); if (loadSyncSettings()) { markOnboardingDone(); setFreshInstall(false); } }} onBack={settingsChild === 'sync' ? () => setSyncOpen(false) : undefined} />}
       {googleCalendarOpen && <GoogleCalendarDialog onClose={()=>setGoogleCalendarOpen(false)} onBack={()=>setGoogleCalendarOpen(false)}/>}
       {dataBackupOpen && <DataBackupDialog onClose={() => setDataBackupOpen(false)} />}
       {agentKeysOpen && <AgentKeysDialog onClose={() => setAgentKeysOpen(false)} />}
       {appearanceOpen && <AppearanceDialog onClose={() => setAppearanceOpen(false)} onBack={settingsChild === 'appearance' ? () => setAppearanceOpen(false) : undefined} />}
       {shortcutsOpen && <ShortcutsDialog onClose={() => setShortcutsOpen(false)} />}
-      {freshInstall === true && !onboarded && !syncOpen && (
+      {freshInstall === true && !syncOpen && (
         <Onboarding
           // Set up sync does NOT dismiss: onboarding survives closing or
           // failing the dialog, and completes only on a successful connect
           // (SyncDialog onClose below) or an explicit Skip.
           onSetUpSync={() => { setSettingsChild(null); setSyncOpen(true); }}
-          onSkip={() => { markOnboardingDone(); setOnboarded(true); }}
+          onSkip={() => { markOnboardingDone(); setFreshInstall(false); }}
         />
       )}
       <CommandPalette
