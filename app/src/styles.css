@@ -2659,7 +2659,7 @@ main.tv-grid { max-width: none; width: 100%; }
   align-items: center;
   justify-content: center;
   padding: 24px;
-  background: var(--bg);
+  background: var(--ground);
 }
 .onboarding-card {
   max-width: 460px;
