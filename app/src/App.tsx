@@ -35,6 +35,8 @@ import SyncDialog from './components/SyncDialog';
 import AppearanceDialog from './components/AppearanceDialog';
 import GoogleCalendarDialog from './components/GoogleCalendarDialog';
 import SettingsView from './views/SettingsView';
+import Onboarding from './components/Onboarding';
+import { isOnboardingDone, markOnboardingDone } from './onboarding';
 import AgentKeysDialog from './components/AgentKeysDialog';
 import { cycleTheme } from './theme';
 import { projectWithDescendants } from './projects';
@@ -65,6 +67,7 @@ export default function App() {
   const notes = useLiveQuery(() => db.notes.toArray(), []);
   const journal = useLiveQuery(() => db.journal.toArray(), []);
   const [selection, setSelection] = useState<Selection>({ kind: 'home' });
+  const [onboarded, setOnboarded] = useState(isOnboardingDone);
   const [isTv, setIsTv] = useState(() => window.location.hash === '#/tv');
   useEffect(() => {
     const onHash = () => setIsTv(window.location.hash === '#/tv');
@@ -536,6 +539,12 @@ export default function App() {
       {agentKeysOpen && <AgentKeysDialog onClose={() => setAgentKeysOpen(false)} />}
       {appearanceOpen && <AppearanceDialog onClose={() => setAppearanceOpen(false)} onBack={settingsChild === 'appearance' ? () => setAppearanceOpen(false) : undefined} />}
       {shortcutsOpen && <ShortcutsDialog onClose={() => setShortcutsOpen(false)} />}
+      {!onboarded && (
+        <Onboarding
+          onSetUpSync={() => { markOnboardingDone(); setOnboarded(true); setSettingsChild(null); setSyncOpen(true); }}
+          onSkip={() => { markOnboardingDone(); setOnboarded(true); }}
+        />
+      )}
       <CommandPalette
         open={paletteOpen}
         tasks={tasks}
