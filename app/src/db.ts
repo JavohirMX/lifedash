@@ -230,17 +230,22 @@ export class LifeDashDB extends Dexie {
 
 export const db = new LifeDashDB();
 
-export async function ensureSeed(): Promise<void> {
+export async function ensureSeed(): Promise<boolean> {
   if (SAMPLE_MODE) {
     const { seedSample } = await import('./dev/seed');
     await seedSample();
-    return;
+    return false;
   }
   // StrictMode can start two seed calls together. Keep count + insert atomic.
-  await db.transaction('rw', db.projects, async () => {
+  // Returns true when the database was just created (fresh install signal,
+  // used to show first-run onboarding only to genuinely new installs -
+  // upgrading users already have projects and never see it).
+  return db.transaction('rw', db.projects, async () => {
     if ((await db.projects.count()) === 0) {
       await db.projects.add({ id: INBOX_ID, name: 'Inbox', color: '#0f766e', order: 0, archived: false });
+      return true;
     }
+    return false;
   });
 }
 
