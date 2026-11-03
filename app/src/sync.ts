@@ -841,18 +841,24 @@ async function applyRemote(col: Collection, e: ServerEntity): Promise<void> {
         throw new MalformedEntityError(`sync: task status is unreadable (${String(data.status)})`);
       }
       if (col === 'tasks') {
-        // Views depend on required fields being present (parentId === null
-        // marks a top-level task; undefined fails that check). The pull path
-        // is the only writer that can store a field-missing task, so fill
-        // absent keys with the same defaults a local create uses - the same
-        // normalisation the Dexie upgrades apply to older local rows. Only
-        // absent keys are filled; delivered values pass through untouched.
-        const now = Date.now();
+        // Split the required fields two ways. History-bearing fields
+        // (title, createdAt, updatedAt) have no honest default: a missing
+        // or mistyped one means the payload is provably malformed, so it is
+        // quarantined rather than stored with invented history. Structural
+        // fields (parentId above all: the strict parentId === null
+        // top-level check in every list view) have defaults that mean
+        // absence, not a fabricated value - the same normalisation the
+        // Dexie upgrades apply to older local rows. Only absent keys are
+        // filled; delivered values pass through untouched, including wrong
+        // types (documented residual: e.g. a string tags value still
+        // reaches the row).
+        if (typeof data.title !== 'string' || typeof data.createdAt !== 'number' || typeof data.updatedAt !== 'number') {
+          throw new MalformedEntityError(`sync: task is missing its title or history fields (key ${e.id})`);
+        }
         data = {
           note: '', noteDoc: null, parentId: null, goalId: null, noteId: null,
           pinned: false, priority: 0, dueDate: null, dueTime: null, recurrence: null,
-          blockedBy: [], tags: [], order: 0, seriesId: null,
-          createdAt: now, updatedAt: now, completedAt: null,
+          blockedBy: [], tags: [], order: 0, seriesId: null, completedAt: null,
           ...data,
         };
       }
