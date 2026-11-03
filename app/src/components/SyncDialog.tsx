@@ -146,7 +146,7 @@ export default function SyncDialog(props: { onClose: () => void; onBack?: () => 
         {!settings ? (
           <>
             <p className="rule-note">
-              Connect to your own Lifedash sync server. Registration closes after the first account by default.
+              Connect to your own Lifedash sync server. Syncing is automatic once connected. Registration closes after the first account by default.
             </p>
             <p className="rule-note"><a href="./selfhost.html" target="_blank" rel="noreferrer">Self-host setup guide (opens in a new tab)</a></p>
             <label className="field">
@@ -178,6 +178,9 @@ export default function SyncDialog(props: { onClose: () => void; onBack?: () => 
           <>
             <p className="rule-note">
               {localClearFailed ? 'Saved sync settings for ' : 'Connected to '}<strong>{settings.url}</strong> as <strong>{settings.username}</strong>.
+            </p>
+            <p className="rule-note">
+              Sync is automatic - after every change, when you open or return to the app, and every 5 minutes while it is open. Sync now just runs one right away.
             </p>
             <div className="sync-actions">
               <button className="btn-primary" disabled={busy} onClick={() => void doSync()}>Sync now</button>
