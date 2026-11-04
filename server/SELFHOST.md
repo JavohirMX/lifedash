@@ -144,8 +144,12 @@ tailscale funnel --bg 8787
 
 In Lifedash: sidebar -> **Settings** -> **Sync** -> paste the server URL
 (`https://sync.example.com`) -> sign in (or create the account here
-while registration is open). Sync runs on focus, on reconnect, every
-5 minutes, and a few seconds after any edit. Sync now forces a round.
+while registration is open). With a saved connection and network access,
+sync runs once when the app opens, when the window gains focus, when a hidden
+tab becomes visible, on reconnect, every 5 minutes while open, and a few
+seconds after an edit. These are in-app triggers, not background sync while
+the app is closed. Sync now requests a round; an existing round or a rollback
+pause can prevent another round from starting.
 
 Every device uses the same account; each keeps its own cursor.
 
@@ -252,19 +256,22 @@ database. Check login and records before reconnecting clients. This guide does
 not automatically perform recovery. `docker compose down` preserves data;
 `docker compose down -v` deletes the volume and must not be used for upgrades.
 
-**Known hazard: restoring an older backup can silently corrupt multi-device
-sync.** Devices assume the server's revision counter only moves forward. A
-restore moves it backward and reuses numbers, and neither side detects that
-today (characterized in `tests/test_restore_rollback_characterization.py`):
-a device can permanently miss changes other devices make after the restore,
-and ordinary conflict handling can keep the server's older version over a
-device's newer edit. A designed reconciliation is pending. Until it ships,
-there is no verified reconciliation procedure. The cautious manual path
-after restoring an older backup: everyone holds off editing, then you
-compare each device's data against the server and re-enter anything missing
-by hand from the device that still has it. Treat that as careful review,
-not a proven repair. Do not assume that reconnecting every device repairs
-the restore - it does not.
+**Known hazard: restoring an older backup can cause devices to miss changes.**
+Devices assume the server's revision counter only moves forward. The client
+now pauses sync when a pull reports a server revision lower than that device's
+cursor. While paused, it does not push edits or attachment files. Keep the
+warning visible and investigate the server before reconnecting.
+
+This is a limited rollback detector, not reconciliation. It cannot detect a
+restored server whose counter has already caught up with or passed the device
+cursor. A device can still miss changes made after that restore; ordinary
+server-wins conflicts can also replace a newer local edit with an older server
+version. There is no verified general repair procedure. After restoring an
+older backup, hold off editing, compare each device's data against the server,
+and re-enter anything missing from a device that still has it. Keep backups
+before attempting recovery. Disconnecting and reconnecting clears this
+device's pause, but does not reconcile missing records or prove the server is
+fixed.
 
 For a synthetic, non-Docker drill after `make install`, run
 `make test-selfhost` from the repo root on a POSIX host. It verifies a real
@@ -281,6 +288,23 @@ docker compose up -d --build
 
 The schema migrates on startup; the database file carries over. Backup
 first, as with anything that holds your data.
+
+## Unreadable pulled task data
+
+The client skips and quarantines a pulled task with an unreadable status,
+missing title/history fields, or a supplied field type it cannot consume.
+Absent structural fields get defaults; creation and update timestamps are
+not invented. This validation is limited to the checked task fields, not a
+general integrity check or a repair of the server's stored payload.
+
+A skipped task does not appear in ordinary task lists. Other readable records
+in the pull can still apply, and the cursor advances past the skipped record.
+The sync result reports that round's skipped count; a later idle sync can
+replace that summary even though the quarantine entry remains. There is no
+quarantine review or recovery UI yet. Do not clear browser storage to try to
+recover a skipped task. The local quarantine is a bounded failure buffer,
+not a complete backup. Parent references are not checked for existence at
+this boundary because the parent can arrive in a later batch.
 
 ## Troubleshooting
 
