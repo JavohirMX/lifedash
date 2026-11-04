@@ -374,7 +374,11 @@ async function summaryWithNotice(r: SyncResult): Promise<string> {
   return `${base}, ${outstanding} earlier conflict${outstanding === 1 ? '' : 's'} (server won) awaiting review`;
 }
 
-/** Focus/online/interval sync plus debounced push after local edits. */
+/**
+ * Automatic sync: once on open, on window focus, on network reconnect, on
+ * return to a visible tab, on an interval while open, plus a debounced push
+ * after local edits.
+ */
 export function startAutoSync(): void {
   if (SAMPLE_MODE) return;
   if (autoSyncStarted) return;
@@ -382,8 +386,15 @@ export function startAutoSync(): void {
   // A fresh launch is a natural retry point for stranded uploads.
   void resetAllAttachmentUploadFailures();
   installSyncHooks();
+  // Sync right away on open: waiting for the first interval would leave
+  // stale data on screen for minutes, and 'focus' does not fire reliably
+  // when a mobile app or PWA comes to the foreground.
+  void runAutoSync();
   window.addEventListener('focus', () => void runAutoSync());
   window.addEventListener('online', () => void runAutoSync());
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') void runAutoSync();
+  });
   window.setInterval(() => void runAutoSync(), AUTO_INTERVAL_MS);
 }
 
