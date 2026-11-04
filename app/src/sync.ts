@@ -845,6 +845,12 @@ async function applyRemote(col: Collection, e: ServerEntity): Promise<void> {
       }
       if (data.id === undefined) data = { ...data, id: e.id };
       else if (data.id !== e.id) throw new MalformedEntityError(`sync: entity id mismatch (key ${e.id}, data id ${String(data.id)})`);
+      if (col === 'tasks' && data.status !== 'active' && data.status !== 'done' && data.status !== 'archived') {
+        // Every view filters on status, so a value this version cannot read
+        // (hand-written API push, a schema newer than this app) would apply
+        // cleanly and vanish from every list. Quarantine it for review.
+        throw new MalformedEntityError(`sync: task status is unreadable (${String(data.status)})`);
+      }
       if (col === 'attachments' && data.blob === undefined) {
         const existing = (await table.get(e.id)) as { blob?: unknown } | undefined;
         if (existing?.blob !== undefined) data = { ...data, blob: existing.blob };
