@@ -83,26 +83,39 @@ def main():
                 token = request(url, '/api/register', credentials)['token']
                 request(url, '/api/register', {**credentials, 'username': 'second'}, expected=403)
                 request(url, '/api/changes', expected=401)
-                change = {'collection': 'tasks', 'id': 'synthetic-task', 'base_rev': 0,
-                          'data': {'title': 'Synthetic persisted task'}}
+                # Use a client-readable task, not merely a server-accepted blob.
+                # The generic changes endpoint deliberately stores opaque data.
+                task = {
+                    'id': 'synthetic-task', 'title': 'Synthetic persisted task',
+                    'projectId': 'inbox', 'status': 'active', 'parentId': None,
+                    'note': '', 'noteDoc': None, 'goalId': None, 'noteId': None,
+                    'pinned': False, 'priority': 0, 'order': 0,
+                    'dueDate': None, 'dueTime': None, 'recurrence': None,
+                    'blockedBy': [], 'tags': [], 'seriesId': None,
+                    'completedAt': None, 'createdAt': 1700000000000,
+                    'updatedAt': 1700000000000,
+                }
+                change = {'collection': 'tasks', 'id': task['id'], 'base_rev': 0,
+                          'data': task}
                 result = request(url, '/api/changes', {'changes': [change]}, token)
                 assert result['results'][0]['rev'] == 1
                 # Online backup, while the server is still running in WAL mode.
                 with sqlite3.connect(db) as src, sqlite3.connect(backup) as dst:
                     src.backup(dst)
+                updated_task = {**task, 'title': 'After backup', 'updatedAt': 1700000001000}
                 result = request(url, '/api/changes', {'changes': [
-                    {**change, 'base_rev': 1, 'data': {'title': 'After backup'}}]}, token)
+                    {**change, 'base_rev': 1, 'data': updated_task}]}, token)
                 assert result['results'][0]['rev'] == 2
             with serve(db, directory) as url:
                 persisted = request(url, '/api/changes?since=0', token=token)
                 assert persisted['rev'] == 2
-                assert persisted['changes'][0]['data']['title'] == 'After backup'
+                assert persisted['changes'][0]['data'] == updated_task
                 assert request(url, '/api/login', credentials)['token']
             # Serve the copied snapshot as its own database, not over the live file.
             with serve(backup, directory) as url:
                 restored = request(url, '/api/changes?since=0', token=token)
                 assert restored['rev'] == 1
-                assert restored['changes'][0]['data']['title'] == 'Synthetic persisted task'
+                assert restored['changes'][0]['data'] == task
                 assert request(url, '/api/login', credentials)['token']
                 request(url, '/api/register', {**credentials, 'username': 'second'}, expected=403)
         except Exception:
