@@ -1385,4 +1385,53 @@ describe('automatic sync triggers', () => {
     await vi.waitFor(() => expect(pulls).toBe(4)); // guard released for a later foreground event
   });
 
+
+  it('automatic rollback detection blocks uploads and later foreground retries', async () => {
+    const { winListeners } = stubDom();
+    vi.resetModules();
+    const mod = await import('./sync');
+    meta.set('cursor', 8);
+    tables.set('attachments', new Map([['pending', { id: 'pending', taskId: 'valid', blob: new Blob(['bytes']), createdAt: 1 }]]));
+    let requests = 0;
+    vi.stubGlobal('fetch', vi.fn(async (url: string) => {
+      requests++;
+      if (!String(url).includes('/api/changes?')) throw new Error(`unexpected write ${url}`);
+      return { ok: true, json: async () => ({ changes: [], rev: 3 }) } as Response;
+    }));
+    mod.saveSyncSettings(settings);
+    mod.startAutoSync();
+    await vi.waitFor(() => expect(mod.getSyncHalt()).toMatchObject({ cursor: 8, serverRev: 3 }));
+    await vi.waitFor(() => expect(mod.loadSyncStatus()?.ok).toBe(false));
+    const warning = mod.loadSyncStatus()?.summary;
+    for (const fn of winListeners.get('focus') ?? []) fn();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(requests).toBe(1);
+    expect(meta.get('cursor')).toBe(8);
+    expect(meta.has('blobfail:pending')).toBe(false);
+    expect(mod.loadSyncStatus()?.summary).toBe(warning);
+  });
+
+  it('a transient startup pull failure leaves the cursor retryable on foreground', async () => {
+    const { winListeners } = stubDom();
+    vi.resetModules();
+    const mod = await import('./sync');
+    meta.set('cursor', 4);
+    let requests = 0;
+    vi.stubGlobal('fetch', vi.fn(async (url: string) => {
+      requests++;
+      if (requests === 1) throw new Error('offline at startup');
+      expect(new URL(String(url)).searchParams.get('since')).toBe('4');
+      return { ok: true, json: async () => ({ changes: [], rev: 4 }) } as Response;
+    }));
+    mod.saveSyncSettings(settings);
+    mod.startAutoSync();
+    await vi.waitFor(() => expect(mod.loadSyncStatus()?.ok).toBe(false));
+    expect(mod.getSyncHalt()).toBeNull();
+    expect(meta.get('cursor')).toBe(4);
+    for (const fn of winListeners.get('focus') ?? []) fn();
+    await vi.waitFor(() => expect(mod.loadSyncStatus()?.ok).toBe(true));
+    expect(requests).toBe(3);
+    expect(meta.get('cursor')).toBe(4);
+  });
+
 });
