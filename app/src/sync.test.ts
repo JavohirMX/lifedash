@@ -1327,4 +1327,62 @@ describe('automatic sync triggers', () => {
     await new Promise((r) => setTimeout(r, 20));
     expect(pulls()).toBe(0);
   });
+
+  it('startup quarantines malformed data, keeps the following valid task, and foreground resumes from the cursor', async () => {
+    const { docListeners } = stubDom();
+    vi.resetModules();
+    const mod = await import('./sync');
+    const cursors: string[] = [];
+    vi.stubGlobal('fetch', vi.fn(async (url: string) => {
+      if (!String(url).includes('/api/changes?')) throw new Error(`unexpected fetch ${url}`);
+      cursors.push(new URL(String(url)).searchParams.get('since')!);
+      const changes = cursors.length === 1 ? [
+        { collection: 'tasks', id: 'broken', rev: 1, deleted: false, data: { ...serverTask('broken', 'bad tags'), tags: 'not-an-array' } },
+        { collection: 'tasks', id: 'valid', rev: 2, deleted: false, data: serverTask('valid', 'survives automatic pull') },
+      ] : [];
+      return { ok: true, json: async () => ({ changes, rev: 2 }) } as Response;
+    }));
+    mod.saveSyncSettings(settings);
+    mod.startAutoSync();
+    await vi.waitFor(() => expect(mod.loadSyncStatus()?.summary).toContain('1 skipped'));
+    expect(tables.get('tasks')?.has('broken')).toBe(false);
+    expect(tables.get('tasks')?.get('valid')).toMatchObject({ title: 'survives automatic pull', parentId: null, tags: [] });
+    expect(await mod.loadSyncQuarantine()).toHaveLength(1);
+    expect(cursors).toEqual(['0', '2']);
+    for (const fn of docListeners.get('visibilitychange') ?? []) fn();
+    await vi.waitFor(() => expect(cursors).toHaveLength(4));
+    await vi.waitFor(() => expect(mod.loadSyncStatus()?.summary).toBe('pushed 0, pulled 0'));
+    expect(cursors).toEqual(['0', '2', '2', '2']);
+    expect(await mod.loadSyncQuarantine()).toHaveLength(1);
+    expect(meta.get('cursor')).toBe(2);
+  });
+
+  it('coalesces focus, reconnect and visibility triggers while a startup pull is in flight', async () => {
+    const { winListeners, docListeners } = stubDom();
+    vi.resetModules();
+    const mod = await import('./sync');
+    let release!: () => void;
+    const blocked = new Promise<void>((resolve) => { release = resolve; });
+    let pulls = 0;
+    vi.stubGlobal('fetch', vi.fn(async (url: string) => {
+      if (!String(url).includes('/api/changes?')) throw new Error(`unexpected fetch ${url}`);
+      pulls++;
+      if (pulls === 1) await blocked;
+      return { ok: true, json: async () => ({ changes: [], rev: 0 }) } as Response;
+    }));
+    mod.saveSyncSettings(settings);
+    mod.startAutoSync();
+    await vi.waitFor(() => expect(pulls).toBe(1));
+    for (let i = 0; i < 5; i++) {
+      for (const event of ['focus', 'online']) for (const fn of winListeners.get(event) ?? []) fn();
+      for (const fn of docListeners.get('visibilitychange') ?? []) fn();
+    }
+    expect(pulls).toBe(1);
+    release();
+    await vi.waitFor(() => expect(mod.loadSyncStatus()?.ok).toBe(true));
+    expect(pulls).toBe(2); // one initial pull plus the settling pull, not 16 syncs
+    for (const fn of winListeners.get('focus') ?? []) fn();
+    await vi.waitFor(() => expect(pulls).toBe(4)); // guard released for a later foreground event
+  });
+
 });
