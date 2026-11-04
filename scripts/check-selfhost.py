@@ -9,6 +9,7 @@ import json
 from pathlib import Path
 import os
 import socket
+import shutil
 import sqlite3
 import subprocess
 import sys
@@ -20,12 +21,12 @@ import urllib.request
 SERVER = Path(__file__).resolve().parents[1] / 'server'
 
 
-def request(url, path, body=None, token=None, expected=200):
-    headers = {'Content-Type': 'application/json'}
+def request(url, path, body=None, token=None, expected=200, raw=False):
+    headers = {'Content-Type': 'application/octet-stream' if isinstance(body, bytes) else 'application/json'}
     if token:
         headers['Authorization'] = f'Bearer {token}'
     req = urllib.request.Request(url + path, headers=headers,
-                                 data=json.dumps(body).encode() if body is not None else None)
+                                 data=body if isinstance(body, bytes) else json.dumps(body).encode() if body is not None else None)
     try:
         response = urllib.request.urlopen(req, timeout=3)
     except urllib.error.HTTPError as exc:
@@ -34,7 +35,7 @@ def request(url, path, body=None, token=None, expected=200):
         data = response.read()
         if response.status != expected:
             raise AssertionError(f'{path}: expected {expected}, got {response.status}')
-        return json.loads(data) if data else None
+        return data if raw else json.loads(data) if data else None
 
 
 @contextmanager
@@ -44,7 +45,8 @@ def serve(db, directory):
         listener.bind(('127.0.0.1', 0))
         listener.listen(128)
         url = f'http://127.0.0.1:{listener.getsockname()[1]}'
-        env = {**os.environ, 'SYNC_DB': str(db), 'SYNC_OPEN_REGISTRATION': '0'}
+        env = {**os.environ, 'SYNC_DB': str(db),
+               'SYNC_BLOB_DIR': str(db.with_suffix('.blobs')), 'SYNC_OPEN_REGISTRATION': '0'}
         process = subprocess.Popen(
             [sys.executable, '-m', 'uvicorn', 'app.main:app', '--fd', str(listener.fileno()), '--no-proxy-headers'],
             cwd=SERVER, env=env, pass_fds=(listener.fileno(),), stdout=log, stderr=log,
@@ -99,23 +101,39 @@ def main():
                           'data': task}
                 result = request(url, '/api/changes', {'changes': [change]}, token)
                 assert result['results'][0]['rev'] == 1
+                attachment_bytes = b'synthetic attachment bytes\x00\xff'
+                attachment = request(url, '/api/attachments?task_id=synthetic-task&filename=check.bin&id=synthetic-file',
+                                     attachment_bytes, token, expected=201)
+                content_path = f"/api/attachments/{attachment['id']}/content"
+                assert request(url, content_path, token=token, raw=True) == attachment_bytes
+                # This synthetic workload is idle during both copies. It is not
+                # proof that an online DB/blob pair is atomic with other writers.
+                blob_snapshot = directory / 'blob-snapshot'
+                shutil.copytree(db.with_suffix('.blobs'), blob_snapshot)
                 # Online backup, while the server is still running in WAL mode.
                 with sqlite3.connect(db) as src, sqlite3.connect(backup) as dst:
                     src.backup(dst)
                 updated_task = {**task, 'title': 'After backup', 'updatedAt': 1700000001000}
                 result = request(url, '/api/changes', {'changes': [
                     {**change, 'base_rev': 1, 'data': updated_task}]}, token)
-                assert result['results'][0]['rev'] == 2
+                assert result['results'][0]['rev'] == 3
             with serve(db, directory) as url:
                 persisted = request(url, '/api/changes?since=0', token=token)
-                assert persisted['rev'] == 2
-                assert persisted['changes'][0]['data'] == updated_task
+                assert persisted['rev'] == 3
+                assert next(c['data'] for c in persisted['changes'] if c['id'] == task['id']) == updated_task
+                assert request(url, content_path, token=token, raw=True) == attachment_bytes
                 assert request(url, '/api/login', credentials)['token']
+            # Negative control: the SQLite backup alone has metadata, not bytes.
+            # Its explicit isolated blob path must not fall back to live blobs.
+            with serve(backup, directory) as url:
+                request(url, content_path, token=token, raw=True, expected=404)
+            shutil.copytree(blob_snapshot, backup.with_suffix('.blobs'), dirs_exist_ok=True)
             # Serve the copied snapshot as its own database, not over the live file.
             with serve(backup, directory) as url:
                 restored = request(url, '/api/changes?since=0', token=token)
-                assert restored['rev'] == 1
-                assert restored['changes'][0]['data'] == task
+                assert restored['rev'] == 2
+                assert next(c['data'] for c in restored['changes'] if c['id'] == task['id']) == task
+                assert request(url, content_path, token=token, raw=True) == attachment_bytes
                 assert request(url, '/api/login', credentials)['token']
                 request(url, '/api/register', {**credentials, 'username': 'second'}, expected=403)
         except Exception:
@@ -124,7 +142,7 @@ def main():
             if log.exists():
                 print(log.read_text(), file=sys.stderr)
             raise
-    print('PASS: loopback API, auth, closed registration, restart persistence, online backup and restored login/data')
+    print('PASS: loopback API, auth, closed registration, restart persistence, online DB/blob backup and restored login/data/attachment bytes')
     print('Synthetic temporary databases removed. Docker, TLS and real-device sync are not covered.')
 
 
