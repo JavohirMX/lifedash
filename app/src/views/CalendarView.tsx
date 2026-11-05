@@ -98,6 +98,10 @@ export default function CalendarView(props: { tasks: Task[]; onOpen: (id: string
               key={date}
               role="gridcell"
               className={`cal-cell${inMonth ? '' : ' outside'}${date === today ? ' today' : ''}${day === date ? ' selected' : ''}`}
+              onClick={(e) => {
+                if ((e.target as HTMLElement).closest('.cal-task')) return;
+                setDay(day === date ? null : date);
+              }}
             >
               <button
                 className="cal-day num"

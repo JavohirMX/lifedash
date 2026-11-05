@@ -865,7 +865,14 @@ export default function Sidebar(props: {
       )}
 
       <div className="mobile-topbar">
-        <div className="brand"><Mark /><span>Lifedash</span></div>
+        <button
+          className="brand mobile-brand-btn"
+          aria-label="Lifedash Home"
+          onClick={() => props.onSelect({ kind: 'home' })}
+        >
+          <Mark />
+          <span>Lifedash</span>
+        </button>
         <div className="mobile-topbar-actions">
           {props.onCapture && <button className="icon-btn" title="Capture task (n)" aria-label="Capture task" onClick={props.onCapture}><Plus size={20} aria-hidden="true" /></button>}
           {props.onPalette && (
@@ -903,7 +910,14 @@ export default function Sidebar(props: {
         <div ref={sheetPanel} className="mobile-sheet" role="dialog" aria-modal="true" aria-label="More navigation">
           <div className="sheet-handle" aria-hidden="true" />
           <div className="sheet-head">
-            <div className="brand"><Mark /><span>Lifedash</span></div>
+            <button
+              className="brand mobile-brand-btn"
+              aria-label="Lifedash Home"
+              onClick={() => { props.onSelect({ kind: 'home' }); setSheet(false); }}
+            >
+              <Mark />
+              <span>Lifedash</span>
+            </button>
             <button className="icon-btn" aria-label="Close menu" onClick={() => setSheet(false)}>
               <X size={20} strokeWidth={1.75} />
             </button>

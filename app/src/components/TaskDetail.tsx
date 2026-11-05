@@ -15,6 +15,7 @@ import {
   Flag,
   Target,
   Repeat,
+  ChevronLeft,
 } from 'lucide-react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import CompletionButton from './CompletionButton';
@@ -212,7 +213,7 @@ export default function TaskDetail(props: { taskId: string; onClose: () => void;
     <aside
       ref={panel}
       className={`detail ${isResizing ? 'is-resizing' : ''}`}
-      style={{ width: `${panelWidth}px` }}
+      style={{ '--detail-w': `${panelWidth}px` } as React.CSSProperties}
       aria-label="Task details"
     >
       {/* Draggable Resize Handle */}
@@ -232,6 +233,16 @@ export default function TaskDetail(props: { taskId: string; onClose: () => void;
 
       {/* Sticky Header with Completion, Status Pill, Edit/Done Toggle, Pin, and Close */}
       <div className="detail-head">
+        <button
+          type="button"
+          className="detail-back-btn"
+          aria-label="Back to tasks"
+          onClick={props.onClose}
+        >
+          <ChevronLeft size={18} strokeWidth={2.2} aria-hidden="true" />
+          <span>Back</span>
+        </button>
+
         <div className="detail-head-left">
           <CompletionButton
             task={task}

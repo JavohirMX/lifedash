@@ -19,5 +19,5 @@
 .goal-connections summary { cursor:pointer; }
 .goal-connections fieldset { border:0; padding:8px 0; min-width:0; }
 .goal-connections label { display:flex; align-items:center; gap:8px; padding:6px 0; }
-@media(max-width:640px) { .weekly-review { padding:12px; }.weekly-review button,.goal-next-action button,.goal-connections label { min-height:44px; }.weekly-review header { align-items:flex-start; }.weekly-review h2 { font-size:1.2rem; } }
+@media(max-width:720px) { .weekly-review { padding:12px; }.weekly-review button,.goal-next-action button,.goal-connections label { min-height:44px; }.weekly-review header { align-items:flex-start; }.weekly-review h2 { font-size:1.2rem; } }
 .weekly-review textarea { background:var(--surface); color:var(--text); border:1px solid var(--control); border-radius:8px; padding:10px; font:inherit; }

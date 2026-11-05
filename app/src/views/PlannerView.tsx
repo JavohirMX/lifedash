@@ -13,6 +13,7 @@ import {
   Redo2,
   PanelLeftClose,
   PanelLeftOpen,
+  ListPlus,
   GripVertical,
   Circle,
   CheckCircle2,
@@ -594,45 +595,69 @@ export default function PlannerView(props: {
         description="Visual 24-hour time blocking, recurring routines, and circular clock. Drag tasks to plan your week."
         actions={
           <div className="planner-header-actions">
-            {/* Day navigation */}
-            <span className="planner-nav-group">
-              <button
-                type="button"
-                className="icon-btn"
-                aria-label="Previous day"
-                title="Previous day"
-                onClick={() => setDate(addDays(date, viewMode === 'week' ? -7 : -1))}
-              >
-                <ChevronLeft size={16} strokeWidth={2} />
-              </button>
-              {date !== today && (
+            <div className="planner-header-actions-row">
+              {/* Day navigation */}
+              <span className="planner-nav-group">
                 <button
                   type="button"
-                  className="mini"
-                  onClick={() => setDate(today)}
+                  className="icon-btn"
+                  aria-label="Previous day"
+                  title="Previous day"
+                  onClick={() => setDate(addDays(date, viewMode === 'week' ? -7 : -1))}
                 >
-                  Today
+                  <ChevronLeft size={16} strokeWidth={2} />
                 </button>
-              )}
-              <button
-                type="button"
-                className="icon-btn"
-                aria-label="Next day"
-                title="Next day"
-                onClick={() => setDate(addDays(date, viewMode === 'week' ? 7 : 1))}
-              >
-                <ChevronRight size={16} strokeWidth={2} />
-              </button>
-              <input
-                type="date"
-                className="planner-date-input"
-                aria-label="Planner date"
-                value={date}
-                onChange={(e) => {
-                  if (validDate(e.target.value)) setDate(e.target.value);
-                }}
-              />
-            </span>
+                {date !== today && (
+                  <button
+                    type="button"
+                    className="mini"
+                    onClick={() => setDate(today)}
+                  >
+                    Today
+                  </button>
+                )}
+                <button
+                  type="button"
+                  className="icon-btn"
+                  aria-label="Next day"
+                  title="Next day"
+                  onClick={() => setDate(addDays(date, viewMode === 'week' ? 7 : 1))}
+                >
+                  <ChevronRight size={16} strokeWidth={2} />
+                </button>
+                <input
+                  type="date"
+                  className="planner-date-input"
+                  aria-label="Planner date"
+                  value={date}
+                  onChange={(e) => {
+                    if (validDate(e.target.value)) setDate(e.target.value);
+                  }}
+                />
+              </span>
+
+              {/* Undo / Redo */}
+              <div className="planner-history-group">
+                <button
+                  type="button"
+                  className="icon-btn"
+                  disabled={!canUndo}
+                  onClick={() => void undo()}
+                  title="Undo (Ctrl+Z)"
+                >
+                  <Undo2 size={16} strokeWidth={2} />
+                </button>
+                <button
+                  type="button"
+                  className="icon-btn"
+                  disabled={!canRedo}
+                  onClick={() => void redo()}
+                  title="Redo (Ctrl+Shift+Z)"
+                >
+                  <Redo2 size={16} strokeWidth={2} />
+                </button>
+              </div>
+            </div>
 
             {/* View Mode Switcher: Day, Week, Circle */}
             <div className="planner-segmented">
@@ -661,26 +686,6 @@ export default function PlannerView(props: {
                 <span>24h Circle</span>
               </button>
             </div>
-
-            {/* Undo / Redo */}
-            <button
-              type="button"
-              className="icon-btn"
-              disabled={!canUndo}
-              onClick={() => void undo()}
-              title="Undo (Ctrl+Z)"
-            >
-              <Undo2 size={16} strokeWidth={2} />
-            </button>
-            <button
-              type="button"
-              className="icon-btn"
-              disabled={!canRedo}
-              onClick={() => void redo()}
-              title="Redo (Ctrl+Shift+Z)"
-            >
-              <Redo2 size={16} strokeWidth={2} />
-            </button>
           </div>
         }
       />
@@ -733,16 +738,40 @@ export default function PlannerView(props: {
       <div className="planner-layout">
         {/* Left Tray: Tasks to Plan & Recurring Plans */}
         <aside className={`planner-tray ${trayCollapsed ? 'collapsed' : ''}`}>
-          <div className="planner-tray-head">
-            {!trayCollapsed && (
-              <h2 className="planner-tray-title">
-                {trayTab === 'tasks' ? 'Tasks to Plan' : 'Recurring Plans'}
-              </h2>
-            )}
+          <div
+            className="planner-tray-head"
+            onClick={trayCollapsed ? toggleTray : undefined}
+            role={trayCollapsed ? 'button' : undefined}
+            tabIndex={trayCollapsed ? 0 : undefined}
+            aria-label={trayCollapsed ? 'Expand tasks to plan' : undefined}
+            onKeyDown={
+              trayCollapsed
+                ? (e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      e.preventDefault();
+                      toggleTray();
+                    }
+                  }
+                : undefined
+            }
+          >
+            <h2 className="planner-tray-title">
+              {trayCollapsed ? (
+                <span className="planner-tray-collapsed-label">
+                  <ListPlus size={15} aria-hidden="true" />
+                  <span>Tasks to Plan ({unscheduledTasks.length})</span>
+                </span>
+              ) : (
+                trayTab === 'tasks' ? 'Tasks to Plan' : 'Recurring Plans'
+              )}
+            </h2>
             <button
               type="button"
               className="icon-btn"
-              onClick={toggleTray}
+              onClick={(e) => {
+                e.stopPropagation();
+                toggleTray();
+              }}
               title={trayCollapsed ? 'Expand planning tray' : 'Collapse planning tray'}
             >
               {trayCollapsed ? <PanelLeftOpen size={16} /> : <PanelLeftClose size={16} />}
@@ -901,7 +930,7 @@ export default function PlannerView(props: {
         <main className="planner-canvas">
           {viewMode === 'day' ? (
             /* Single Day Timeline */
-            <div className="planner-timeline-wrapper">
+            <div className="planner-timeline-wrapper planner-day-timeline">
               <div className="planner-time-axis">
                 {Array.from({ length: 24 }, (_, i) => (
                   <span
@@ -1035,7 +1064,7 @@ export default function PlannerView(props: {
             </div>
           ) : viewMode === 'week' ? (
             /* 7-Day Multi-Day Week Board */
-            <div className="planner-timeline-wrapper">
+            <div className="planner-timeline-wrapper planner-week-timeline">
               <div className="planner-time-axis">
                 {Array.from({ length: 24 }, (_, i) => (
                   <span

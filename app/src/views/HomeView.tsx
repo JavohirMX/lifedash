@@ -183,8 +183,21 @@ export default function HomeView(props: { tasks: Task[]; onSelect: (kind: string
     <section className="home">
       <header className="home-head">
         <div className="home-heading">
-          <p className="eyebrow">{weekdayLabel(today)} · {now.toLocaleDateString(undefined, { month: 'long', day: 'numeric' })}</p>
-          <h1>One thing at a time</h1>
+          <div className="home-title-row">
+            <div>
+              <p className="eyebrow">{weekdayLabel(today)} · {now.toLocaleDateString(undefined, { month: 'long', day: 'numeric' })}</p>
+              <h1>One thing at a time</h1>
+            </div>
+            <button
+              className={`icon-btn home-customize${customizing ? ' active' : ''}`}
+              aria-label="Customize widgets"
+              aria-expanded={customizing}
+              title="Customize widgets"
+              onClick={() => setCustomizing(!customizing)}
+            >
+              <SlidersHorizontal aria-hidden="true" size={18} strokeWidth={1.75} />
+            </button>
+          </div>
           <p className="home-greeting">{greeting(now.getHours())}. {orientation}</p>
           {totalCommitments > 0 && (
             <div className="home-progress-wrap" role="group" aria-label="Daily progress">
@@ -205,15 +218,6 @@ export default function HomeView(props: { tasks: Task[]; onSelect: (kind: string
             </div>
           )}
         </div>
-        <button
-          className={`icon-btn home-customize${customizing ? ' active' : ''}`}
-          aria-label="Customize widgets"
-          aria-expanded={customizing}
-          title="Customize widgets"
-          onClick={() => setCustomizing(!customizing)}
-        >
-          <SlidersHorizontal aria-hidden="true" size={18} strokeWidth={1.75} />
-        </button>
       </header>
       {customizing && (
         <div className="widget-settings" role="group" aria-label="Show or hide widgets" aria-busy={widgetSaving}>

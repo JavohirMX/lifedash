@@ -244,7 +244,7 @@ export default function QuickAdd(props: {
             Add
           </button>
         </form>
-        <div id={`${fieldId}-hint`} className="quick-add-hint" aria-live="polite">
+        <div id={`${fieldId}-hint`} className={`quick-add-hint${!hint ? ' default-hint' : ''}`} aria-live="polite">
           {hint ?? 'Dates, times and #tags supported'}
         </div>
         {error && (

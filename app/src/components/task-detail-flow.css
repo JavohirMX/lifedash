@@ -1,7 +1,7 @@
 /* Task Detail Flow & Grouped Cards Styling */
 
 .detail {
-  width: 420px;
+  width: var(--detail-w, 420px);
   min-width: 320px;
   max-width: 900px;
   flex-shrink: 0;
@@ -620,16 +620,22 @@
   to { opacity: 1; transform: translateY(0); }
 }
 
+.detail-back-btn {
+  display: none;
+}
+
 /* Responsive / Mobile */
-@media (max-width: 640px) {
+@media (max-width: 720px) {
   .detail {
     position: fixed;
     inset: 0;
     width: 100% !important;
     max-width: 100% !important;
-    z-index: 25;
-    padding: 12px 16px 36px;
+    height: 100dvh;
+    z-index: 35;
+    padding: calc(12px + env(safe-area-inset-top)) 16px calc(36px + env(safe-area-inset-bottom));
     border-left: 0;
+    overscroll-behavior: contain;
   }
 
   .detail-resizer {
@@ -637,8 +643,33 @@
   }
 
   .detail-head {
-    top: -12px;
+    position: sticky;
+    top: calc(-12px - env(safe-area-inset-top));
+    background: var(--surface);
+    z-index: 10;
     padding: 10px 0;
+    margin-top: -6px;
+    border-bottom: 1px solid var(--border);
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  .detail-back-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    background: none;
+    border: 0;
+    color: var(--accent);
+    font-size: 14.5px;
+    font-weight: 600;
+    cursor: pointer;
+    padding: 6px 8px 6px 0;
+    border-radius: var(--radius-control);
+    min-height: 44px;
+  }
+  .detail-back-btn:hover {
+    color: var(--accent-strong);
   }
 
   .detail-action-btn,
@@ -648,17 +679,17 @@
   }
 
   .edit-toggle-btn {
-    min-height: 36px;
-    padding: 0 12px;
+    min-height: 44px;
+    padding: 0 14px;
   }
 
   .priority-seg-btn {
-    height: 40px;
+    height: 44px;
     font-size: 13px;
   }
 
   .preset-chip {
-    min-height: 32px;
-    padding: 4px 10px;
+    min-height: 36px;
+    padding: 6px 12px;
   }
 }

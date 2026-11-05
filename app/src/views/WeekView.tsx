@@ -15,6 +15,7 @@ export default function WeekView(props: { tasks: Task[]; onOpen: (id: string) =>
   const today = todayStr();
   const [overDay, setOverDay] = useState<string | null>(null);
   const [weekOffset, setWeekOffset] = useState(0);
+  const [selectedDay, setSelectedDay] = useState<string>(today);
 
   const writing = useRef(new Set<string>());
   const [pending, setPending] = useState<Set<string>>(new Set());
@@ -60,6 +61,7 @@ export default function WeekView(props: { tasks: Task[]; onOpen: (id: string) =>
     return parseLocalDate(d).toLocaleDateString('en-US', opts);
   };
   const rangeLabel = `${fmtDay(monday)} - ${fmtDay(addDays(monday, 6))}`;
+  const activeDay = days.includes(selectedDay) ? selectedDay : (days.includes(today) ? today : days[0]);
 
   return (
     <section>
@@ -74,7 +76,7 @@ export default function WeekView(props: { tasks: Task[]; onOpen: (id: string) =>
               <ChevronLeft size={16} strokeWidth={2} aria-hidden="true" />
             </button>
             {weekOffset !== 0 && (
-              <button className="mini" onClick={() => setWeekOffset(0)}>Today</button>
+              <button className="mini" onClick={() => { setWeekOffset(0); setSelectedDay(today); }}>Today</button>
             )}
             <button className="icon-btn" aria-label="Next week" title="Next week" onClick={() => setWeekOffset((w) => w + 1)}>
               <ChevronRight size={16} strokeWidth={2} aria-hidden="true" />
@@ -120,11 +122,35 @@ export default function WeekView(props: { tasks: Task[]; onOpen: (id: string) =>
           ))}
         </div>
       )}
+      <div className="week-day-switcher" role="tablist" aria-label="Days of the week">
+        {days.map((d) => {
+          const isToday = d === today;
+          const isSelected = d === activeDay;
+          const dayCount = (byDay.get(d) ?? []).length;
+          const shortName = parseLocalDate(d).toLocaleDateString(undefined, { weekday: 'short' });
+          const dayNum = Number(d.slice(8));
+          return (
+            <button
+              key={d}
+              type="button"
+              role="tab"
+              aria-selected={isSelected}
+              className={`week-day-tab ${isSelected ? 'active' : ''} ${isToday ? 'today' : ''}`}
+              onClick={() => setSelectedDay(d)}
+            >
+              <span className="tab-dayname">{shortName}</span>
+              <span className="tab-daynum num">{dayNum}</span>
+              {dayCount > 0 && <span className="tab-count num">{dayCount}</span>}
+            </button>
+          );
+        })}
+      </div>
+
       <div className="week-grid">
         {days.map((day) => (
           <div
             key={day}
-            className={`week-col ${day === today ? 'today-col' : ''} ${overDay === day ? 'drop-hot' : ''}`}
+            className={`week-col ${day === today ? 'today-col' : ''} ${day === activeDay ? 'active-mobile-day' : ''} ${overDay === day ? 'drop-hot' : ''}`}
             onDragOver={(e) => {
               if (e.dataTransfer.types.includes(TASK_DRAG_MIME)) {
                 e.preventDefault();
@@ -144,6 +170,9 @@ export default function WeekView(props: { tasks: Task[]; onOpen: (id: string) =>
               <span className="week-dayname">{parseLocalDate(day).toLocaleDateString(undefined, { weekday: 'short' })}</span>
               <span className={`week-date ${day === today ? 'today' : ''}`}>{friendlyDate(day, today) === day ? day.slice(8) : friendlyDate(day, today)}</span>
             </div>
+            {(byDay.get(day) ?? []).length === 0 && (
+              <p className="week-empty-day">No tasks scheduled</p>
+            )}
             {(byDay.get(day) ?? []).map((t) => (
               <div
                 key={t.id}
