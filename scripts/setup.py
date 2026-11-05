@@ -12,6 +12,10 @@ ROOT = Path(__file__).resolve().parents[1]
 COMPOSE = ['docker', 'compose', '-f', str(ROOT / 'docker-compose.yml')]
 HEALTH = "import json,urllib.request; r=urllib.request.urlopen('http://127.0.0.1:8787/api/health',timeout=2); assert r.status==200 and json.load(r)=={'ok':True}"
 
+# The shipped nginx image includes BusyBox wget. Check the served app shell,
+# not just an nginx welcome page; this does not execute JavaScript.
+APP_HEALTH = "wget -q -T 2 -O - http://127.0.0.1/ | grep -q '<title>Lifedash</title>'"
+
 
 def check():
     if not shutil.which('docker'):
@@ -67,27 +71,30 @@ def main(argv=None):
     if result.returncode:
         print('Build/start failed. Some services may exist. Inspect docker compose ps and docker compose logs; your data volume was not removed.')
         return 1
-    print('Build/start command completed. Checking health INSIDE this Compose sync service for up to 30 seconds...')
-    deadline = time.monotonic() + 30
-    while True:
-        try:
-            result = subprocess.run([*COMPOSE, 'exec', '-T', 'sync', 'python', '-c', HEALTH],
-                                    cwd=ROOT, capture_output=True, timeout=5)
-            if result.returncode == 0:
-                break
-        except (OSError, subprocess.TimeoutExpired):
-            pass
-        if time.monotonic() >= deadline:
-            print('Compose sync service health not confirmed. Services were not stopped. Check the selected project and its logs; do not rerun blindly.')
-            return 1
-        time.sleep(0.5)
-    print('This Compose sync service responds internally. Host port reachability, TLS and browser sync are NOT verified.')
+    for service, command in [
+        ('sync', [*COMPOSE, 'exec', '-T', 'sync', 'python', '-c', HEALTH]),
+        ('app', [*COMPOSE, 'exec', '-T', 'app', 'sh', '-c', APP_HEALTH]),
+    ]:
+        print(f'Checking health INSIDE this Compose {service} service for up to 30 seconds...')
+        deadline = time.monotonic() + 30
+        while True:
+            try:
+                result = subprocess.run(command, cwd=ROOT, capture_output=True, timeout=5)
+                if result.returncode == 0:
+                    break
+            except (OSError, subprocess.TimeoutExpired):
+                pass
+            if time.monotonic() >= deadline:
+                print(f'Compose {service} service health not confirmed. Services were not stopped. Check the selected project and its logs; do not rerun blindly.')
+                return 1
+            time.sleep(0.5)
+    print('Both Compose services respond internally: API health and frontend HTML shell only. JavaScript execution, host port reachability, TLS and browser sync are NOT verified.')
     print('Use docker compose -f docker-compose.yml port app 80 and port sync 8787 to inspect your published ports.')
     print('1. With default ports, open http://localhost:8080 on this host, then Settings -> Sync. If you changed ports, use your configured URLs.')
     print('2. Enter http://localhost:8787 on this host and create the FIRST account. There is no default login or email password reset.')
     print('3. Root Compose closes registration after the first account; server/ Compose differs. Do not leave extra registration open by accident.')
     print('4. Set up HTTPS for app and API before other devices; sign into the same account on each. localhost on a phone means the phone.')
-    print('5. Use Settings > Data & backups for a portable backup with attachment files, and take a server backup. Legacy Export JSON omits files; sync omits attachments. See /selfhost.html and server/SELFHOST.md.')
+    print('5. Use Settings > Data & backups for a portable backup with attachment files, and take a server backup. Legacy Export JSON omits files; sync uploads attachment files and other devices download them on demand. See /selfhost.html and server/SELFHOST.md.')
     print('Keep data with docker compose down. Never add -v for a routine stop/upgrade: it deletes the volume.')
     return 0
 

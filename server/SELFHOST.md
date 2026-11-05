@@ -26,9 +26,11 @@ It does not collect credentials, change registration policy, or configure TLS.
 The helper pins the root Compose file, ignoring `COMPOSE_FILE` and implicit
 override discovery. Docker context and `COMPOSE_PROJECT_NAME` still apply:
 confirm the intended host/project before consent, as existing services may be
-recreated. Use manual Compose for custom override stacks. The health probe runs
-inside the selected sync container, so a different host port is not mistaken for
-this service. It does not prove the published host port is reachable.
+recreated. Use manual Compose for custom override stacks. Health probes run
+inside the selected sync and app containers: the API health response and the
+frontend HTML shell must both respond. A different host service is not mistaken
+for this stack. This does not execute frontend JavaScript or prove published
+host ports are reachable.
 Use `make setup-check` for a read-only preflight; neither check is proof that the
 container images work. The actual build/start path still needs validation on a
 Docker-capable host.
