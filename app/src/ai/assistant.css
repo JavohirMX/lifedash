@@ -74,11 +74,6 @@
   outline: 2px solid var(--accent, #0f766e);
   outline-offset: 3px;
 }
-.ai-fields {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 12px;
-}
 .ai-task-picker {
   max-height: 170px;
   overflow: auto;
@@ -119,32 +114,6 @@
   border: 1px solid var(--control, #d2d2cb);
   border-radius: 6px;
   padding: 6px 10px;
-}
-
-/* Preset & settings styles */
-.ai-preset-row {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 12px;
-  margin-bottom: 12px;
-}
-.ai-options-row {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 16px;
-  align-items: center;
-  margin: 10px 0 16px;
-}
-.ai-options-row label {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin-bottom: 0;
-  cursor: pointer;
-  font-size: 12px;
-}
-.ai-options-row input[type=checkbox] {
-  margin: 0;
 }
 
 /* Prompt Presets */
@@ -294,5 +263,4 @@
 
 @media(max-width: 720px) {
   .ai-dialog { padding: 18px; }
-  .ai-fields, .ai-preset-row { grid-template-columns: 1fr; gap: 0; }
 }

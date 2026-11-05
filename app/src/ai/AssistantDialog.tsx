@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
-import { Eye, EyeOff, Sparkles, Check, Calendar, ListPlus, CheckSquare } from 'lucide-react';
+import { Sparkles, Check, Calendar, ListPlus, CheckSquare } from 'lucide-react';
 import { radioKeyIndex } from '../radioKeys';
 import type { Task } from '../types';
 import { db, INBOX_ID } from '../db';
@@ -8,10 +8,8 @@ import { addTask, updateTask } from '../repo';
 import { requestAdvice, reviewRequest, type ReviewedRequest } from './provider';
 import { localPlan } from './localPlanner';
 import {
-  loadAiSettings,
-  saveAiSettings,
+  useAiSettings,
   AI_PRESETS,
-  type AiSettings,
 } from './aiSettings';
 import { parseAiResponse, type SubtaskProposal, type ScheduleProposal, type CreateTasksProposal } from './proposalParser';
 import { MarkdownView } from './MarkdownView';
@@ -28,9 +26,8 @@ export default function AssistantDialog({ tasks, onClose }: { tasks: Task[]; onC
   const dialog = useRef<HTMLDialogElement>(null);
   const abort = useRef<AbortController>();
 
-  const [settings, setSettings] = useState<AiSettings>(() => loadAiSettings());
+  const settings = useAiSettings();
   const [mode, setMode] = useState<'local' | 'provider'>('local');
-  const [showApiKey, setShowApiKey] = useState(false);
   const [prompt, setPrompt] = useState('Help me choose a realistic order for these tasks. Explain tradeoffs and do not change anything.');
   const [selected, setSelected] = useState<string[]>([]);
   const [includeGoals, setIncludeGoals] = useState(false);
@@ -94,23 +91,6 @@ export default function AssistantDialog({ tasks, onClose }: { tasks: Task[]; onC
     setError('');
     setAppliedNotice('');
   }, [mode, settings.baseUrl, settings.model, settings.apiKey, prompt, taskContext]);
-
-  function updateSettingField<K extends keyof AiSettings>(key: K, value: AiSettings[K]) {
-    const next = saveAiSettings({ [key]: value });
-    setSettings(next);
-  }
-
-  function handlePresetChange(presetId: string) {
-    const found = AI_PRESETS.find((p) => p.id === presetId);
-    if (!found) return;
-    const patch: Partial<AiSettings> = {
-      preset: presetId,
-      baseUrl: found.defaultBaseUrl,
-      model: found.defaultModel || settings.model,
-    };
-    const next = saveAiSettings(patch);
-    setSettings(next);
-  }
 
   function selectAllActiveTasks() {
     setSelected(activeTasks.map((t) => t.id));
@@ -323,93 +303,11 @@ export default function AssistantDialog({ tasks, onClose }: { tasks: Task[]; onC
         </p>
       ) : (
         <p className="ai-hint">
-          Connect your local model (Ollama, LM Studio) or cloud provider (OpenRouter, OpenAI). Local servers must allow this
-          app's origin (CORS).
+          Connects to <strong>{settings.model || 'your model'}</strong> ({AI_PRESETS.find((p) => p.id === settings.preset)?.name ?? 'Custom'}). Provider and model settings can be configured in Settings.
         </p>
       )}
 
       <fieldset disabled={busy}>
-        {mode === 'provider' && (
-          <>
-            <div className="ai-preset-row">
-              <label>
-                Provider Preset
-                <select value={settings.preset} onChange={(e) => handlePresetChange(e.target.value)}>
-                  {AI_PRESETS.map((p) => (
-                    <option key={p.id} value={p.id}>
-                      {p.name}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <label>
-                Model ID
-                <input
-                  value={settings.model}
-                  onChange={(e) => updateSettingField('model', e.target.value)}
-                  placeholder="e.g. llama3.2, gpt-4o-mini"
-                  autoComplete="off"
-                />
-              </label>
-            </div>
-
-            <div className="ai-fields">
-              <label>
-                Provider API base URL
-                <input
-                  type="url"
-                  value={settings.baseUrl}
-                  onChange={(e) => updateSettingField('baseUrl', e.target.value)}
-                  placeholder="http://localhost:11434/v1"
-                />
-              </label>
-              <label>
-                <span>API key ({settings.saveApiKey ? 'Saved on device' : 'Session only'})</span>
-                <div className="password-input-wrap">
-                  <input
-                    type={showApiKey ? 'text' : 'password'}
-                    value={settings.apiKey ?? ''}
-                    onChange={(e) => updateSettingField('apiKey', e.target.value)}
-                    autoComplete="off"
-                    autoCapitalize="off"
-                    autoCorrect="off"
-                    spellCheck={false}
-                    placeholder="Optional for local, required for cloud"
-                  />
-                  <button
-                    type="button"
-                    className="password-toggle-btn"
-                    aria-label={showApiKey ? 'Hide API key' : 'Show API key'}
-                    title={showApiKey ? 'Hide API key' : 'Show API key'}
-                    onClick={() => setShowApiKey((p) => !p)}
-                  >
-                    {showApiKey ? <EyeOff size={16} aria-hidden="true" /> : <Eye size={16} aria-hidden="true" />}
-                  </button>
-                </div>
-              </label>
-            </div>
-
-            <div className="ai-options-row">
-              <label>
-                <input
-                  type="checkbox"
-                  checked={settings.saveApiKey}
-                  onChange={(e) => updateSettingField('saveApiKey', e.target.checked)}
-                />
-                <span>Remember API key on this device (localStorage)</span>
-              </label>
-              <label>
-                <input
-                  type="checkbox"
-                  checked={settings.stream}
-                  onChange={(e) => updateSettingField('stream', e.target.checked)}
-                />
-                <span>Stream response in real time</span>
-              </label>
-            </div>
-          </>
-        )}
-
         <h3>{mode === 'local' ? 'Choose tasks to summarize' : 'Choose what to share'}</h3>
         <p className="ai-hint">
           {mode === 'local'

@@ -21,7 +21,8 @@ Open **Plan with AI** from the sidebar (or mobile navigation / command palette).
 - **On-device:** Fast rule-based task ranking by due date and priority. 100% offline, zero network requests, no model required.
 - **Model provider:** Connect to local or cloud OpenAI-compatible endpoints with streaming advice and interactive proposal reviews.
 
-### Supported Providers & Presets
+### Supported Providers & Presets (Configured in Settings)
+Provider connections, presets, API keys, and streaming options are managed exclusively in **Settings → Connection & display → AI features**.
 - **Ollama (Local):** `http://localhost:11434/v1` (e.g. `llama3.2`, `mistral`)
 - **LM Studio (Local):** `http://localhost:1234/v1` (local model server)
 - **OpenRouter (Cloud):** `https://openrouter.ai/api/v1`

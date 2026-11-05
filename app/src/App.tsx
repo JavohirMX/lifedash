@@ -335,6 +335,8 @@ export default function App() {
         onAiSettings={() => setAiSettingsOpen(true)}
         onGoogleCalendar={() => setGoogleCalendarOpen(true)}
         onAgentKeys={() => setAgentKeysOpen(true)}
+        onShortcuts={() => setShortcutsOpen(true)}
+        onAutomation={() => setAutomationOpen(true)}
         onImport={() => setImportPreset(null)}
         onRestore={() => setImportPreset('lifedash-json')}
         reminders={reminderGate(remindOn)}
