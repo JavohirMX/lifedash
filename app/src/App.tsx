@@ -249,6 +249,33 @@ export default function App() {
     finally { schedulingToday.current.delete(id); setTodayPending(new Set(schedulingToday.current)); }
   }
 
+  const schedulingBacklog = useRef(new Set<string>());
+  const [backlogPending, setBacklogPending] = useState<Set<string>>(new Set());
+  const [backlogErrors, setBacklogErrors] = useState<Record<string, { title: string }>>({});
+  async function scheduleDroppedBacklog(id: string) {
+    if (schedulingBacklog.current.has(id)) return;
+    schedulingBacklog.current.add(id); setBacklogPending(new Set(schedulingBacklog.current));
+    setBacklogErrors(current => { const next = { ...current }; delete next[id]; return next; });
+    const title = tasks?.find(task => task.id === id)?.title || 'task';
+    try { await updateTask(id, { dueDate: null, dueTime: null }); }
+    catch { setBacklogErrors(current => ({ ...current, [id]: { title } })); }
+    finally { schedulingBacklog.current.delete(id); setBacklogPending(new Set(schedulingBacklog.current)); }
+  }
+
+  const movingProject = useRef(new Set<string>());
+  const [projectMovePending, setProjectMovePending] = useState<Set<string>>(new Set());
+  const [projectMoveErrors, setProjectMoveErrors] = useState<Record<string, { title: string; projectId: string; projectName: string }>>({});
+  async function moveDroppedProject(id: string, projectId: string) {
+    if (movingProject.current.has(id)) return;
+    movingProject.current.add(id); setProjectMovePending(new Set(movingProject.current));
+    setProjectMoveErrors(current => { const next = { ...current }; delete next[id]; return next; });
+    const title = tasks?.find(task => task.id === id)?.title || 'task';
+    const projectName = (projects ?? []).find(p => p.id === projectId)?.name || 'project';
+    try { await updateTask(id, { projectId }); }
+    catch { setProjectMoveErrors(current => ({ ...current, [id]: { title, projectId, projectName } })); }
+    finally { movingProject.current.delete(id); setProjectMovePending(new Set(movingProject.current)); }
+  }
+
 
   const activeByProject = (tasks ?? []).reduce<Record<string, number>>((acc, t) => {
     if (t.status === 'active' && t.parentId === null) acc[t.projectId] = (acc[t.projectId] ?? 0) + 1;
@@ -510,6 +537,8 @@ export default function App() {
         onToggleJournalNudge={toggleJournalNudge}
         onToggleReminders={() => void toggleReminders()}
         onScheduleToday={(id) => void scheduleDroppedToday(id, today)}
+        onScheduleBacklog={(id) => void scheduleDroppedBacklog(id)}
+        onMoveToProject={(id, pId) => void moveDroppedProject(id, pId)}
         onAI={() => setAiOpen(true)} onAutomation={() => setAutomationOpen(true)} onSync={() => { setSettingsChild(null); setSyncOpen(true); }} onAppearance={() => { setSettingsChild(null); setAppearanceOpen(true); }} onSettings={() => setSelection({ kind: 'settings' })} />
       <main className={selection.kind === 'home' ? 'home-main' : ['week', 'calendar'].includes(selection.kind) ? 'schedule-main' : undefined}>
         {SAMPLE_MODE && <div className="sample-banner" role="status">Sample-data sandbox · Fictional data · <a href="/">Exit to your real data</a></div>}
@@ -528,6 +557,16 @@ export default function App() {
         {Object.entries(todayErrors).map(([id, error]) => <div key={id} className="sub-add-feedback">
           <p role="alert">Date wasn't saved for "{error.title}". Retry to schedule it for {error.date}.</p>
           <button className="btn-secondary" onClick={() => void scheduleDroppedToday(id, error.date)}>Retry Today drop for {error.title}</button>
+        </div>)}
+        {backlogPending.size > 0 && <p className="workflow-hint" role="status">Moving dropped task to Backlog…</p>}
+        {Object.entries(backlogErrors).map(([id, error]) => <div key={id} className="sub-add-feedback">
+          <p role="alert">Could not move "{error.title}" to Backlog.</p>
+          <button className="btn-secondary" onClick={() => void scheduleDroppedBacklog(id)}>Retry Backlog move for {error.title}</button>
+        </div>)}
+        {projectMovePending.size > 0 && <p className="workflow-hint" role="status">Moving dropped task to project…</p>}
+        {Object.entries(projectMoveErrors).map(([id, error]) => <div key={id} className="sub-add-feedback">
+          <p role="alert">Could not move "{error.title}" to {error.projectName}.</p>
+          <button className="btn-secondary" onClick={() => void moveDroppedProject(id, error.projectId)}>Retry move for {error.title}</button>
         </div>)}
         {body}
       </main>
