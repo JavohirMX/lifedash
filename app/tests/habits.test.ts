@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { isScheduledOn, currentStreak, weekGrid, bestStreak, completionRate, isHabitDone, habitProgressPct } from '../src/habits';
+import { isScheduledOn, currentStreak, weekGrid, bestStreak, completionRate, isHabitDone, habitProgressPct, isoMonthGrid, calculateHabitsSummary } from '../src/habits';
 import type { Habit, HabitLog } from '../src/types';
 
 function habit(weekdays: number[] | null = null): Habit {
@@ -114,3 +114,45 @@ describe('numeric habits', () => {
     expect(currentStreak(waterHabit, logs, '2026-10-20')).toBe(1);
   });
 });
+
+describe('isoMonthGrid', () => {
+  it('returns 28 cells aligned from Monday 3 weeks ago to Sunday this week', () => {
+    // 2026-10-20 is a Tuesday (ISO day 1)
+    const h = habit(null);
+    const logs = [log('h1', '2026-10-20')];
+    const grid = isoMonthGrid(h, logs, '2026-10-20', 4);
+    expect(grid).toHaveLength(28);
+    // Row 0, Col 0 should be Monday 2026-09-28 (22 days before Tuesday 10-20)
+    expect(grid[0].date).toBe('2026-09-28');
+    // Today is at index 22 (Tuesday of 4th week)
+    expect(grid[22].date).toBe('2026-10-20');
+    expect(grid[22].isToday).toBe(true);
+    expect(grid[22].done).toBe(true);
+    // Future days in current week: Wednesday 10-21 through Sunday 10-25
+    expect(grid[23].date).toBe('2026-10-21');
+    expect(grid[23].isFuture).toBe(true);
+    expect(grid[27].date).toBe('2026-10-25');
+    expect(grid[27].isFuture).toBe(true);
+  });
+});
+
+describe('calculateHabitsSummary', () => {
+  it('computes daily completion statistics and best active streak', () => {
+    const h1: Habit = { id: 'h1', name: 'Walk', color: '#000', weekdays: null, order: 0, archived: false, createdAt: 0 };
+    const h2: Habit = { id: 'h2', name: 'Read', color: '#000', weekdays: [2], order: 1, archived: false, createdAt: 0 }; // Tue
+    const h3: Habit = { id: 'h3', name: 'Rest', color: '#000', weekdays: [0], order: 2, archived: false, createdAt: 0 }; // Sun only
+    const logs = [
+      log('h1', '2026-10-20'),
+      log('h1', '2026-10-19'),
+      log('h2', '2026-10-20'),
+    ];
+    // On 2026-10-20 (Tuesday): h1 (everyday) and h2 (Tue) are scheduled; h3 is not
+    const summary = calculateHabitsSummary([h1, h2, h3], logs, '2026-10-20');
+    expect(summary.scheduledCount).toBe(2);
+    expect(summary.completedCount).toBe(2);
+    expect(summary.progressPct).toBe(100);
+    expect(summary.allDone).toBe(true);
+    expect(summary.bestActiveStreak).toEqual({ habitName: 'Walk', streak: 2 });
+  });
+});
+

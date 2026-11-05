@@ -451,6 +451,7 @@ export async function updateHabit(
   id: string,
   patch: {
     name?: string;
+    color?: string;
     weekdays?: number[] | null;
     targetType?: 'binary' | 'numeric';
     targetValue?: number;
@@ -460,6 +461,7 @@ export async function updateHabit(
 ): Promise<void> {
   const clean: Record<string, unknown> = {};
   if (patch.name !== undefined) clean.name = patch.name.trim();
+  if (patch.color !== undefined) clean.color = patch.color;
   if (patch.weekdays !== undefined) clean.weekdays = patch.weekdays;
   if (patch.targetType !== undefined) clean.targetType = patch.targetType;
   if (patch.targetValue !== undefined) clean.targetValue = patch.targetValue;
@@ -474,6 +476,13 @@ export async function archiveHabit(id: string): Promise<void> {
 
 export async function restoreHabit(id: string): Promise<void> {
   await db.habits.update(id, { archived: false });
+}
+
+export async function deleteHabit(id: string): Promise<void> {
+  await db.transaction('rw', db.habits, db.habitLogs, async () => {
+    await db.habitLogs.where('habitId').equals(id).delete();
+    await db.habits.delete(id);
+  });
 }
 
 export async function toggleHabitForDate(habitId: string, date: string): Promise<void> {

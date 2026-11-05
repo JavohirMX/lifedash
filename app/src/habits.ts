@@ -113,3 +113,92 @@ export function completionRate(habit: Habit, logs: HabitLog[], today: string, da
   }
   return scheduled === 0 ? null : hit / scheduled;
 }
+
+export interface MonthGridCell {
+  date: string;
+  scheduled: boolean;
+  done: boolean;
+  isToday: boolean;
+  isFuture: boolean;
+  progressPct: number;
+  value?: number;
+}
+
+/**
+ * 4-week grid aligned to standard ISO weeks (Monday to Sunday).
+ * Each row represents one week, ending with the current week.
+ * Column 0 is always Monday, Column 6 is always Sunday.
+ */
+export function isoMonthGrid(habit: Habit, logs: HabitLog[], today: string, weeks = 4): MonthGridCell[] {
+  const m = logsByDate(logs, habit.id);
+  const todayDate = parseLocalDate(today);
+  // ISO day: 0=Mon, 1=Tue, ..., 6=Sun
+  const todayIso = (todayDate.getDay() + 6) % 7;
+  // Start Monday is (weeks - 1) full weeks ago plus days back to Monday of this week
+  const startOffset = (weeks - 1) * 7 + todayIso;
+  const totalDays = weeks * 7;
+  const cells: MonthGridCell[] = [];
+
+  for (let i = 0; i < totalDays; i++) {
+    const offset = i - startOffset;
+    const date = addDays(today, offset);
+    const isFuture = date > today;
+    const isToday = date === today;
+    const log = m.get(date);
+    const scheduled = isScheduledOn(habit, date);
+    const done = isFuture ? false : isHabitDone(habit, log);
+    const progressPct = isFuture ? 0 : habitProgressPct(habit, log);
+
+    cells.push({
+      date,
+      scheduled,
+      done,
+      isToday,
+      isFuture,
+      progressPct,
+      value: log?.value,
+    });
+  }
+
+  return cells;
+}
+
+export interface HabitsDailySummary {
+  scheduledCount: number;
+  completedCount: number;
+  progressPct: number;
+  allDone: boolean;
+  bestActiveStreak: { habitName: string; streak: number } | null;
+}
+
+export function calculateHabitsSummary(habits: Habit[], logs: HabitLog[], today: string): HabitsDailySummary {
+  const active = habits.filter((h) => !h.archived);
+  const scheduled = active.filter((h) => isScheduledOn(h, today));
+  const logsMap = new Map<string, HabitLog>();
+  for (const l of logs) if (l.date === today) logsMap.set(l.habitId, l);
+
+  let completed = 0;
+  for (const h of scheduled) {
+    if (isHabitDone(h, logsMap.get(h.id))) completed++;
+  }
+
+  let bestStreakHabit: { habitName: string; streak: number } | null = null;
+  for (const h of active) {
+    const streak = currentStreak(h, logs, today);
+    if (streak > 0 && (!bestStreakHabit || streak > bestStreakHabit.streak)) {
+      bestStreakHabit = { habitName: h.name, streak };
+    }
+  }
+
+  const scheduledCount = scheduled.length;
+  const progressPct = scheduledCount > 0 ? Math.round((completed / scheduledCount) * 100) : 0;
+  const allDone = scheduledCount > 0 && completed === scheduledCount;
+
+  return {
+    scheduledCount,
+    completedCount: completed,
+    progressPct,
+    allDone,
+    bestActiveStreak: bestStreakHabit,
+  };
+}

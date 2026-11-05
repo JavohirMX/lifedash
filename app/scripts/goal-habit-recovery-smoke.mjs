@@ -1,14 +1,15 @@
-import assert from 'node:assert/strict';import {chromium} from 'playwright-core';
-const b=await chromium.launch({executablePath:'/usr/bin/google-chrome',headless:true,args:['--no-sandbox']});
+import assert from 'node:assert/strict';import fs from 'node:fs';import {chromium} from 'playwright-core';
+const d=fs.existsSync('/downloads')?'/downloads':'/tmp';
+const b=await chromium.launch({executablePath:process.env.CHROME_PATH??'/usr/bin/google-chrome',headless:true,args:['--no-sandbox']});
 try{for(const width of[1440,390,320])for(const mode of['light','dark']){
  const p=await b.newPage({viewport:{width,height:844},colorScheme:mode});const errors=[];p.on('pageerror',e=>errors.push(e.message));await p.goto(`${process.env.BASE_URL}/?sample`);await p.getByText('Set up the backup volume',{exact:true}).first().waitFor();await p.evaluate(mode=>{document.documentElement.dataset.theme=mode},mode);
  const nav=async name=>{if(width<500)await p.getByRole('button',{name:'More',exact:true}).click();await p.locator(width<500?'.mobile-sheet':'.sidebar').getByRole('button',{name,exact:true}).click()};
  for(const [name,table,titleLabel,editLabel]of[['Goals','goals','New goal title','Goal title'],['Habits','habits','New habit name','Habit name']]){
   const kind=name==='Goals'?'goal':'habit';await nav(name);await p.getByRole('button',{name:`New ${kind}`,exact:true}).click();await p.getByLabel(titleLabel,{exact:true}).fill(`Recovery ${kind}`);
   if(kind==='goal')await p.getByLabel('Target date (optional)').fill('2026-12-01');else await p.getByRole('button',{name:'Sunday',exact:true}).click();
-  await p.screenshot({path:`/downloads/${kind}-form-after-${width}-${mode}.png`});
+  await p.screenshot({path:`${d}/${kind}-form-after-${width}-${mode}.png`});
   await p.evaluate(table=>{const orig=IDBObjectStore.prototype.add;let fail=true;IDBObjectStore.prototype.add=function(...args){if(this.name===table&&fail){fail=false;throw new DOMException('Synthetic failure','QuotaExceededError')}return orig.apply(this,args)}},table);
-  await p.getByRole('button',{name:`Add ${kind}`,exact:true}).click();await p.getByText(`Couldn't add this ${kind}. Your entries are still here. Try Add ${kind} again.`,{exact:true}).waitFor();assert.equal(await p.getByLabel(titleLabel,{exact:true}).inputValue(),`Recovery ${kind}`);if(kind==='goal')assert.equal(await p.getByLabel('Target date (optional)').inputValue(),'2026-12-01');else assert.equal(await p.getByRole('button',{name:'Sunday',exact:true}).getAttribute('aria-pressed'),'false');await p.screenshot({path:`/downloads/${kind}-create-error-${width}-${mode}.png`});
+  await p.getByRole('button',{name:`Add ${kind}`,exact:true}).click();await p.getByText(`Couldn't add this ${kind}. Your entries are still here. Try Add ${kind} again.`,{exact:true}).waitFor();assert.equal(await p.getByLabel(titleLabel,{exact:true}).inputValue(),`Recovery ${kind}`);if(kind==='goal')assert.equal(await p.getByLabel('Target date (optional)').inputValue(),'2026-12-01');else assert.equal(await p.getByRole('button',{name:'Sunday',exact:true}).getAttribute('aria-pressed'),'false');await p.screenshot({path:`${d}/${kind}-create-error-${width}-${mode}.png`});
   await p.getByRole('button',{name:`Add ${kind}`,exact:true}).click();await p.getByText(`Added ${kind} on this device.`,{exact:true}).waitFor();
   if(kind==='goal')await p.getByRole('button',{name:`Edit Recovery ${kind}`,exact:true}).click();else await p.locator('.habit-card').filter({hasText:`Recovery ${kind}`}).getByTitle('Edit habit',{exact:true}).click();
   await p.getByLabel(editLabel,{exact:true}).fill(`Edited ${kind}`);
