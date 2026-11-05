@@ -19,6 +19,8 @@ describe('SettingsView', () => {
     onToggleReminders: vi.fn(),
     journalNudge: true,
     onToggleJournalNudge: vi.fn(),
+    tvDashboard: true,
+    onToggleTvDashboard: vi.fn(),
   };
 
   it('renders all primary section headers and search nav bar', () => {
@@ -64,15 +66,17 @@ describe('SettingsView', () => {
     expect(html).toContain('<strong>Reminders</strong>');
     expect(html).toContain('settings-switch-visual on');
     expect(html).toContain('<strong>Journal nudge</strong>');
+    expect(html).toContain('<strong>TV dashboard</strong>');
+    expect(html).toContain('Full-screen kiosk display for ambient monitors and wall screens');
     expect(html).toContain('Local-first');
   });
 
-  it('renders disabled switch visual when reminders are off', () => {
+  it('renders disabled switch visual when reminders and tv dashboard are off', () => {
     const html = renderToStaticMarkup(
-      <SettingsView {...defaultProps} reminders="off" journalNudge={false} />
+      <SettingsView {...defaultProps} reminders="off" journalNudge={false} tvDashboard={false} />
     );
     expect(html).toContain('aria-pressed="false"');
     expect(html).toContain('settings-switch-visual ');
-    expect(html).not.toContain('settings-switch-visual on');
+    expect(html).toContain('data-active="false"');
   });
 });

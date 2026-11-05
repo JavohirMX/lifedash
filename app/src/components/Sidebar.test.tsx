@@ -167,4 +167,45 @@ describe('Sidebar UI/UX Improvements', () => {
     expect(markup).toContain('class="sidebar-capture-kbd"');
     expect(markup).toContain('>n</kbd>');
   });
+
+  it('hides TV dashboard button when tvEnabled is false or omitted', () => {
+    const markup = renderToStaticMarkup(
+      <Sidebar
+        projects={sampleProjects}
+        selection={{ kind: 'home' }}
+        onSelect={vi.fn()}
+        counts={{ today: 0, backlog: 0 }}
+        onAutomation={vi.fn()}
+        journalNudge={false}
+        onToggleJournalNudge={vi.fn()}
+        onSync={vi.fn()}
+        reminders="off"
+        onToggleReminders={vi.fn()}
+        onAppearance={vi.fn()}
+        onSettings={vi.fn()}
+      />
+    );
+    expect(markup).not.toContain('TV dashboard');
+  });
+
+  it('renders TV dashboard button when tvEnabled is true', () => {
+    const markup = renderToStaticMarkup(
+      <Sidebar
+        projects={sampleProjects}
+        selection={{ kind: 'home' }}
+        onSelect={vi.fn()}
+        counts={{ today: 0, backlog: 0 }}
+        onAutomation={vi.fn()}
+        journalNudge={false}
+        onToggleJournalNudge={vi.fn()}
+        onSync={vi.fn()}
+        reminders="off"
+        onToggleReminders={vi.fn()}
+        onAppearance={vi.fn()}
+        onSettings={vi.fn()}
+        tvEnabled={true}
+      />
+    );
+    expect(markup).toContain('TV dashboard');
+  });
 });

@@ -31,6 +31,7 @@ import ImportDialog from './components/ImportDialog';
 import type { ImportSource } from './import';
 import AutomationDialog from './components/AutomationDialog';
 import TVDashboard from './views/TVDashboard';
+import { isTvEnabled, setTvEnabled, TV_PREFERENCE_CHANGED_EVENT } from './tv';
 import SyncDialog from './components/SyncDialog';
 import AppearanceDialog from './components/AppearanceDialog';
 import AiSettingsDialog from './components/AiSettingsDialog';
@@ -79,6 +80,17 @@ export default function App() {
     window.addEventListener('hashchange', onHash);
     return () => window.removeEventListener('hashchange', onHash);
   }, []);
+  const [tvOn, setTvOn] = useState(() => isTvEnabled());
+  useEffect(() => {
+    const onTvChange = () => setTvOn(isTvEnabled());
+    window.addEventListener(TV_PREFERENCE_CHANGED_EVENT, onTvChange);
+    return () => window.removeEventListener(TV_PREFERENCE_CHANGED_EVENT, onTvChange);
+  }, []);
+  const toggleTv = () => {
+    const next = !tvOn;
+    setTvEnabled(next);
+    setTvOn(next);
+  };
   const [projEditing, setProjEditing] = useState(false);
   const [projName, setProjName] = useState('');
   const [projColor, setProjColor] = useState('');
@@ -343,6 +355,8 @@ export default function App() {
         onToggleReminders={() => void toggleReminders()}
         journalNudge={nudgeOn}
         onToggleJournalNudge={toggleJournalNudge}
+        tvDashboard={tvOn}
+        onToggleTvDashboard={toggleTv}
         notificationError={notificationError}
         notificationBusy={notificationBusy}
       />
@@ -553,7 +567,8 @@ export default function App() {
         onScheduleToday={(id) => void scheduleDroppedToday(id, today)}
         onScheduleBacklog={(id) => void scheduleDroppedBacklog(id)}
         onMoveToProject={(id, pId) => void moveDroppedProject(id, pId)}
-        onAI={aiSettings.enabled ? () => setAiOpen(true) : undefined} onAutomation={() => setAutomationOpen(true)} onSync={() => { setSettingsChild(null); setSyncOpen(true); }} onAppearance={() => { setSettingsChild(null); setAppearanceOpen(true); }} onSettings={() => setSelection({ kind: 'settings' })} />
+        onAI={aiSettings.enabled ? () => setAiOpen(true) : undefined} onAutomation={() => setAutomationOpen(true)} onSync={() => { setSettingsChild(null); setSyncOpen(true); }} onAppearance={() => { setSettingsChild(null); setAppearanceOpen(true); }} onSettings={() => setSelection({ kind: 'settings' })}
+        tvEnabled={tvOn} />
       <main className={selection.kind === 'home' ? 'home-main' : ['week', 'calendar'].includes(selection.kind) ? 'schedule-main' : undefined}>
         {SAMPLE_MODE && !sampleDismissed && (
           <div className="sample-banner" role="status">

@@ -1,7 +1,7 @@
-import { describe, expect, it } from 'vitest';
-import { deriveHighlight, deriveTv } from './tv';
+import { describe, expect, it, beforeEach } from 'vitest';
+import { deriveGreeting, deriveHighlight, deriveTv, isTvEnabled, setTvEnabled, TV_ENABLED_KEY, TV_PREFERENCE_CHANGED_EVENT } from './tv';
 import { suggestedTask } from './logic';
-import type { Habit, HabitLog, JournalEntry, Task } from './types';
+import type { FocusSession, Goal, Habit, HabitLog, JournalEntry, Project, Task } from './types';
 
 let seq = 0;
 function task(over: Partial<Task>): Task {
@@ -101,6 +101,124 @@ describe('deriveTv', () => {
     expect(tv.weekScheduled).toBe(8); // 7 everyday + 1 tuesday
     expect(tv.weekDone).toBe(3);
     expect(tv.weekPct).toBe(38);
+  });
+
+  it('enriches tasks with project information and overdue day counts', () => {
+    const p1: Project = { id: 'p1', name: 'Work', color: '#2563eb', order: 1, archived: false, parentId: null };
+    const tOverdue = task({ dueDate: '2026-10-25', priority: 1, projectId: 'p1', title: 'Overdue Project Task' });
+    const tToday = task({ dueDate: TODAY, priority: 2, projectId: 'inbox', title: 'Inbox Task' });
+    const tv = deriveTv([tOverdue, tToday], [], [], [], TODAY, { projects: [p1] });
+
+    expect(tv.topTaskProject).toEqual({ id: 'p1', name: 'Work', color: '#2563eb' });
+    expect(tv.dueTaskItems).toHaveLength(2);
+    expect(tv.dueTaskItems[0].project).toEqual({ id: 'p1', name: 'Work', color: '#2563eb' });
+    expect(tv.dueTaskItems[0].overdueDays).toBe(2);
+    expect(tv.dueTaskItems[1].project).toBeNull();
+    expect(tv.dueTaskItems[1].overdueDays).toBe(0);
+  });
+
+  it('derives running focus session and today focus totals', () => {
+    const t1 = task({ id: 't-focus', title: 'Focusing Task' });
+    const now = new Date('2026-10-27T14:30:00Z');
+    const nowMs = now.getTime();
+    const session: FocusSession = {
+      id: 'fs-1',
+      taskId: 't-focus',
+      startedAt: nowMs - 120000, // 2 minutes ago
+      endedAt: null,
+      seconds: 0,
+    };
+    const tv = deriveTv([t1], [], [], [], TODAY, {
+      focusSessions: [session],
+      now,
+    });
+    expect(tv.focus.runningTaskId).toBe('t-focus');
+    expect(tv.focus.runningTaskTitle).toBe('Focusing Task');
+    expect(tv.focus.runningSeconds).toBe(120);
+    expect(tv.focus.todaySeconds).toBeGreaterThanOrEqual(120);
+  });
+
+  it('includes active goals up to 4 items sorted by order', () => {
+    const g1: Goal = { id: 'g1', title: 'Goal 1', note: '', targetDate: '2026-12-31', status: 'active', order: 1, createdAt: 1, updatedAt: 1 };
+    const g2: Goal = { id: 'g2', title: 'Goal 2', note: '', targetDate: null, status: 'active', order: 0, createdAt: 2, updatedAt: 2 };
+    const gArchived: Goal = { id: 'g3', title: 'Old Goal', note: '', targetDate: null, status: 'archived', order: 2, createdAt: 3, updatedAt: 3 };
+    const tv = deriveTv([], [], [], [], TODAY, { goals: [g1, g2, gArchived] });
+
+    expect(tv.activeGoals).toEqual([
+      { id: 'g2', title: 'Goal 2', targetDate: null },
+      { id: 'g1', title: 'Goal 1', targetDate: '2026-12-31' },
+    ]);
+  });
+
+  it('counts tasks completed today', () => {
+    const nowMs = new Date('2026-10-27T10:00:00').getTime();
+    const doneToday = task({ status: 'done', completedAt: nowMs });
+    const doneYesterday = task({ status: 'done', completedAt: nowMs - 86400000 });
+    const active = task({ status: 'active' });
+    const tv = deriveTv([doneToday, doneYesterday, active], [], [], [], TODAY);
+    expect(tv.completedTodayCount).toBe(1);
+  });
+});
+
+describe('deriveGreeting', () => {
+  it('returns appropriate greetings for time of day', () => {
+    expect(deriveGreeting(new Date('2026-10-27T08:00:00'))).toBe('Good morning');
+    expect(deriveGreeting(new Date('2026-10-27T13:00:00'))).toBe('Good afternoon');
+    expect(deriveGreeting(new Date('2026-10-27T19:00:00'))).toBe('Good evening');
+    expect(deriveGreeting(new Date('2026-10-27T23:30:00'))).toBe('Good night');
+  });
+});
+
+describe('isTvEnabled & setTvEnabled', () => {
+  const store = new Map<string, string>();
+  beforeEach(() => {
+    store.clear();
+    globalThis.localStorage = {
+      getItem: (k: string) => (store.has(k) ? store.get(k)! : null),
+      setItem: (k: string, v: string) => void store.set(k, v),
+      removeItem: (k: string) => void store.delete(k),
+      clear: () => store.clear(),
+      key: () => null,
+      length: 0,
+    } as Storage;
+    if (typeof globalThis.window === 'undefined') {
+      const listeners = new Map<string, Array<() => void>>();
+      (globalThis as unknown as { window: unknown }).window = {
+        addEventListener: (event: string, cb: () => void) => {
+          listeners.set(event, [...(listeners.get(event) ?? []), cb]);
+        },
+        removeEventListener: (event: string, cb: () => void) => {
+          listeners.set(event, (listeners.get(event) ?? []).filter((l) => l !== cb));
+        },
+        dispatchEvent: (event: { type: string }) => {
+          (listeners.get(event.type) ?? []).forEach((cb) => cb());
+          return true;
+        },
+      };
+    }
+  });
+
+  it('defaults to false when no key is set', () => {
+    expect(isTvEnabled()).toBe(false);
+  });
+
+  it('persists enabled state and dispatches event', () => {
+    let fired = false;
+    const listener = () => { fired = true; };
+    window.addEventListener(TV_PREFERENCE_CHANGED_EVENT, listener);
+
+    setTvEnabled(true);
+    expect(isTvEnabled()).toBe(true);
+    expect(localStorage.getItem(TV_ENABLED_KEY)).toBe('1');
+    expect(fired).toBe(true);
+
+    fired = false;
+    setTvEnabled(false);
+    expect(isTvEnabled()).toBe(false);
+    expect(localStorage.getItem(TV_ENABLED_KEY)).toBeNull();
+    expect(fired).toBe(true);
+
+    window.removeEventListener(TV_PREFERENCE_CHANGED_EVENT, listener);
   });
 });
 

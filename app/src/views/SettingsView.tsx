@@ -23,6 +23,7 @@ import {
   AlertCircle,
   Database,
   Loader2,
+  Monitor,
 } from 'lucide-react';
 import '../components/settings.css';
 import { STYLES, getStyle, getTheme } from '../theme';
@@ -64,6 +65,8 @@ export default function SettingsView(props: {
   notificationBusy?: boolean;
   journalNudge: boolean;
   onToggleJournalNudge: () => void;
+  tvDashboard?: boolean;
+  onToggleTvDashboard?: () => void;
 }) {
   const remindersAvailable = props.reminders === 'on';
   const reminderLabel =
@@ -190,7 +193,7 @@ export default function SettingsView(props: {
   // Section visibility checks
   const showDisplay =
     (activeCategory === 'all' || activeCategory === 'display') &&
-    matches(['appearance', 'style', 'mode', 'theme', 'font', 'wallpaper', 'dark mode', 'keyboard', 'shortcuts', 'hotkeys']);
+    matches(['appearance', 'style', 'mode', 'theme', 'font', 'wallpaper', 'dark mode', 'keyboard', 'shortcuts', 'hotkeys', 'tv', 'kiosk', 'dashboard']);
 
   const showSync =
     (activeCategory === 'all' || activeCategory === 'sync') &&
@@ -323,6 +326,38 @@ export default function SettingsView(props: {
                   <ChevronRight size={16} />
                 </span>
               </button>
+            )}
+
+            {props.onToggleTvDashboard && matches(['tv', 'kiosk', 'dashboard', 'ambient', 'wall', 'screen']) && (
+              <div className="settings-row-wrap">
+                <button
+                  className="settings-row settings-toggle-row"
+                  aria-describedby="settings-tv-help"
+                  aria-pressed={props.tvDashboard ?? false}
+                  onClick={props.onToggleTvDashboard}
+                >
+                  <div className="settings-icon-box" aria-hidden="true">
+                    <Monitor size={18} />
+                  </div>
+                  <span className="settings-row-main">
+                    <strong>TV dashboard</strong>
+                    <small>Full-screen kiosk display for ambient monitors and wall screens</small>
+                  </span>
+                  <span className="settings-row-action" aria-hidden="true">
+                    <span className={`settings-switch-visual ${props.tvDashboard ? 'on' : ''}`}>
+                      <span className="settings-switch-thumb" />
+                    </span>
+                    <span className="settings-state" data-active={props.tvDashboard ?? false}>
+                      {props.tvDashboard ? 'On' : 'Off'}
+                    </span>
+                  </span>
+                </button>
+                <p id="settings-tv-help" className="settings-help settings-state-help">
+                  {props.tvDashboard
+                    ? 'TV dashboard is active and visible under Tools in the sidebar.'
+                    : 'Turn on to show TV dashboard in the sidebar and enable kiosk mode.'}
+                </p>
+              </div>
             )}
           </div>
         </div>

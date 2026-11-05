@@ -77,6 +77,7 @@ export default function Sidebar(props: {
   onSettings: () => void;
   onPalette?: () => void;
   onCapture?: () => void;
+  tvEnabled?: boolean;
 }) {
   const [collapsed, setCollapsed] = useState(() => {
     try {
@@ -655,7 +656,7 @@ export default function Sidebar(props: {
         <Zap size={16} aria-hidden="true" />
         <span>Automation</span>
       </button>
-      {tvBtn}
+      {props.tvEnabled && tvBtn}
       <button
         className="nav foot-action"
         title="Settings"
