@@ -7,17 +7,18 @@ import { minutes, validDate } from '../planning';
 import { goalsWithoutNextAction } from '../review';
 import CompletionButton from '../components/CompletionButton';
 import { useLiveQuery } from 'dexie-react-hooks';
-import { useEffect, useRef, useState } from 'react';
-import { ArrowRight, BookOpen, Check, SlidersHorizontal, Target, Zap } from 'lucide-react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { ArrowRight, BookOpen, Check, Clock, RotateCcw, SkipForward, SlidersHorizontal, Target, Zap } from 'lucide-react';
 import QuickAdd from '../components/QuickAdd';
 import { db } from '../db';
 import { saveWidgetVisibility } from '../widgetPreferences';
 import HomeHabitCheck from '../components/HomeHabitCheck';
 import HomeFocusStop from '../components/HomeFocusStop';
 import { runningSession, sessionSeconds, focusTotals, formatClock, formatDuration } from '../focus';
-import { todayTasks, upcomingTasks, suggestedTask, upNextGroups, sortTasks } from '../logic';
+import { todayTasks, upcomingTasks, suggestedTask, upNextGroups, sortTasks, activeBlockers } from '../logic';
 import { currentStreak, isScheduledOn, logsByDate } from '../habits';
 import { todayStr, addDays, friendlyDate, weekdayLabel } from '../dates';
+import { getOrCreateJournalEntry, updateJournalEntry } from '../repo';
 import type { Task } from '../types';
 
 function greeting(hour: number): string {
@@ -29,12 +30,19 @@ function greeting(hour: number): string {
 
 export default function HomeView(props: { tasks: Task[]; onSelect: (kind: string) => void; onOpen: (id: string) => void; onNavigate: (selection: Selection) => void }) {
   const habits = useLiveQuery(() => db.habits.orderBy('order').toArray(), []);
+  const projects = useLiveQuery(() => db.projects.toArray(), []);
+  const projectMap = useMemo(() => new Map((projects ?? []).map((p) => [p.id, p])), [projects]);
   const widgetPref = useLiveQuery(() => db.syncmeta.get('home.widgets'), []);
   const hidden: string[] = (widgetPref?.value as string[] | undefined) ?? [];
   const [editingPlan, setEditingPlan] = useState<string | null>(null);
   const [reviewOpen, setReviewOpen] = useState(false);
   const [customizing, setCustomizing] = useState(false);
   const [drillDate, setDrillDate] = useState<string | null>(null);
+  const [skippedIds, setSkippedIds] = useState<string[]>([]);
+  const [editingJournal, setEditingJournal] = useState(false);
+  const [journalDraft, setJournalDraft] = useState('');
+  const [journalSaving, setJournalSaving] = useState(false);
+  const [journalError, setJournalError] = useState('');
   const widgetSavingRef = useRef(false);
   const [widgetSaving, setWidgetSaving] = useState(false);
   const [widgetSaveFailed, setWidgetSaveFailed] = useState(false);
@@ -50,7 +58,7 @@ export default function HomeView(props: { tasks: Task[]; onSelect: (kind: string
   const goals = useLiveQuery(() => db.goals.orderBy('order').toArray(), []);
   const today = todayStr();
   const journalEntry = useLiveQuery(() => db.journal.get(today), [today]);
-  const suggestion = suggestedTask(props.tasks, today, { tomorrowFallback: true });
+
   const [clock, setClock] = useState(() => Date.now());
   useEffect(() => { const timer = setInterval(() => setClock(Date.now()), 30_000); return () => clearInterval(timer); }, []);
   const now = new Date(clock);
@@ -65,10 +73,36 @@ export default function HomeView(props: { tasks: Task[]; onSelect: (kind: string
   }, [running?.id]);
   const focusedToday = focusSessions ? focusTotals(focusSessions, today, focusNow).todayTotal : 0;
 
+  // Candidate pool for Next Action cycling
+  const unblocked = (t: Task) => t.status === 'active' && t.parentId === null && activeBlockers(props.tasks, t).length === 0 && t.dueDate !== null;
+  const candidates = props.tasks.filter((t) => unblocked(t) && t.dueDate! <= today);
+  const tomorrow = addDays(today, 1);
+  const pool =
+    candidates.length > 0
+      ? candidates
+      : props.tasks.filter((t) => unblocked(t) && t.dueDate! === tomorrow);
+  const candidateTasks = props.tasks.filter((t) => !skippedIds.includes(t.id));
+  const suggestion = suggestedTask(candidateTasks, today, { tomorrowFallback: true }) ?? suggestedTask(props.tasks, today, { tomorrowFallback: true });
+  const canCycle = pool.length > 1;
+  const skipSuggestion = (id: string) => {
+    const next = [...skippedIds, id];
+    const remaining = pool.filter((t) => !next.includes(t.id));
+    if (remaining.length === 0) setSkippedIds([]);
+    else setSkippedIds(next);
+  };
+
+  const getSubtaskSummary = (taskId: string) => {
+    const children = props.tasks.filter((t) => t.parentId === taskId && t.status !== 'archived');
+    if (children.length === 0) return null;
+    const done = children.filter((t) => t.status === 'done').length;
+    return { done, total: children.length };
+  };
+
   // todayTasks() is active-only; the progress count needs the done ones too.
   const dueTodayAll = props.tasks.filter((t) => t.parentId === null && t.dueDate !== null && t.dueDate <= today && t.status !== 'archived');
   const openToday = todayTasks(props.tasks, today);
   const doneToday = dueTodayAll.filter((t) => t.status === 'done').length;
+  const completedTodayTasks = dueTodayAll.filter((t) => t.status === 'done');
   const currentMinutes = now.getHours() * 60 + now.getMinutes();
   const commitments = props.tasks.filter(t => t.status === 'active' && t.parentId === null).flatMap(t => {
     const rows: { task: Task; date: string; time: string; kind: string; overdue: boolean }[] = [];
@@ -83,10 +117,18 @@ export default function HomeView(props: { tasks: Task[]; onSelect: (kind: string
   }).filter(item => item.date >= today)
     .sort((a, b) => `${a.date} ${a.time}`.localeCompare(`${b.date} ${b.time}`));
   const commitment = commitments[0];
+  const todayCommitments = commitments.filter((item) => item.date === today);
+  const remainingTodayCommitments = todayCommitments.filter((item) => item.task.id !== commitment?.task.id);
   const noNextAction = goalsWithoutNextAction(goals ?? [], props.tasks).length;
 
   const todaysHabits = (habits ?? []).filter((h) => !h.archived && isScheduledOn(h, today));
   const habitsDone = todaysHabits.filter((h) => logsByDate(logs ?? [], h.id).has(today)).length;
+  const allHabitsDone = todaysHabits.length > 0 && habitsDone === todaysHabits.length;
+
+  const totalCommitments = dueTodayAll.length + todaysHabits.length;
+  const completedCommitments = doneToday + habitsDone;
+  const progressPct = totalCommitments > 0 ? Math.round((completedCommitments / totalCommitments) * 100) : 0;
+  const allDoneToday = totalCommitments > 0 && completedCommitments === totalCommitments;
 
   const upcoming = upcomingTasks(props.tasks, today, 7);
   const weekLoad = Array.from({ length: 7 }, (_, i) => {
@@ -113,11 +155,29 @@ export default function HomeView(props: { tasks: Task[]; onSelect: (kind: string
     .flatMap(([d, ts]) => ts.map((t) => ({ d, t })))
     .slice(0, 5);
   const journalLine = (journalEntry?.highlight ?? '').trim() || (journalEntry?.note ?? '').trim();
-  const orientation = openToday.length === 0
-    ? 'Nothing is due today. Leave room for what matters, or pull one thing forward.'
-    : openToday.length === 1
-      ? 'One open task is due. Give it your full attention, then stop.'
-      : `${openToday.length} open tasks are due. Pick one, finish it, then look up.`;
+  const orientation = allDoneToday
+    ? 'All clear for today. Every scheduled task and habit is done. Enjoy the quiet.'
+    : openToday.length === 0
+      ? 'Nothing is due today. Leave room for what matters, or pull one thing forward.'
+      : openToday.length === 1
+        ? 'One open task is due. Give it your full attention, then stop.'
+        : `${openToday.length} open tasks are due. Pick one, finish it, then look up.`;
+
+  const saveJournalHighlight = async (text: string) => {
+    if (!text.trim() || journalSaving) return;
+    setJournalSaving(true);
+    setJournalError('');
+    try {
+      const entry = await getOrCreateJournalEntry(today);
+      await updateJournalEntry(entry.id, { highlight: text.trim() });
+      setEditingJournal(false);
+      setJournalDraft('');
+    } catch {
+      setJournalError("Couldn't save highlight. Try again.");
+    } finally {
+      setJournalSaving(false);
+    }
+  };
 
   return (
     <section className="home">
@@ -126,6 +186,24 @@ export default function HomeView(props: { tasks: Task[]; onSelect: (kind: string
           <p className="eyebrow">{weekdayLabel(today)} · {now.toLocaleDateString(undefined, { month: 'long', day: 'numeric' })}</p>
           <h1>One thing at a time</h1>
           <p className="home-greeting">{greeting(now.getHours())}. {orientation}</p>
+          {totalCommitments > 0 && (
+            <div className="home-progress-wrap" role="group" aria-label="Daily progress">
+              <div
+                className="home-progress-bar"
+                role="progressbar"
+                aria-valuenow={progressPct}
+                aria-valuemin={0}
+                aria-valuemax={100}
+                aria-label={`${progressPct}% of daily commitments done`}
+              >
+                <div className="home-progress-fill" style={{ width: `${progressPct}%` }} />
+              </div>
+              <p className="home-progress-text num">
+                <span>{completedCommitments} of {totalCommitments} done today</span>
+                <span>{progressPct}%</span>
+              </p>
+            </div>
+          )}
         </div>
         <button
           className={`icon-btn home-customize${customizing ? ' active' : ''}`}
@@ -139,21 +217,36 @@ export default function HomeView(props: { tasks: Task[]; onSelect: (kind: string
       </header>
       {customizing && (
         <div className="widget-settings" role="group" aria-label="Show or hide widgets" aria-busy={widgetSaving}>
-          {[
-            ['focus', 'Focus'],
-            ['upnext', 'On your radar'],
-            ['today', 'Next commitment'],
-            ['habits', 'Habits'],
-            ['journal', 'Journal'],
-            ['week', 'This week'],
-            ['goals', 'Goals'],
-            ['upcoming', 'Upcoming'],
-          ].map(([id, label]) => (
-            <label key={id} className="widget-toggle">
-              <input type="checkbox" checked={!hidden.includes(id)} disabled={widgetSaving} onChange={() => void toggleWidget(id)} />
-              {label}
-            </label>
-          ))}
+          <div className="widget-settings-head">
+            <div>
+              <p className="widget-settings-title">Customize Home</p>
+              <p className="widget-meta">Show or hide briefing sections</p>
+            </div>
+            <button
+              type="button"
+              className="btn-secondary mini widget-settings-done"
+              onClick={() => setCustomizing(false)}
+            >
+              Done
+            </button>
+          </div>
+          <div className="widget-settings-grid">
+            {[
+              ['focus', 'Focus'],
+              ['upnext', 'On your radar'],
+              ['today', 'Next commitment'],
+              ['habits', 'Habits'],
+              ['journal', 'Journal'],
+              ['week', 'This week'],
+              ['goals', 'Goals'],
+              ['upcoming', 'Upcoming'],
+            ].map(([id, label]) => (
+              <label key={id} className="widget-toggle">
+                <input type="checkbox" checked={!hidden.includes(id)} disabled={widgetSaving} onChange={() => void toggleWidget(id)} />
+                <span>{label}</span>
+              </label>
+            ))}
+          </div>
         </div>
       )}
 
@@ -168,7 +261,10 @@ export default function HomeView(props: { tasks: Task[]; onSelect: (kind: string
           {!hidden.includes('focus') && running && (
             <section className="home-focus" aria-labelledby="home-focus-heading">
               <div className="widget-head">
-                <p className="eyebrow" id="home-focus-heading">Focusing</p>
+                <div className="focus-heading-wrap">
+                  <span className="focus-pulse" aria-hidden="true" />
+                  <p className="eyebrow" id="home-focus-heading">Focusing</p>
+                </div>
                 <span className="focus-reason num">{formatClock(sessionSeconds(running, focusNow))}</span>
               </div>
               <HomeFocusStop key={running.id}>
@@ -176,6 +272,19 @@ export default function HomeView(props: { tasks: Task[]; onSelect: (kind: string
                   {runningTask?.title ?? 'Task'}
                 </button>
               </HomeFocusStop>
+              {runningTask && (
+                <div className="home-focus-meta">
+                  {projectMap.get(runningTask.projectId)?.id !== 'inbox' && (
+                    <span className="home-meta-pill project">
+                      <span className="dot" style={{ background: projectMap.get(runningTask.projectId)?.color }} />
+                      {projectMap.get(runningTask.projectId)?.name}
+                    </span>
+                  )}
+                  {runningTask.durationMinutes && (
+                    <span className="home-meta-pill duration num">{runningTask.durationMinutes}m est</span>
+                  )}
+                </div>
+              )}
               {focusedToday > 0 && <p className="widget-meta num">Focused today: {formatDuration(focusedToday)}</p>}
             </section>
           )}
@@ -186,13 +295,70 @@ export default function HomeView(props: { tasks: Task[]; onSelect: (kind: string
                   <p className="eyebrow" id="home-focus-heading">Next action</p>
                   <p className="focus-reason">{suggestion.reason}</p>
                 </div>
-                <span className="home-focus-mark" aria-hidden="true"><Zap size={18} strokeWidth={1.75} /></span>
+                <div className="home-focus-head-actions">
+                  {canCycle && (
+                    <button
+                      type="button"
+                      className="home-skip-btn"
+                      onClick={() => skipSuggestion(suggestion.task.id)}
+                      title="Skip to next candidate"
+                      aria-label="Skip to next candidate"
+                    >
+                      <SkipForward size={14} aria-hidden="true" />
+                      <span>Skip for now</span>
+                    </button>
+                  )}
+                  {skippedIds.length > 0 && (
+                    <button
+                      type="button"
+                      className="home-skip-reset"
+                      onClick={() => setSkippedIds([])}
+                      title="Reset skipped candidates"
+                      aria-label="Reset skipped candidates"
+                    >
+                      <RotateCcw size={12} aria-hidden="true" />
+                      <span>Reset ({skippedIds.length})</span>
+                    </button>
+                  )}
+                  <span className="home-focus-mark" aria-hidden="true"><Zap size={18} strokeWidth={1.75} /></span>
+                </div>
               </div>
               <div className="focus-task">
                 <CompletionButton task={suggestion.task} className="checkbox home-check" label={`Mark ${suggestion.task.title} done`} />
                 <button className="focus-title" onClick={() => props.onOpen(suggestion.task.id)}>
                   {suggestion.task.title}
                 </button>
+              </div>
+              <div className="home-focus-meta">
+                {(() => {
+                  const proj = projectMap.get(suggestion.task.projectId);
+                  const sub = getSubtaskSummary(suggestion.task.id);
+                  return (
+                    <>
+                      {proj && proj.id !== 'inbox' && (
+                        <span className="home-meta-pill project">
+                          <span className="dot" style={{ background: proj.color }} />
+                          {proj.name}
+                        </span>
+                      )}
+                      {suggestion.task.durationMinutes && (
+                        <span className="home-meta-pill duration num">{suggestion.task.durationMinutes}m</span>
+                      )}
+                      {sub && (
+                        <span className="home-meta-pill subtask num">{sub.done}/{sub.total} subtasks</span>
+                      )}
+                      {suggestion.task.priority === 1 && (
+                        <span className="home-meta-pill priority-high">High priority</span>
+                      )}
+                      {suggestion.task.priority === 2 && (
+                        <span className="home-meta-pill priority-med">Medium priority</span>
+                      )}
+                      {suggestion.task.dueTime && (
+                        <span className="home-meta-pill due-time num">Due {suggestion.task.dueTime}</span>
+                      )}
+                    </>
+                  );
+                })()}
               </div>
               <div className="home-focus-actions">
                 <HomeFocusStart taskId={suggestion.task.id} />
@@ -220,18 +386,64 @@ export default function HomeView(props: { tasks: Task[]; onSelect: (kind: string
               </div>
               {commitment ? (
                 <div className="home-commitment-body">
-                  <p className="home-commitment-time num">
-                    <time>{commitment.time}</time>
-                    <span>{friendlyDate(commitment.date, today)} · {commitment.kind}{commitment.overdue ? ' (overdue)' : ''}</span>
-                  </p>
-                  <button className="widget-task home-commitment-title" onClick={() => props.onOpen(commitment.task.id)}>{commitment.task.title}</button>
-                  <p className="widget-meta">
-                    {commitment.kind === 'Planned work' && commitment.task.durationMinutes ? `${commitment.task.durationMinutes} min estimate · ` : ''}
-                    A local task, not a calendar event.
-                  </p>
-                  <button className="btn-secondary" onClick={() => commitment.kind === 'Planned work' ? setEditingPlan(commitment.task.id) : props.onOpen(commitment.task.id)}>
-                    {commitment.kind === 'Planned work' ? 'Reschedule work' : 'Reschedule task'}
-                  </button>
+                  <div className="home-commitment-strip">
+                    <div className="home-commitment-main">
+                      <div className="home-commitment-time-pill num">
+                        <Clock size={12} strokeWidth={2} aria-hidden="true" />
+                        <time>{commitment.time}</time>
+                      </div>
+                      <div className="home-commitment-details">
+                        <div className="home-commitment-task-row">
+                          <CompletionButton task={commitment.task} className="checkbox home-check" label={`Mark ${commitment.task.title} done`} />
+                          <button className="widget-task home-commitment-title" onClick={() => props.onOpen(commitment.task.id)}>
+                            {projectMap.get(commitment.task.projectId)?.id !== 'inbox' && (
+                              <span className="dot briefing-dot" style={{ background: projectMap.get(commitment.task.projectId)?.color }} title={projectMap.get(commitment.task.projectId)?.name} />
+                            )}
+                            {commitment.task.title}
+                          </button>
+                          {suggestion?.task.id === commitment.task.id && (
+                            <span className="home-same-task-badge">Current focus</span>
+                          )}
+                        </div>
+                        <p className="home-commitment-meta">
+                          <span>{friendlyDate(commitment.date, today)} · {commitment.kind}{commitment.overdue ? ' (overdue)' : ''}</span>
+                          {commitment.kind === 'Planned work' && commitment.task.durationMinutes ? ` · ${commitment.task.durationMinutes}m est` : ''}
+                          {suggestion?.task.id === commitment.task.id
+                            ? ' · Scheduled for current focus task'
+                            : ''}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="home-commitment-actions">
+                      <button className="btn-secondary mini" onClick={() => commitment.kind === 'Planned work' ? setEditingPlan(commitment.task.id) : props.onOpen(commitment.task.id)}>
+                        {commitment.kind === 'Planned work' ? 'Reschedule work' : 'Reschedule task'}
+                      </button>
+                    </div>
+                  </div>
+                  {remainingTodayCommitments.length > 0 && (
+                    <div className="home-mini-agenda" aria-label="Later commitments today">
+                      <p className="home-mini-agenda-label">Later today ({remainingTodayCommitments.length})</p>
+                      <ul className="home-agenda-list">
+                        {remainingTodayCommitments.map((rem, idx) => {
+                          const proj = projectMap.get(rem.task.projectId);
+                          return (
+                            <li key={`${rem.task.id}-${rem.time}-${idx}`} className="home-agenda-item">
+                              <time className="home-agenda-time num">{rem.time}</time>
+                              <button className="home-agenda-title" onClick={() => props.onOpen(rem.task.id)}>
+                                {rem.task.title}
+                              </button>
+                              <span className="home-agenda-meta">
+                                {proj && proj.id !== 'inbox' && (
+                                  <span className="dot" style={{ background: proj.color }} title={proj.name} />
+                                )}
+                                <span className="home-agenda-kind">{rem.kind}</span>
+                              </span>
+                            </li>
+                          );
+                        })}
+                      </ul>
+                    </div>
+                  )}
                 </div>
               ) : (
                 <p className="home-empty-copy">No timed commitments left today. The rest of the day is yours.</p>
@@ -247,20 +459,47 @@ export default function HomeView(props: { tasks: Task[]; onSelect: (kind: string
                   <p className="home-empty-copy">Nothing due today.</p>
                 ) : (
                   <ul className="briefing-list">
-                    {openToday.slice(0, 4).map((t) => (
-                      <li key={t.id} className="briefing-task">
-                        <CompletionButton task={t} className="checkbox home-check" label={`Mark ${t.title} done`} />
-                        <button className={`briefing-task-title${t.status === 'done' ? ' done' : ''}`} onClick={() => props.onOpen(t.id)}>{t.title}</button>
-                        <span className={`briefing-task-when num${t.dueDate && t.dueDate < today ? ' overdue' : ''}`}>
-                          {t.dueDate ? friendlyDate(t.dueDate, today) : ''}
-                        </span>
-                      </li>
-                    ))}
+                    {openToday.filter(t => t.id !== suggestion?.task.id && t.id !== commitment?.task.id).slice(0, 4).map((t) => {
+                      const proj = projectMap.get(t.projectId);
+                      return (
+                        <li key={t.id} className="briefing-task">
+                          <CompletionButton task={t} className="checkbox home-check" label={`Mark ${t.title} done`} />
+                          <button className={`briefing-task-title${t.status === 'done' ? ' done' : ''}`} onClick={() => props.onOpen(t.id)}>
+                            {proj && proj.id !== 'inbox' && (
+                              <span className="dot briefing-dot" style={{ background: proj.color }} title={proj.name} />
+                            )}
+                            {t.title}
+                          </button>
+                          <span className={`briefing-task-when num${t.dueDate && t.dueDate < today ? ' overdue' : ''}`}>
+                            {t.dueDate ? friendlyDate(t.dueDate, today) : ''}
+                          </span>
+                        </li>
+                      );
+                    })}
                   </ul>
                 )}
                 <button className="home-more-tasks" onClick={() => props.onSelect('today')}>
                   View all {openToday.length} open tasks <ArrowRight size={14} aria-hidden="true" />
                 </button>
+                {completedTodayTasks.length > 0 && (
+                  <details className="home-completed-today">
+                    <summary>
+                      <span>Completed today</span>
+                      <span className="num">{completedTodayTasks.length}</span>
+                    </summary>
+                    <ul className="briefing-list">
+                      {completedTodayTasks.map((t) => (
+                        <li key={t.id} className="briefing-task completed-task">
+                          <CompletionButton task={t} className="checkbox home-check-completed checked" label={`Mark ${t.title} not done`}>
+                            <Check size={12} strokeWidth={2.5} aria-hidden="true" />
+                          </CompletionButton>
+                          <button className="briefing-task-title done" onClick={() => props.onOpen(t.id)}>{t.title}</button>
+                          <span className="briefing-task-when num">done</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </details>
+                )}
               </div>
             </section>
           )}
@@ -283,6 +522,11 @@ export default function HomeView(props: { tasks: Task[]; onSelect: (kind: string
                     {habitsDone} of {todaysHabits.length} done
                     {!running && focusedToday > 0 && <> · Focused today: {formatDuration(focusedToday)}</>}
                   </p>
+                  {allHabitsDone && (
+                    <div className="habits-complete-banner" role="status">
+                      <Check size={13} strokeWidth={2.5} aria-hidden="true" /> All habits completed today
+                    </div>
+                  )}
                   <ul className="widget-list">
                     {todaysHabits.map((h) => {
                       const done = logsByDate(logs ?? [], h.id).has(today);
@@ -305,16 +549,62 @@ export default function HomeView(props: { tasks: Task[]; onSelect: (kind: string
                   Open <ArrowRight size={13} strokeWidth={2} aria-hidden="true" />
                 </button>
               </div>
-              <div className="home-journal-body">
-                <BookOpen size={17} strokeWidth={1.75} aria-hidden="true" className="home-journal-icon" />
-                <div>
-                  <p className="widget-meta">{journalLine ? 'Today’s entry' : 'A quiet place to land'}</p>
-                  <p className={journalLine ? 'home-journal-line' : 'home-journal-prompt'}>
-                    {journalLine || 'What was worth remembering today?'}
-                  </p>
-                </div>
-              </div>
-              <button className="btn-secondary" onClick={() => props.onSelect('journal')}>{journalLine ? 'Continue writing' : 'Write a line'}</button>
+              {editingJournal || !journalLine ? (
+                <form
+                  className="home-journal-quick"
+                  onSubmit={(e) => {
+                    e.preventDefault();
+                    void saveJournalHighlight(journalDraft);
+                  }}
+                >
+                  <input
+                    type="text"
+                    className="home-journal-input"
+                    placeholder="What was worth remembering today?"
+                    value={journalDraft}
+                    disabled={journalSaving}
+                    onChange={(e) => setJournalDraft(e.target.value)}
+                    aria-label="Today's highlight"
+                  />
+                  <div className="home-journal-actions">
+                    <button type="submit" className="btn-secondary mini home-journal-save-btn" disabled={journalSaving || !journalDraft.trim()}>
+                      {journalSaving ? 'Saving…' : 'Save'}
+                    </button>
+                    {editingJournal && (
+                      <button type="button" className="btn-quiet mini" onClick={() => setEditingJournal(false)}>
+                        Cancel
+                      </button>
+                    )}
+                    <button type="button" className="btn-quiet mini" onClick={() => props.onSelect('journal')}>
+                      Open journal <ArrowRight size={12} aria-hidden="true" />
+                    </button>
+                  </div>
+                  {journalError && <p className="sub-add-feedback" role="alert">{journalError}</p>}
+                </form>
+              ) : (
+                <>
+                  <div className="home-journal-body">
+                    <BookOpen size={17} strokeWidth={1.75} aria-hidden="true" className="home-journal-icon" />
+                    <div>
+                      <p className="widget-meta">{journalEntry?.highlight ? "Today's highlight" : "Today's entry"}</p>
+                      <p className="home-journal-line">{journalLine}</p>
+                    </div>
+                  </div>
+                  <div className="home-journal-actions">
+                    <button className="btn-secondary" onClick={() => props.onSelect('journal')}>Continue writing</button>
+                    <button
+                      type="button"
+                      className="btn-quiet mini"
+                      onClick={() => {
+                        setJournalDraft(journalEntry?.highlight ?? journalEntry?.note ?? '');
+                        setEditingJournal(true);
+                      }}
+                    >
+                      Edit highlight
+                    </button>
+                  </div>
+                </>
+              )}
             </section>
           )}
 

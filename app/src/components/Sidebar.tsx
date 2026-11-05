@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Settings, CalendarClock,
   Sun, CalendarDays, Archive, Clock, CalendarRange, Repeat, CheckCircle2,
   Search, Plus, Menu, X, Palette, Zap, House, Target, StickyNote, BookOpen, Monitor,
+  PanelLeftClose, PanelLeft, Sparkles,
 } from 'lucide-react';
 import { projectTree } from '../projects';
 import type { Project } from '../types';
@@ -75,6 +76,45 @@ export default function Sidebar(props: {
   onPalette?: () => void;
   onCapture?: () => void;
 }) {
+  const [collapsed, setCollapsed] = useState(() => {
+    try {
+      return localStorage.getItem('lifedash-sidebar-collapsed') === 'true';
+    } catch {
+      return false;
+    }
+  });
+
+  const toggleCollapsed = () => {
+    setCollapsed((prev) => {
+      const next = !prev;
+      try {
+        localStorage.setItem('lifedash-sidebar-collapsed', String(next));
+      } catch {
+        /* storage blocked */
+      }
+      return next;
+    });
+  };
+
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === '[' && !e.metaKey && !e.ctrlKey && !e.altKey) {
+        const active = document.activeElement;
+        const isInput =
+          active instanceof HTMLInputElement ||
+          active instanceof HTMLTextAreaElement ||
+          active instanceof HTMLSelectElement ||
+          active?.getAttribute('contenteditable') === 'true';
+        if (!isInput) {
+          e.preventDefault();
+          toggleCollapsed();
+        }
+      }
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, []);
+
   const [adding, setAdding] = useState(false);
   const [addParent, setAddParent] = useState<string | null>(null);
   const [name, setName] = useState('');
@@ -122,6 +162,8 @@ export default function Sidebar(props: {
     <button
       key={kind}
       className={`nav ${props.selection.kind === kind ? 'active' : ''}`}
+      title={label}
+      aria-label={label}
       onClick={() => {
         props.onSelect({ kind } as Selection);
         after?.();
@@ -189,6 +231,8 @@ export default function Sidebar(props: {
           key={p.id}
           className={`nav project ${props.selection.kind === 'project' && props.selection.id === p.id ? 'active' : ''}`}
           style={depth > 0 ? { paddingLeft: 12 + depth * 18 } : undefined}
+          title={p.name}
+          aria-label={`Project: ${p.name}`}
           onClick={() => {
             props.onSelect({ kind: 'project', id: p.id });
             setSheet(false);
@@ -235,7 +279,7 @@ export default function Sidebar(props: {
   );
 
   const tvBtn = (
-    <button className="nav foot-action" onClick={() => { window.location.hash = '/tv'; }}>
+    <button className="nav foot-action" title="TV dashboard" aria-label="TV dashboard" onClick={() => { window.location.hash = '/tv'; }}>
       <Monitor size={16} strokeWidth={1.75} aria-hidden="true" />
       <span>TV dashboard</span>
     </button>
@@ -244,10 +288,21 @@ export default function Sidebar(props: {
   const footer = (
     <div className="sidebar-foot" role="group" aria-label="Tools">
       <div className="nav-section"><span>Tools</span></div>
-      {props.onAI && <button className="nav foot-action" onClick={() => { openTool(() => props.onAI?.()); }}>Plan with AI</button>}
-      <button className="nav foot-action" onClick={() => { openTool(props.onAutomation); }}><Zap size={16} aria-hidden="true" /> Automation</button>
+      {props.onAI && (
+        <button className="nav foot-action" title="Plan with AI" aria-label="Plan with AI" onClick={() => { openTool(() => props.onAI?.()); }}>
+          <Sparkles size={16} strokeWidth={1.75} aria-hidden="true" />
+          <span>Plan with AI</span>
+        </button>
+      )}
+      <button className="nav foot-action" title="Automation" aria-label="Automation" onClick={() => { openTool(props.onAutomation); }}>
+        <Zap size={16} aria-hidden="true" />
+        <span>Automation</span>
+      </button>
       {tvBtn}
-      <button className="nav foot-action" aria-current={props.selection.kind === 'settings' ? 'page' : undefined} onClick={() => { openTool(props.onSettings); }}><Settings size={16} aria-hidden="true" /> Settings</button>
+      <button className="nav foot-action" title="Settings" aria-label="Settings" aria-current={props.selection.kind === 'settings' ? 'page' : undefined} onClick={() => { openTool(props.onSettings); }}>
+        <Settings size={16} aria-hidden="true" />
+        <span>Settings</span>
+      </button>
     </div>
   );
   const navigation = (after?: () => void) => NAV_GROUPS.map(group => (
@@ -259,15 +314,73 @@ export default function Sidebar(props: {
 
   return (
     <>
-      <nav className="sidebar">
+      <nav className={`sidebar ${collapsed ? 'collapsed' : ''}`} aria-label="Main sidebar">
         <div className="sidebar-top">
-          <div className="brand"><Mark /><span>Lifedash</span></div>
-          {props.onCapture && <button className="sidebar-capture btn-secondary" aria-label="Capture task" onClick={props.onCapture}><Plus size={16} aria-hidden="true" />Capture task <kbd>n</kbd></button>}
-          {searchBox}
+          <div className="sidebar-brand-row">
+            <div className="brand" title="Lifedash">
+              <Mark />
+              {!collapsed && <span>Lifedash</span>}
+            </div>
+            <button
+              className="icon-btn sidebar-collapse-btn"
+              title={collapsed ? 'Expand sidebar ([)' : 'Collapse sidebar ([)'}
+              aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+              aria-expanded={!collapsed}
+              onClick={toggleCollapsed}
+            >
+              {collapsed ? <PanelLeft size={16} strokeWidth={1.75} /> : <PanelLeftClose size={16} strokeWidth={1.75} />}
+            </button>
+          </div>
+          {props.onCapture && (
+            collapsed ? (
+              <button
+                className="icon-btn sidebar-capture-collapsed"
+                title="Capture task (n)"
+                aria-label="Capture task"
+                onClick={props.onCapture}
+              >
+                <Plus size={16} strokeWidth={2} aria-hidden="true" />
+              </button>
+            ) : (
+              <button className="sidebar-capture btn-secondary" aria-label="Capture task" onClick={props.onCapture}>
+                <Plus size={16} aria-hidden="true" />Capture task <kbd>n</kbd>
+              </button>
+            )
+          )}
+          {collapsed ? (
+            props.onPalette && (
+              <button
+                className="icon-btn sidebar-search-collapsed"
+                title="Search tasks, notes and journal (Ctrl+K)"
+                aria-label="Search"
+                onClick={props.onPalette}
+              >
+                <Search size={16} strokeWidth={1.75} aria-hidden="true" />
+              </button>
+            )
+          ) : (
+            searchBox
+          )}
         </div>
         <div className="sidebar-scroll">
           {navigation()}
-          {projectsBlock}
+          {collapsed ? (
+            <div className="sidebar-projects-collapsed" role="group" aria-label="Projects">
+              {projectTree(props.projects).slice(0, 6).map(({ project: p }) => (
+                <button
+                  key={p.id}
+                  className={`nav-proj-dot ${props.selection.kind === 'project' && props.selection.id === p.id ? 'active' : ''}`}
+                  title={`Project: ${p.name}`}
+                  aria-label={`Project: ${p.name}`}
+                  onClick={() => props.onSelect({ kind: 'project', id: p.id })}
+                >
+                  <span className="dot" style={{ background: p.color, margin: 0 }} />
+                </button>
+              ))}
+            </div>
+          ) : (
+            projectsBlock
+          )}
         </div>
         {footer}
       </nav>
