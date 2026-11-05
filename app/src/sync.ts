@@ -826,6 +826,25 @@ async function pull(base: string, headers: Record<string, string>): Promise<{ ap
   return { applied, skipped, skippedTruncated };
 }
 
+
+/** First supplied-but-mistyped task field, or null. Absent keys pass:
+ * applyRemote fills those with structural defaults after this check. */
+function taskFieldTypeError(d: Record<string, unknown>): string | null {
+  const strOrNull = ['parentId', 'goalId', 'noteId', 'seriesId', 'dueDate', 'dueTime', 'plannedDate', 'plannedTime', 'recurrence'];
+  for (const k of strOrNull) {
+    if (d[k] !== undefined && d[k] !== null && typeof d[k] !== 'string') return `${k}: expected string|null`;
+  }
+  if (d.note !== undefined && typeof d.note !== 'string') return 'note: expected string';
+  if (d.pinned !== undefined && typeof d.pinned !== 'boolean') return 'pinned: expected boolean';
+  for (const k of ['priority', 'order', 'durationMinutes', 'completedAt'] as const) {
+    if (d[k] !== undefined && d[k] !== null && typeof d[k] !== 'number') return `${k}: expected number|null`;
+  }
+  for (const k of ['blockedBy', 'tags', 'skippedDates'] as const) {
+    if (d[k] !== undefined && (!Array.isArray(d[k]) || (d[k] as unknown[]).some((v) => typeof v !== 'string'))) return `${k}: expected string[]`;
+  }
+  return null;
+}
+
 async function applyRemote(col: Collection, e: ServerEntity): Promise<void> {
   applyingRemote = true;
   try {
@@ -850,6 +869,36 @@ async function applyRemote(col: Collection, e: ServerEntity): Promise<void> {
         // (hand-written API push, a schema newer than this app) would apply
         // cleanly and vanish from every list. Quarantine it for review.
         throw new MalformedEntityError(`sync: task status is unreadable (${String(data.status)})`);
+      }
+      if (col === 'tasks') {
+        // Split the required fields two ways. History-bearing fields
+        // (title, createdAt, updatedAt) have no honest default: a missing
+        // or mistyped one means the payload is provably malformed, so it is
+        // quarantined rather than stored with invented history. Structural
+        // fields (parentId above all: the strict parentId === null
+        // top-level check in every list view) have defaults that mean
+        // absence, not a fabricated value - the same normalisation the
+        // Dexie upgrades apply to older local rows. Only absent keys are
+        // filled; delivered values pass through untouched, including wrong
+        // types (documented residual: e.g. a string tags value still
+        // reaches the row).
+        if (typeof data.title !== 'string' || typeof data.createdAt !== 'number' || typeof data.updatedAt !== 'number') {
+          throw new MalformedEntityError(`sync: task is missing its title or history fields (key ${e.id})`);
+        }
+        // Supplied values must at least carry the type the views consume:
+        // a string in tags reaches TaskRow's .map and crashes the list.
+        // Only presence is optional; a present value must be well-typed.
+        // Referential soundness (a parentId pointing at a task that does
+        // not exist) is deliberately NOT checked here: the parent may
+        // legitimately arrive later in the same or a future pull.
+        const typeErr = taskFieldTypeError(data);
+        if (typeErr) throw new MalformedEntityError(`sync: task field has an unreadable type (${typeErr})`);
+        data = {
+          note: '', noteDoc: null, parentId: null, goalId: null, noteId: null,
+          pinned: false, priority: 0, dueDate: null, dueTime: null, recurrence: null,
+          blockedBy: [], tags: [], order: 0, seriesId: null, completedAt: null,
+          ...data,
+        };
       }
       if (col === 'attachments' && data.blob === undefined) {
         const existing = (await table.get(e.id)) as { blob?: unknown } | undefined;
