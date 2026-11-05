@@ -93,6 +93,10 @@ jobs:
       - name: Run tests
         if: steps.dup.outputs.skip != 'true'
         run: uv run pytest
+      - name: Test guided setup safety (no Docker)
+        if: steps.dup.outputs.skip != 'true'
+        working-directory: .
+        run: python3 -m unittest discover -s scripts -p test_setup.py
 
   mcp:
     runs-on: ubuntu-latest
