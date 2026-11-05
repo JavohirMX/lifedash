@@ -33,6 +33,8 @@ import AutomationDialog from './components/AutomationDialog';
 import TVDashboard from './views/TVDashboard';
 import SyncDialog from './components/SyncDialog';
 import AppearanceDialog from './components/AppearanceDialog';
+import AiSettingsDialog from './components/AiSettingsDialog';
+import { useAiSettings } from './ai/aiSettings';
 import GoogleCalendarDialog from './components/GoogleCalendarDialog';
 import SettingsView from './views/SettingsView';
 import Onboarding from './components/Onboarding';
@@ -125,7 +127,9 @@ export default function App() {
     catch { setRolloverFailed(true); }
   }
   const [syncOpen, setSyncOpen] = useState(false);
+  const aiSettings = useAiSettings();
   const [aiOpen, setAiOpen] = useState(false);
+  const [aiSettingsOpen, setAiSettingsOpen] = useState(false);
   const [appearanceOpen, setAppearanceOpen] = useState(false);
   const [googleCalendarOpen,setGoogleCalendarOpen]=useState(false);
   const [agentKeysOpen, setAgentKeysOpen] = useState(false);
@@ -328,6 +332,7 @@ export default function App() {
         onDataBackup={() => setDataBackupOpen(true)}
         onSync={() => { setSettingsChild('sync'); setSyncOpen(true); }}
         onAppearance={() => { setSettingsChild('appearance'); setAppearanceOpen(true); }}
+        onAiSettings={() => setAiSettingsOpen(true)}
         onGoogleCalendar={() => setGoogleCalendarOpen(true)}
         onAgentKeys={() => setAgentKeysOpen(true)}
         onImport={() => setImportPreset(null)}
@@ -546,7 +551,7 @@ export default function App() {
         onScheduleToday={(id) => void scheduleDroppedToday(id, today)}
         onScheduleBacklog={(id) => void scheduleDroppedBacklog(id)}
         onMoveToProject={(id, pId) => void moveDroppedProject(id, pId)}
-        onAI={() => setAiOpen(true)} onAutomation={() => setAutomationOpen(true)} onSync={() => { setSettingsChild(null); setSyncOpen(true); }} onAppearance={() => { setSettingsChild(null); setAppearanceOpen(true); }} onSettings={() => setSelection({ kind: 'settings' })} />
+        onAI={aiSettings.enabled ? () => setAiOpen(true) : undefined} onAutomation={() => setAutomationOpen(true)} onSync={() => { setSettingsChild(null); setSyncOpen(true); }} onAppearance={() => { setSettingsChild(null); setAppearanceOpen(true); }} onSettings={() => setSelection({ kind: 'settings' })} />
       <main className={selection.kind === 'home' ? 'home-main' : ['week', 'calendar'].includes(selection.kind) ? 'schedule-main' : undefined}>
         {SAMPLE_MODE && !sampleDismissed && (
           <div className="sample-banner" role="status">
@@ -608,7 +613,8 @@ export default function App() {
       )}
       {importPreset !== false && <ImportDialog projects={projects} initialSource={importPreset} onRestoreSettled={() => { setRules(loadRules()); setUserRules(loadUserRules()); }} onClose={() => setImportPreset(false)} />}
       {automationOpen && <AutomationDialog weeklyFailed={weeklyFailed} onDismissWeekly={() => setWeeklyFailed(false)} rolloverFailed={rolloverFailed} onDismissRollover={() => setRolloverFailed(false)} rules={rules} onChange={changeRules} userRules={userRules} onUserRulesChange={changeUserRules} projects={projects} onClose={() => setAutomationOpen(false)} />}
-      {aiOpen && <AssistantDialog tasks={tasks} onClose={() => setAiOpen(false)} />}
+      {aiOpen && aiSettings.enabled && <AssistantDialog tasks={tasks} onClose={() => setAiOpen(false)} />}
+      {aiSettingsOpen && <AiSettingsDialog onClose={() => setAiSettingsOpen(false)} />}
       {syncOpen && <SyncDialog onClose={() => { setSyncOpen(false); if (loadSyncSettings()) { markOnboardingDone(); setFreshInstall(false); } }} onBack={settingsChild === 'sync' ? () => setSyncOpen(false) : undefined} />}
       {googleCalendarOpen && <GoogleCalendarDialog onClose={()=>setGoogleCalendarOpen(false)} onBack={()=>setGoogleCalendarOpen(false)}/>}
       {dataBackupOpen && <DataBackupDialog onClose={() => setDataBackupOpen(false)} />}

@@ -1,71 +1,87 @@
-# Optional AI planning and read-only MCP
+# Optional AI Planning, Contextual Helpers & MCP
 
-Initial slice, not autonomous task execution. AI is off until a user opens the planner and approves an exact request. There are no background inference calls, provider retries, automatic task writes, remote MCP endpoints or model installation steps.
+Lifedash provides an optional, privacy-preserving AI suite built strictly on local-first principles. AI is off until a user opens an AI action and approves a request. All suggestions are subject to human-in-the-loop review before any data changes.
 
-## Plan with AI
+## 1. Master AI Toggle & Settings
 
-Open **Plan with AI** in the sidebar (mobile: More). It starts in
-**On-device** mode: select tasks and choose **Summarize selected tasks on this
-device** for rule-based ranking by due date and priority. This is not model
-inference, supports no free-text request, and sends nothing over the network.
-Suggestions do not change tasks.
+AI features can be configured and completely disabled from **Settings → Connection & display → AI features**:
+- **Master Switch:** Users can toggle AI features on or off for the current device at any time.
+- **Complete Deactivation:** When turned off:
+  - "Plan with AI" is removed from the sidebar and navigation.
+  - All contextual AI buttons ("Suggest subtasks" in Task Detail, "AI Plan" in Day Planner, "Extract tasks with AI" in Notes, and "Draft with AI" in Weekly Review) are completely hidden.
+  - All background or dialog AI execution is halted with zero network activity.
+  - The AI settings dialog dims model fields and displays a clear explanation banner.
+- **Live Reactivity:** Toggling AI on or off takes effect immediately across all views on the device without requiring a page reload.
 
-For model advice, select **Model provider**. Enter an OpenAI-compatible API
-base URL and the exact model ID you have installed or selected:
+## 2. Plan with AI (Assistant Dialog)
 
-- Ollama: `http://localhost:11434/v1`
-- LM Studio: `http://localhost:1234/v1`
-- Cloud provider: its HTTPS OpenAI-compatible base URL
+Open **Plan with AI** from the sidebar (or mobile navigation / command palette).
 
-The app does not fetch model lists or test credentials automatically. A provider must support browser requests from the app's actual origin (CORS). HTTPS-hosted apps may face browser restrictions when reaching localhost. Configure narrowly scoped allowed origins according to the provider's docs; do not expose an unauthenticated model server to the network. There is no unsafe CORS proxy or server-side key storage fallback.
+### Modes
+- **On-device:** Fast rule-based task ranking by due date and priority. 100% offline, zero network requests, no model required.
+- **Model provider:** Connect to local or cloud OpenAI-compatible endpoints with streaming advice and interactive proposal reviews.
 
-In Model provider mode, choose tasks, write your request and click **Review request**. Nothing is selected by default. Context contains only selected task titles, due dates, priority and status. No task notes, journal, attachments, sync credentials or full database are read by the AI module. The user-written request can itself contain private information, so review it too. The page shows the actual destination, model, prompt and context before the approval checkbox and Send button.
+### Supported Providers & Presets
+- **Ollama (Local):** `http://localhost:11434/v1` (e.g. `llama3.2`, `mistral`)
+- **LM Studio (Local):** `http://localhost:1234/v1` (local model server)
+- **OpenRouter (Cloud):** `https://openrouter.ai/api/v1`
+- **OpenAI (Cloud):** `https://api.openai.com/v1`
+- **Custom Provider:** Any OpenAI-compatible `/chat/completions` endpoint
 
-Approval is consumed by each send. Changing settings, request or selected task data invalidates the review. API keys stay in component memory only and disappear on close. No provider credentials are stored in localStorage, IndexedDB or sync. Provider responses are plain text and have no action execution path. Cookies are omitted; redirects fail rather than forwarding the request. Requests time out after 60 seconds and can be aborted. Aborting only stops waiting locally and may not cancel provider processing or billing.
+### Security & Privacy
+- **Settings Persistence:** Base URL and Model ID are persisted locally in `localStorage`. API keys remain in memory only by default, with an optional "Remember API key on this device" checkbox.
+- **Transparent Review Gate:** Every request presents the exact destination, model, prompt, and formatted context before the user approves and sends.
+- **Multi-Entity Context:** Optionally include active tasks, goals, habits, pinned notes, and today's schedule into the bounded context (up to 24,000 characters).
+- **Streaming & Markdown:** Streaming token responses with clean, safe typography (headings, bullet lists, bold text, code blocks).
+- **Interactive Review & Apply:** When the model outputs structured proposals (subtasks, schedule time-blocks, or new tasks), interactive proposal cards display checkboxes for each item. Nothing changes until the user clicks "Apply".
 
-A localhost URL is not proof of local inference: Ollama can forward cloud models. Confirm the model's actual execution location. Cloud providers can charge and retain prompts under their policies. Permission to develop this feature did not approve any paid calls or private-data disclosure during development.
+---
 
-## Local read-only MCP
+## 3. In-Context View Helpers
 
-MCP is a separate Node 20+ process under `mcp/`; no dependency or route is added to the sync server. It reads one explicitly chosen **version 2 LifeDash JSON export**, at startup, into an immutable narrow projection. It never reads browser IndexedDB or the live sync database. It is a stale snapshot, not live access. To refresh, export again and restart.
+Lifedash embeds focused AI helpers directly into primary workflows:
+1. **Task Detail — Subtask Breakdown:** Click "Suggest" in the Subtasks card to break complex tasks into 3–5 actionable subtasks with one-click creation.
+2. **Day Planner — AI Day Plan:** Click "AI Plan" in the Planner capacity bar to propose time-blocking slots for unscheduled tasks around existing commitments.
+3. **Notes View — Action Items Extractor:** Click the sparkle icon in the note header to extract explicit and implied action items into linked tasks.
+4. **Weekly Review — Reflection Companion:** Click "Draft with AI" in step 4 of the guided weekly review to draft grounded reflections and next week's focus based on past-week completion and habit data.
+
+---
+
+## 4. Model Context Protocol (MCP)
+
+Lifedash provides two MCP servers:
+
+### A. Read-Only Snapshot MCP (`mcp/server.mjs`)
+Reads an explicitly selected version 2 Lifedash JSON export into an immutable, safe projection.
 
 ```sh
 cd mcp
 npm ci
-node server.mjs --snapshot /absolute/path/to/chosen-export.json
+node server.mjs --snapshot /path/to/lifedash-export.json
 ```
 
-Example host configuration (replace both absolute paths):
+**Registered Tools:**
+- `search_tasks`: search task titles, due dates, priority, and status.
+- `list_projects`: list project hierarchy, colors, active and done task counts.
+- `get_habits`: inspect active habits, schedules, and recent completions.
+- `get_goals`: inspect goals, target dates, and progress.
+- `search_notes`: search note titles and text excerpts.
+- `get_day_schedule`: get tasks and timeline blocks for a specific date (YYYY-MM-DD).
 
-```json
-{
-  "mcpServers": {
-    "lifedash": {
-      "command": "node",
-      "args": ["/absolute/path/lifedash/mcp/server.mjs", "--snapshot", "/absolute/path/chosen-export.json"]
-    }
-  }
-}
+### B. Live Agent API MCP (`mcp/agent-server.mjs`)
+Connects to a running Lifedash self-hosted server using a revocable Agent API token created in **Settings → Agent API keys**.
+
+```sh
+export LIFEDASH_SERVER_URL="http://localhost:8787"
+export LIFEDASH_AGENT_TOKEN="your_agent_token"
+node mcp/agent-server.mjs
 ```
 
-The only tool is `search_tasks`: title search, status filter and limit 1-50. It returns task ID/title/status/due date/priority and export timestamp. No note bodies, projects, journal, attachments, secrets, filesystem path arguments, writes, shell commands, URLs or network requests are exposed. Unknown arguments are rejected by a strict schema. The file must be a regular JSON file below 10 MB. Invalid files fail closed without logging contents. The MCP SDK is pinned and transitive dependencies are locked.
-
-**Privacy:** connecting this server to an external AI host permits that host to read this task projection. Configure approvals in the host and do not attach it to a cloud model unless you accept sharing those fields. Read-only does not mean non-sensitive. Stdio avoids a listening network endpoint, but it does not sandbox the process. Run with a minimal environment and a read-only mount containing only the chosen export if isolation is needed. This process reads only that file by implementation; OS sandboxing is the operator's responsibility.
-
-## Verification and limits
-
-- Provider unit tests: URL/credential transport, request limits, approval gate, changed settings, mocked output/errors, no retries.
-- UI: real local Chrome desktop/mobile with synthetic tasks and intercepted model response, request review/consent/reset/close and Escape checks.
-- MCP: real stdio client/server initialize, list, read tool call, strict arguments and nonexistent write tool rejection; projection/immutability tests.
-- **Not verified:** actual Ollama or LM Studio inference, cloud inference/billing, deployed-origin CORS, native shells, a third-party MCP host, action approvals/write execution. No live model was called.
-
-## Sources checked October 20, 2026
-
-- Ollama API compatibility: https://docs.ollama.com/api/openai-compatibility
-- LM Studio compatibility: https://lmstudio.ai/docs/developer/openai-compat
-- OpenAI MCP safety: https://developers.openai.com/api/docs/guides/tools-connectors-mcp
-- MCP SDK (version matched against installed 1.32.1 exports): https://github.com/modelcontextprotocol/TypeScript-sdk/blob/main/docs/server.md
-- MCP local-server security: https://modelcontextprotocol.io/docs/draft/tutorials/security/local-server-security
-- OWASP MCP security guidance: https://cheatsheetseries.owasp.org/cheatsheets/MCP_Security_Cheat_Sheet.html
-
-Upstream SDK main docs currently describe a newer package split; this implementation uses the tested, pinned v1 package's exported imports, not the incompatible main-branch examples.
+**Registered Live Tools:**
+- `search_tasks`: search live tasks.
+- `create_task`: create tasks with invariants and cycle checks.
+- `update_task`: update status, due dates, priority, titles.
+- `list_projects`: retrieve active projects.
+- `list_habits`: retrieve habits and recent logs.
+- `list_goals`: retrieve long-horizon goals.
+- `search_notes`: query rich notes.

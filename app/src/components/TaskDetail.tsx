@@ -16,6 +16,7 @@ import {
   Target,
   Repeat,
   ChevronLeft,
+  Sparkles,
 } from 'lucide-react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import CompletionButton from './CompletionButton';
@@ -34,21 +35,32 @@ import TaskRecurrence from './TaskRecurrence';
 import TaskSkip from './TaskSkip';
 import TaskFocus from './TaskFocus';
 import { runningSession, sessionSeconds, focusTotals, formatClock, formatDuration } from '../focus';
-import { db } from '../db';
-import { togglePin, updateTask } from '../repo';
+import { db, INBOX_ID } from '../db';
+import { togglePin, updateTask, addTask } from '../repo';
 import { todayStr, friendlyDate } from '../dates';
 import { projectTree } from '../projects';
 import { describeRecurrence, blockersOf, normalizeTask } from '../logic';
+import { useAiSettings, loadAiSettings } from '../ai/aiSettings';
+import { requestAdvice, reviewRequest } from '../ai/provider';
+import { parseAiResponse } from '../ai/proposalParser';
 
 const DEFAULT_WIDTH = 420;
 const MIN_WIDTH = 320;
 
 export default function TaskDetail(props: { taskId: string; onClose: () => void; onOpenNote: (noteId: string) => void }) {
+  const aiSettings = useAiSettings();
   const panel = useRef<HTMLElement>(null);
   const opener = useRef<HTMLElement | null>(null);
 
   // View mode by default; edit mode toggled via Edit/Done button
   const [isEditing, setIsEditing] = useState(false);
+
+  // AI Subtasks helper state
+  const [aiSubtaskOpen, setAiSubtaskOpen] = useState(false);
+  const [aiSubtaskLoading, setAiSubtaskLoading] = useState(false);
+  const [aiSuggestions, setAiSuggestions] = useState<string[]>([]);
+  const [selectedAiSubs, setSelectedAiSubs] = useState<Record<number, boolean>>({});
+  const [aiSubtaskNotice, setAiSubtaskNotice] = useState('');
 
   // Resizable panel width with persistence
   const [panelWidth, setPanelWidth] = useState<number>(() => {
@@ -115,6 +127,66 @@ export default function TaskDetail(props: { taskId: string; onClose: () => void;
     return () => window.removeEventListener('keydown', onKey);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  const handleGenerateSubtasks = async () => {
+    if (!task) return;
+    setAiSubtaskOpen(true);
+    setAiSubtaskLoading(true);
+    setAiSubtaskNotice('');
+    try {
+      const s = loadAiSettings();
+      if (s.baseUrl && s.model) {
+        const prompt = `Break down "${task.title}"${task.note ? ` (${task.note.slice(0, 300)})` : ''} into 3 to 5 clear, concrete, actionable subtasks. Format as: \`\`\`json\n{ "action": "subtasks", "items": ["step 1", "step 2"] }\n\`\`\``;
+        const reviewed = reviewRequest({ baseUrl: s.baseUrl, model: s.model, apiKey: s.apiKey }, prompt, '');
+        const raw = await requestAdvice({ baseUrl: s.baseUrl, model: s.model, apiKey: s.apiKey }, reviewed, true);
+        const parsed = parseAiResponse(raw);
+        const subProp = parsed.proposals.find((p) => p.action === 'subtasks');
+        if (subProp && subProp.items.length > 0) {
+          setAiSuggestions(subProp.items);
+          const map: Record<number, boolean> = {};
+          subProp.items.forEach((_, idx) => (map[idx] = true));
+          setSelectedAiSubs(map);
+          return;
+        }
+      }
+      const fallbacks = [
+        `Clarify requirements for ${task.title.slice(0, 30)}`,
+        `Draft core deliverable`,
+        `Review and verify wrap-up`,
+      ];
+      setAiSuggestions(fallbacks);
+      setSelectedAiSubs({ 0: true, 1: true, 2: true });
+    } catch {
+      const fallbacks = [
+        `Outline steps for ${task.title.slice(0, 30)}`,
+        `Execute primary work`,
+        `Final review & completion`,
+      ];
+      setAiSuggestions(fallbacks);
+      setSelectedAiSubs({ 0: true, 1: true, 2: true });
+    } finally {
+      setAiSubtaskLoading(false);
+    }
+  };
+
+  const handleApplyAiSubtasks = async () => {
+    if (!task) return;
+    let count = 0;
+    for (let i = 0; i < aiSuggestions.length; i++) {
+      if (selectedAiSubs[i]) {
+        await addTask({
+          title: aiSuggestions[i],
+          projectId: task.projectId || INBOX_ID,
+          parentId: task.id,
+          dueDate: task.dueDate,
+        });
+        count++;
+      }
+    }
+    setAiSubtaskNotice(`Added ${count} subtask${count === 1 ? '' : 's'}.`);
+    setAiSuggestions([]);
+    setAiSubtaskOpen(false);
+  };
 
   function onResizerPointerDown(e: React.PointerEvent) {
     e.preventDefault();
@@ -443,10 +515,66 @@ export default function TaskDetail(props: { taskId: string; onClose: () => void;
             <CheckSquare size={13} strokeWidth={2} aria-hidden="true" />
             <h3>Subtasks</h3>
           </div>
-          {totalSubs > 0 && (
-            <span className="subtask-count-pill">{doneSubs} of {totalSubs}</span>
-          )}
+          <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+            {aiSettings.enabled && (
+              <button
+                type="button"
+                className="subtask-ai-trigger mini"
+                onClick={() => void handleGenerateSubtasks()}
+                title="Suggest subtasks with AI"
+                aria-label="Suggest subtasks with AI"
+                style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 11, padding: '2px 7px', height: 24 }}
+              >
+                <Sparkles size={11} aria-hidden="true" />
+                <span>Suggest</span>
+              </button>
+            )}
+            {totalSubs > 0 && (
+              <span className="subtask-count-pill">{doneSubs} of {totalSubs}</span>
+            )}
+          </div>
         </div>
+
+        {aiSettings.enabled && aiSubtaskOpen && (
+          <div className="ai-subtask-box" style={{ background: 'var(--surface-2, #f8fafc)', border: '1px solid var(--border, #e2e8f0)', borderRadius: 6, padding: 10, margin: '8px 0' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+              <strong style={{ fontSize: 12, display: 'flex', alignItems: 'center', gap: 4 }}>
+                <Sparkles size={12} color="var(--accent, #0f766e)" /> AI Suggestions
+              </strong>
+              <button type="button" className="mini" onClick={() => setAiSubtaskOpen(false)} style={{ height: 22, fontSize: 11 }}>Cancel</button>
+            </div>
+            {aiSubtaskLoading ? (
+              <p style={{ fontSize: 12, margin: '4px 0', color: 'var(--muted, #64748b)' }}>Generating actionable subtasks…</p>
+            ) : (
+              <>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 4, margin: '6px 0 10px' }}>
+                  {aiSuggestions.map((s, idx) => (
+                    <label key={idx} style={{ display: 'flex', alignItems: 'baseline', gap: 6, fontSize: 12, cursor: 'pointer' }}>
+                      <input
+                        type="checkbox"
+                        checked={selectedAiSubs[idx] ?? false}
+                        onChange={(e) => setSelectedAiSubs((p) => ({ ...p, [idx]: e.target.checked }))}
+                      />
+                      <span>{s}</span>
+                    </label>
+                  ))}
+                </div>
+                <button
+                  type="button"
+                  className="btn-primary mini"
+                  disabled={!Object.values(selectedAiSubs).some(Boolean)}
+                  onClick={() => void handleApplyAiSubtasks()}
+                  style={{ height: 26, fontSize: 11, padding: '0 10px' }}
+                >
+                  Add selected subtasks
+                </button>
+              </>
+            )}
+          </div>
+        )}
+        {aiSubtaskNotice && (
+          <p style={{ fontSize: 12, color: 'var(--accent, #0f766e)', margin: '4px 0 6px' }}>✓ {aiSubtaskNotice}</p>
+        )}
 
         {totalSubs > 0 && (
           <div

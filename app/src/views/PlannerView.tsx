@@ -19,6 +19,7 @@ import {
   CheckCircle2,
   ExternalLink,
   Repeat,
+  Sparkles,
 } from 'lucide-react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db, INBOX_ID } from '../db';
@@ -26,6 +27,9 @@ import type { Task } from '../types';
 import { addTask, deleteTask, toggleComplete, updateTask } from '../repo';
 import { addDays, friendlyDate, parseLocalDate, todayStr, weekdayLabel } from '../dates';
 import { PageHeader } from '../components/Page';
+import { useAiSettings, loadAiSettings } from '../ai/aiSettings';
+import { reviewRequest, requestAdvice } from '../ai/provider';
+import { parseAiResponse } from '../ai/proposalParser';
 import {
   DAY_MINUTES,
   DEFAULT_SNAP,
@@ -562,6 +566,88 @@ export default function PlannerView(props: {
     showToast(`Scheduled "${task.title}" at ${fmt(targetMin)}`);
   };
 
+  // AI Day Plan state & handler
+  const aiSettings = useAiSettings();
+  const [aiPlanOpen, setAiPlanOpen] = useState(false);
+  const [aiPlanLoading, setAiPlanLoading] = useState(false);
+  const [aiPlanItems, setAiPlanItems] = useState<{ taskId: string; title: string; time: string; durationMinutes: number }[]>([]);
+  const [selectedAiPlan, setSelectedAiPlan] = useState<Record<string, boolean>>({});
+
+  const handleAiDayPlan = async () => {
+    if (unscheduledTasks.length === 0) {
+      showToast('All active tasks are already scheduled.');
+      return;
+    }
+    setAiPlanOpen(true);
+    setAiPlanLoading(true);
+
+    try {
+      const s = loadAiSettings();
+      if (s.baseUrl && s.model) {
+        const taskList = unscheduledTasks.slice(0, 8).map((t) => ({ id: t.id, title: t.title, priority: t.priority, est: t.durationMinutes || 45 }));
+        const existing = scheduledBlocks.map((b) => ({ time: fmt(b.start), dur: b.dur, title: b.title }));
+        const prompt = `Schedule these tasks for today (${date}) around existing commitments (${JSON.stringify(existing)}). Output JSON: \`\`\`json\n{ "action": "schedule", "items": [{ "taskId": "id", "title": "title", "date": "${date}", "time": "HH:MM", "durationMinutes": 45 }] }\n\`\`\``;
+        const reviewed = reviewRequest({ baseUrl: s.baseUrl, model: s.model, apiKey: s.apiKey }, prompt, JSON.stringify(taskList));
+        const raw = await requestAdvice({ baseUrl: s.baseUrl, model: s.model, apiKey: s.apiKey }, reviewed, true);
+        const parsed = parseAiResponse(raw);
+        const sch = parsed.proposals.find((p) => p.action === 'schedule');
+        if (sch && sch.items.length > 0) {
+          const items = sch.items.map((it) => ({
+            taskId: it.taskId,
+            title: it.title || unscheduledTasks.find((t) => t.id === it.taskId)?.title || 'Task',
+            time: it.time,
+            durationMinutes: it.durationMinutes || 45,
+          }));
+          setAiPlanItems(items);
+          const map: Record<string, boolean> = {};
+          items.forEach((it) => (map[it.taskId] = true));
+          setSelectedAiPlan(map);
+          setAiPlanLoading(false);
+          return;
+        }
+      }
+    } catch {
+      // Fallback to heuristic allocation below
+    }
+
+    let cur = Math.max(9 * 60, Math.ceil(nowMinute / snapVal) * snapVal);
+    const items: { taskId: string; title: string; time: string; durationMinutes: number }[] = [];
+    const map: Record<string, boolean> = {};
+
+    for (const t of unscheduledTasks.slice(0, 6)) {
+      const dur = t.durationMinutes && t.durationMinutes >= 1 ? t.durationMinutes : 45;
+      while (scheduledBlocks.some((b) => cur < b.start + b.dur && cur + dur > b.start)) {
+        const overlap = scheduledBlocks.find((b) => cur < b.start + b.dur && cur + dur > b.start);
+        if (overlap) cur = overlap.start + overlap.dur;
+      }
+      if (cur + dur > DAY_MINUTES - snapVal) break;
+      items.push({ taskId: t.id, title: t.title, time: fmt(cur), durationMinutes: dur });
+      map[t.id] = true;
+      cur += dur + snapVal;
+    }
+
+    setAiPlanItems(items);
+    setSelectedAiPlan(map);
+    setAiPlanLoading(false);
+  };
+
+  const handleApplyAiPlan = async () => {
+    let count = 0;
+    for (const item of aiPlanItems) {
+      if (selectedAiPlan[item.taskId]) {
+        await updateTask(item.taskId, {
+          plannedDate: date,
+          plannedTime: item.time,
+          durationMinutes: item.durationMinutes,
+        });
+        count++;
+      }
+    }
+    showToast(`Scheduled ${count} task${count === 1 ? '' : 's'} on timeline.`);
+    setAiPlanOpen(false);
+    setAiPlanItems([]);
+  };
+
   // Save updated recurring plan
   const handleSaveRecurringPlan = (updated: RecurringPlan) => {
     setRecurringPlans((prev) => {
@@ -710,6 +796,29 @@ export default function PlannerView(props: {
         </div>
 
         <div className="planner-summary-controls">
+          {aiSettings.enabled && (
+            <button
+              type="button"
+              className="planner-ai-btn mini"
+              onClick={() => void handleAiDayPlan()}
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 4,
+                padding: '4px 8px',
+                fontSize: 12,
+                borderRadius: 6,
+                background: 'var(--surface-2, #f0f0eb)',
+                border: '1px solid var(--control, #d2d2cb)',
+                cursor: 'pointer',
+                color: 'var(--text, #17202a)',
+              }}
+              title="Auto-plan day schedule with AI"
+            >
+              <Sparkles size={13} color="var(--accent, #0f766e)" />
+              <span>AI Plan</span>
+            </button>
+          )}
           <label>
             Zoom
             <input
@@ -1428,6 +1537,101 @@ export default function PlannerView(props: {
           onSave={handleSaveRecurringPlan}
           onDelete={handleDeleteRecurringPlan}
         />
+      )}
+
+      {/* AI Day Plan Modal */}
+      {aiSettings.enabled && aiPlanOpen && (
+        <div
+          className="planner-modal-backdrop"
+          style={{
+            position: 'fixed',
+            inset: 0,
+            background: 'rgba(0,0,0,0.5)',
+            zIndex: 999,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+          }}
+          onClick={() => setAiPlanOpen(false)}
+        >
+          <div
+            className="planner-ai-modal"
+            style={{
+              background: 'var(--surface, #fff)',
+              color: 'var(--text, #17202a)',
+              border: '1px solid var(--border, #cad1d7)',
+              borderRadius: 12,
+              padding: 20,
+              width: 'min(500px, 90vw)',
+              maxHeight: '80vh',
+              overflow: 'auto',
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+              <h3 style={{ margin: 0, display: 'flex', alignItems: 'center', gap: 6 }}>
+                <Sparkles size={16} color="var(--accent, #0f766e)" />
+                AI Day Schedule Proposal
+              </h3>
+              <button type="button" className="mini" onClick={() => setAiPlanOpen(false)}>
+                ✕
+              </button>
+            </div>
+            <p style={{ fontSize: 12, opacity: 0.8, margin: '0 0 14px' }}>
+              Review proposed time slots for {friendlyDate(date, today)}. Uncheck any you do not want to schedule.
+            </p>
+
+            {aiPlanLoading ? (
+              <p style={{ fontSize: 13, color: 'var(--muted, #64748b)' }}>Generating schedule around commitments…</p>
+            ) : aiPlanItems.length === 0 ? (
+              <p style={{ fontSize: 13 }}>No available time slots found for today.</p>
+            ) : (
+              <>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 16 }}>
+                  {aiPlanItems.map((item) => (
+                    <label
+                      key={item.taskId}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'baseline',
+                        gap: 8,
+                        fontSize: 13,
+                        cursor: 'pointer',
+                        padding: '6px 8px',
+                        background: 'var(--surface-2, #f8fafc)',
+                        borderRadius: 6,
+                      }}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={selectedAiPlan[item.taskId] ?? false}
+                        onChange={(e) =>
+                          setSelectedAiPlan((prev) => ({ ...prev, [item.taskId]: e.target.checked }))
+                        }
+                      />
+                      <span>
+                        <strong>{item.time}</strong> — {item.title} ({item.durationMinutes}m)
+                      </span>
+                    </label>
+                  ))}
+                </div>
+                <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
+                  <button type="button" className="mini" onClick={() => setAiPlanOpen(false)}>
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    className="btn-primary"
+                    disabled={!Object.values(selectedAiPlan).some(Boolean)}
+                    onClick={() => void handleApplyAiPlan()}
+                  >
+                    Apply Schedule to Timeline
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
+        </div>
       )}
 
       {/* Toast Notification */}

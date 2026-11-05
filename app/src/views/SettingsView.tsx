@@ -1,5 +1,5 @@
 import { useRef, useState } from 'react';
-import { Cloud, Palette, Bell, BookOpen, KeyRound, Upload, Download, FileJson, FileText, CalendarDays } from 'lucide-react';
+import { Cloud, Palette, Bell, BookOpen, KeyRound, Upload, Download, FileJson, FileText, CalendarDays, Sparkles } from 'lucide-react';
 import '../components/settings.css';
 import { STYLES, getStyle, getTheme } from '../theme';
 import { PageHeader, PageSection } from '../components/Page';
@@ -8,11 +8,13 @@ import { exportJson, countAttachments } from '../repo';
 import { tasksToMarkdown } from '../exportMd';
 import { tasksToIcs } from '../ics';
 import { todayStr } from '../dates';
+import { useAiSettings, AI_PRESETS } from '../ai/aiSettings';
 
 export default function SettingsView(props: {
   onSync: () => void;
   onDataBackup?: () => void;
   onAppearance: () => void;
+  onAiSettings?: () => void;
   onGoogleCalendar?: () => void;
   onAgentKeys?: () => void;
   onImport: () => void;
@@ -27,6 +29,9 @@ export default function SettingsView(props: {
   const remindersAvailable = props.reminders === 'on';
   const reminderLabel = props.reminders === 'blocked' ? 'Blocked' : props.reminders === 'unsupported' ? 'Unavailable' : props.reminders === 'needs-permission' ? 'Permission needed' : remindersAvailable ? 'On' : 'Off';
   const nudgeLabel = !remindersAvailable && props.journalNudge ? 'Paused' : props.journalNudge ? 'On' : 'Off';
+
+  const aiSettings = useAiSettings();
+  const aiPreset = AI_PRESETS.find((p) => p.id === aiSettings.preset);
 
   const exporting = useRef(false);
   const [exportBusy, setExportBusy] = useState(false);
@@ -64,6 +69,16 @@ export default function SettingsView(props: {
         {props.onDataBackup && <button className="settings-row" onClick={props.onDataBackup}><Cloud size={19}/><span><strong>Data &amp; backups</strong><small>Device status and complete portable backup</small></span><span aria-hidden="true">→</span></button>}
         <button className="settings-row" onClick={props.onSync}><Cloud size={19} /><span><strong>Sync</strong><small>Connect to your self-hosted server</small></span><span aria-hidden="true">→</span></button>
         <button className="settings-row" onClick={props.onAppearance}><Palette size={19} /><span><strong>Appearance</strong><small>Style, mode, fonts and wallpaper</small><small className="settings-current-appearance" aria-hidden="true">{STYLES.find(s => s.id === getStyle())?.name} · {getTheme() === 'system' ? 'System mode' : `${getTheme()} mode`}</small></span><span aria-hidden="true">→</span></button>
+        {props.onAiSettings && (
+          <button className="settings-row" onClick={props.onAiSettings}>
+            <Sparkles size={19} />
+            <span>
+              <strong>AI features</strong>
+              <small>{aiSettings.enabled ? `${aiPreset?.name || 'Custom'} · ${aiSettings.model || 'Configured'}` : 'Turned off for this device'}</small>
+            </span>
+            <span className="settings-state" data-active={aiSettings.enabled}>{aiSettings.enabled ? 'On' : 'Off'}</span>
+          </button>
+        )}
         {props.onGoogleCalendar && <button className="settings-row" onClick={props.onGoogleCalendar}><Cloud size={19}/><span><strong>Google Calendar</strong><small>Optional read-only events, using your self-hosted server</small></span><span aria-hidden="true">→</span></button>}
         {props.onAgentKeys && <button className="settings-row" onClick={props.onAgentKeys}><KeyRound size={19}/><span><strong>Agent API keys</strong><small>Let AI agents read or change your data through your server</small></span><span aria-hidden="true">→</span></button>}
       </PageSection>
