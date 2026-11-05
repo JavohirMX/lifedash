@@ -54,6 +54,7 @@ export default function SettingsView(props: {
   onAppearance: () => void;
   onAiSettings?: () => void;
   onGoogleCalendar?: () => void;
+  onWebcal?: () => void;
   onAgentKeys?: () => void;
   onShortcuts?: () => void;
   onAutomation?: () => void;
@@ -397,6 +398,21 @@ export default function SettingsView(props: {
                 <span className="settings-row-main">
                   <strong>Google Calendar</strong>
                   <small>Optional read-only events, using your self-hosted server</small>
+                </span>
+                <span className="settings-row-action" aria-hidden="true">
+                  <ChevronRight size={16} />
+                </span>
+              </button>
+            )}
+
+            {props.onWebcal && matches(['webcal', 'ics', 'calendar feeds', 'subscriptions', 'calendar']) && (
+              <button className="settings-row" onClick={props.onWebcal}>
+                <div className="settings-icon-box" aria-hidden="true">
+                  <CalendarDays size={18} />
+                </div>
+                <span className="settings-row-main">
+                  <strong>Calendar Feeds (Webcal / ICS)</strong>
+                  <small>Subscribe to any Google, Apple, or Outlook calendar via .ics link</small>
                 </span>
                 <span className="settings-row-action" aria-hidden="true">
                   <ChevronRight size={16} />

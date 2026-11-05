@@ -1,10 +1,11 @@
 import { useRef, useState } from 'react';
-import { Flag, Check, Repeat } from 'lucide-react';
+import { Calendar, Check, Flag, Repeat } from 'lucide-react';
 import type { Task } from '../types';
-import { togglePin } from '../repo';
+import { togglePin, updateTask } from '../repo';
 import { requestComplete } from '../completionPrompt';
 import { describeRecurrence, subtaskProgress, activeBlockers, normalizeTask } from '../logic';
-import { friendlyDate, todayStr } from '../dates';
+import { addDays, friendlyDate, todayStr } from '../dates';
+import { useSwipeGesture } from '../hooks/useSwipeGesture';
 
 export default function TaskRow(props: {
   task: Task;
@@ -44,8 +45,27 @@ export default function TaskRow(props: {
     finally { completing.current = false; setCompleteBusy(false); }
   }
 
+  const { onTouchStart, onTouchMove, onTouchEnd, offsetX } = useSwipeGesture({
+    onSwipeRight: () => {
+      void onCheck();
+    },
+    onSwipeLeft: () => {
+      void updateTask(task.id, { dueDate: addDays(today, 1) });
+    },
+    threshold: 60,
+  });
+
   return (
-    <div className={`task-row task-row-pin-state ${done ? 'done' : ''} ${task.pinned ? 'pinned' : ''} ${blocked ? 'blocked' : ''}`}>
+    <div
+      className={`task-row task-row-pin-state ${done ? 'done' : ''} ${task.pinned ? 'pinned' : ''} ${blocked ? 'blocked' : ''}`}
+      onTouchStart={onTouchStart}
+      onTouchMove={onTouchMove}
+      onTouchEnd={onTouchEnd}
+      style={{
+        transform: offsetX !== 0 ? `translateX(${offsetX}px)` : undefined,
+        transition: offsetX === 0 ? 'transform 0.15s ease' : 'none',
+      }}
+    >
       <button
         className={`checkbox ${done ? 'checked' : ''}`}
         aria-label={done ? 'Mark not done' : 'Mark done'}

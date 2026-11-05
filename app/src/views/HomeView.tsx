@@ -8,7 +8,7 @@ import { goalsWithoutNextAction } from '../review';
 import CompletionButton from '../components/CompletionButton';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { ArrowRight, BookOpen, Calendar, CalendarCheck, Check, Clock, ListTodo, PenLine, RotateCcw, SkipForward, SlidersHorizontal, Target, X } from 'lucide-react';
+import { ArrowRight, BookOpen, Calendar, CalendarCheck, Check, Clock, ListTodo, Maximize2, PenLine, RotateCcw, SkipForward, SlidersHorizontal, Target, X } from 'lucide-react';
 import QuickAdd from '../components/QuickAdd';
 import { db } from '../db';
 import { saveWidgetVisibility } from '../widgetPreferences';
@@ -16,7 +16,7 @@ import HomeHabitCheck from '../components/HomeHabitCheck';
 import HomeFocusStop from '../components/HomeFocusStop';
 import { runningSession, sessionSeconds, focusTotals, formatClock, formatDuration } from '../focus';
 import { todayTasks, upcomingTasks, suggestedTask, upNextGroups, sortTasks, activeBlockers } from '../logic';
-import { currentStreak, isScheduledOn, logsByDate } from '../habits';
+import { currentStreak, isScheduledOn, logsByDate, isHabitDone } from '../habits';
 import { todayStr, addDays, friendlyDate, weekdayLabel } from '../dates';
 import { getOrCreateJournalEntry, updateJournalEntry } from '../repo';
 import type { Task } from '../types';
@@ -28,7 +28,13 @@ function greeting(hour: number): string {
   return 'Good evening';
 }
 
-export default function HomeView(props: { tasks: Task[]; onSelect: (kind: string) => void; onOpen: (id: string) => void; onNavigate: (selection: Selection) => void }) {
+export default function HomeView(props: {
+  tasks: Task[];
+  onSelect: (kind: string) => void;
+  onOpen: (id: string) => void;
+  onNavigate: (selection: Selection) => void;
+  onOpenFocusWorkspace?: (taskId: string) => void;
+}) {
   const habits = useLiveQuery(() => db.habits.orderBy('order').toArray(), []);
   const projects = useLiveQuery(() => db.projects.toArray(), []);
   const projectMap = useMemo(() => new Map((projects ?? []).map((p) => [p.id, p])), [projects]);
@@ -122,7 +128,7 @@ export default function HomeView(props: { tasks: Task[]; onSelect: (kind: string
   const noNextAction = goalsWithoutNextAction(goals ?? [], props.tasks).length;
 
   const todaysHabits = (habits ?? []).filter((h) => !h.archived && isScheduledOn(h, today));
-  const habitsDone = todaysHabits.filter((h) => logsByDate(logs ?? [], h.id).has(today)).length;
+  const habitsDone = todaysHabits.filter((h) => isHabitDone(h, logsByDate(logs ?? [], h.id).get(today))).length;
   const allHabitsDone = todaysHabits.length > 0 && habitsDone === todaysHabits.length;
 
   const totalCommitments = dueTodayAll.length + todaysHabits.length;
@@ -270,7 +276,20 @@ export default function HomeView(props: { tasks: Task[]; onSelect: (kind: string
                   <span className="focus-pulse" aria-hidden="true" />
                   <p className="eyebrow" id="home-focus-heading">Focusing</p>
                 </div>
-                <span className="focus-reason num">{formatClock(sessionSeconds(running, focusNow))}</span>
+                <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                  <span className="focus-reason num">{formatClock(sessionSeconds(running, focusNow))}</span>
+                  {props.onOpenFocusWorkspace && runningTask && (
+                    <button
+                      type="button"
+                      className="icon-btn"
+                      aria-label="Expand Focus Workspace"
+                      title="Fullscreen Focus Workspace"
+                      onClick={() => props.onOpenFocusWorkspace!(runningTask.id)}
+                    >
+                      <Maximize2 size={13} aria-hidden="true" />
+                    </button>
+                  )}
+                </div>
               </div>
               <HomeFocusStop key={running.id}>
                 <button className="focus-title" onClick={() => runningTask && props.onOpen(runningTask.id)}>
@@ -579,7 +598,7 @@ export default function HomeView(props: { tasks: Task[]; onSelect: (kind: string
                   )}
                   <ul className="widget-list">
                     {todaysHabits.map((h) => {
-                      const done = logsByDate(logs ?? [], h.id).has(today);
+                      const done = isHabitDone(h, logsByDate(logs ?? [], h.id).get(today));
                       const streak = currentStreak(h, logs ?? [], today);
                       return (
                         <HomeHabitCheck key={`${h.id}:${today}`} id={h.id} name={h.name} date={today} done={done} streak={streak} />

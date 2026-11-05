@@ -1,10 +1,10 @@
 import './workflow.css';
 import { useRef, useState } from 'react';
-import { ChevronDown, ChevronRight, Flame, Plus, X } from 'lucide-react';
+import { Check, ChevronDown, ChevronRight, Flame, Plus, X } from 'lucide-react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db } from '../db';
-import { addHabit, archiveHabit, restoreHabit, toggleHabitForDate, updateHabit } from '../repo';
-import { currentStreak, bestStreak, completionRate, weekGrid, logsByDate, isScheduledOn } from '../habits';
+import { addHabit, archiveHabit, restoreHabit, toggleHabitForDate, setHabitValueForDate, updateHabit } from '../repo';
+import { currentStreak, bestStreak, completionRate, weekGrid, logsByDate, isScheduledOn, isHabitDone, habitProgressPct } from '../habits';
 import { todayStr, parseLocalDate } from '../dates';
 import { EmptyState, PageHeader } from '../components/Page';
 
@@ -24,6 +24,9 @@ export default function HabitsView() {
 
   const [name, setName] = useState('');
   const [weekdays, setWeekdays] = useState<number[] | null>(null); // null = daily
+  const [targetType, setTargetType] = useState<'binary' | 'numeric'>('binary');
+  const [targetValue, setTargetValue] = useState('');
+  const [unit, setUnit] = useState('');
 
   const today = todayStr();
   const active = (habits ?? []).filter((h) => !h.archived);
@@ -32,13 +35,19 @@ export default function HabitsView() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editName, setEditName] = useState('');
   const [editWeekdays, setEditWeekdays] = useState<number[] | null>(null);
+  const [editTargetType, setEditTargetType] = useState<'binary' | 'numeric'>('binary');
+  const [editTargetValue, setEditTargetValue] = useState('');
+  const [editUnit, setEditUnit] = useState('');
 
-  function startEdit(h: { id: string; name: string; weekdays: number[] | null }) {
+  function startEdit(h: { id: string; name: string; weekdays: number[] | null; targetType?: 'binary' | 'numeric'; targetValue?: number; unit?: string }) {
     if (writing.current) return;
     setEditError(''); setSaveStatus('');
     setEditingId(h.id);
     setEditName(h.name);
     setEditWeekdays(h.weekdays);
+    setEditTargetType(h.targetType ?? 'binary');
+    setEditTargetValue(h.targetValue ? String(h.targetValue) : '');
+    setEditUnit(h.unit ?? '');
   }
 
   function toggleEditWd(d: number) {
@@ -51,7 +60,14 @@ export default function HabitsView() {
     if (writing.current || !editingId || !editName.trim()) return;
     writing.current = true; setSaving('edit'); setEditError(''); setSaveStatus('');
     try {
-      await updateHabit(editingId, { name: editName, weekdays: editWeekdays });
+      const numVal = editTargetType === 'numeric' && editTargetValue ? Number(editTargetValue) : undefined;
+      await updateHabit(editingId, {
+        name: editName,
+        weekdays: editWeekdays,
+        targetType: editTargetType,
+        targetValue: numVal,
+        unit: editTargetType === 'numeric' ? editUnit : undefined,
+      });
       setEditingId(null);
       setSaveStatus('Saved habit on this device.');
     } catch { setEditError("Couldn't save this habit. Your changes are still here. Try Save again."); }
@@ -80,6 +96,16 @@ export default function HabitsView() {
     finally { checking.current.delete(key); setCheckPending(new Set(checking.current)); }
   }
 
+  async function changeHabitValue(habitId: string, date: string, value: number) {
+    const key = `${habitId}:${date}`;
+    if (checking.current.has(key)) return;
+    checking.current.add(key); setCheckPending(new Set(checking.current));
+    setCheckErrors(current => { const next = { ...current }; delete next[key]; return next; });
+    try { await setHabitValueForDate(habitId, date, value); }
+    catch { setCheckErrors(current => ({ ...current, [key]: `Couldn't save progress for ${date}. Try again.` })); }
+    finally { checking.current.delete(key); setCheckPending(new Set(checking.current)); }
+  }
+
   function toggleWd(d: number) {
     const cur = weekdays ?? [0, 1, 2, 3, 4, 5, 6];
     const next = cur.includes(d) ? cur.filter((x) => x !== d) : [...cur, d].sort();
@@ -90,8 +116,13 @@ export default function HabitsView() {
     if (writing.current || !name.trim()) return;
     writing.current = true; setSaving('create'); setCreateError(''); setSaveStatus('');
     try {
-      await addHabit(name, COLORS[active.length % COLORS.length], weekdays);
-      setName(''); setWeekdays(null);
+      const numVal = targetType === 'numeric' && targetValue ? Number(targetValue) : undefined;
+      await addHabit(name, COLORS[active.length % COLORS.length], weekdays, {
+        targetType,
+        targetValue: numVal,
+        unit: targetType === 'numeric' ? unit : undefined,
+      });
+      setName(''); setWeekdays(null); setTargetType('binary'); setTargetValue(''); setUnit('');
       setAdding(false);
       setSaveStatus('Added habit on this device.');
     } catch { setCreateError("Couldn't add this habit. Your entries are still here. Try Add habit again."); }
@@ -129,6 +160,45 @@ export default function HabitsView() {
               if (e.key === 'Escape' && !e.nativeEvent.isComposing) setAdding(false);
             }}
           />
+          <div style={{ display: 'flex', gap: 14, margin: '6px 0', alignItems: 'center' }}>
+            <label style={{ fontSize: 13, display: 'inline-flex', alignItems: 'center', gap: 5, cursor: 'pointer' }}>
+              <input
+                type="radio"
+                name="newTargetType"
+                checked={targetType === 'binary'}
+                onChange={() => setTargetType('binary')}
+              />
+              <span>Simple check-in</span>
+            </label>
+            <label style={{ fontSize: 13, display: 'inline-flex', alignItems: 'center', gap: 5, cursor: 'pointer' }}>
+              <input
+                type="radio"
+                name="newTargetType"
+                checked={targetType === 'numeric'}
+                onChange={() => setTargetType('numeric')}
+              />
+              <span>Numeric target</span>
+            </label>
+          </div>
+          {targetType === 'numeric' && (
+            <div style={{ display: 'flex', gap: 8, margin: '4px 0 8px' }}>
+              <input
+                type="number"
+                placeholder="Target value (e.g. 2000)"
+                value={targetValue}
+                onChange={(e) => setTargetValue(e.target.value)}
+                style={{ width: 180 }}
+                aria-label="Target numeric value"
+              />
+              <input
+                placeholder="Unit (e.g. ml, pages, steps)"
+                value={unit}
+                onChange={(e) => setUnit(e.target.value)}
+                style={{ width: 140 }}
+                aria-label="Unit of measurement"
+              />
+            </div>
+          )}
           <div className="wd-picker">
             {DAY_LETTERS.map((l, i) => {
               const on = (weekdays ?? [0, 1, 2, 3, 4, 5, 6]).includes(i);
@@ -197,7 +267,46 @@ export default function HabitsView() {
                     onChange={(e) => setEditName(e.target.value)}
                     onKeyDown={(e) => { if (e.key === 'Enter' && !e.nativeEvent.isComposing) void saveEdit(); if (e.key === 'Escape' && !e.nativeEvent.isComposing) setEditingId(null); }}
                   />
-                  <div className="wd-picker">
+                  <div style={{ display: 'flex', gap: 14, margin: '6px 0', alignItems: 'center' }}>
+            <label style={{ fontSize: 13, display: 'inline-flex', alignItems: 'center', gap: 5, cursor: 'pointer' }}>
+              <input
+                type="radio"
+                name="newTargetType"
+                checked={targetType === 'binary'}
+                onChange={() => setTargetType('binary')}
+              />
+              <span>Simple check-in</span>
+            </label>
+            <label style={{ fontSize: 13, display: 'inline-flex', alignItems: 'center', gap: 5, cursor: 'pointer' }}>
+              <input
+                type="radio"
+                name="newTargetType"
+                checked={targetType === 'numeric'}
+                onChange={() => setTargetType('numeric')}
+              />
+              <span>Numeric target</span>
+            </label>
+          </div>
+          {targetType === 'numeric' && (
+            <div style={{ display: 'flex', gap: 8, margin: '4px 0 8px' }}>
+              <input
+                type="number"
+                placeholder="Target value (e.g. 2000)"
+                value={targetValue}
+                onChange={(e) => setTargetValue(e.target.value)}
+                style={{ width: 180 }}
+                aria-label="Target numeric value"
+              />
+              <input
+                placeholder="Unit (e.g. ml, pages, steps)"
+                value={unit}
+                onChange={(e) => setUnit(e.target.value)}
+                style={{ width: 140 }}
+                aria-label="Unit of measurement"
+              />
+            </div>
+          )}
+          <div className="wd-picker">
                     {DAY_LETTERS.map((l, i) => {
                       const on = (editWeekdays ?? [0, 1, 2, 3, 4, 5, 6]).includes(i);
                       return (
@@ -234,13 +343,56 @@ export default function HabitsView() {
                   ))}
                 </div>
                 {scheduledToday && (
-                  <button
-                    className={`habit-toggle ${doneToday ? 'done' : ''}`}
-                    disabled={checkPending.has(`${h.id}:${today}`)}
-                    onClick={() => void toggleCheck(h.id, today)}
-                  >
-                    {doneToday ? 'Done today' : 'Mark done'}
-                  </button>
+                  h.targetType === 'numeric' && h.targetValue ? (
+                    <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, margin: '6px 0' }}>
+                      <button
+                        type="button"
+                        className="btn-secondary mini"
+                        style={{ width: 28, height: 28, padding: 0 }}
+                        disabled={checkPending.has(`${h.id}:${today}`)}
+                        onClick={() => {
+                          const log = logsByDate(logs, h.id).get(today);
+                          const cur = log?.value ?? 0;
+                          const step = Math.max(1, Math.round(h.targetValue! / 4));
+                          void changeHabitValue(h.id, today, Math.max(0, cur - step));
+                        }}
+                        title="Subtract"
+                      >
+                        -
+                      </button>
+                      <span className="num" style={{ fontWeight: 600, fontSize: '0.85rem' }}>
+                        {logsByDate(logs, h.id).get(today)?.value ?? 0} / {h.targetValue} {h.unit ?? ''}
+                      </span>
+                      <button
+                        type="button"
+                        className="btn-primary mini"
+                        style={{ width: 28, height: 28, padding: 0 }}
+                        disabled={checkPending.has(`${h.id}:${today}`)}
+                        onClick={() => {
+                          const log = logsByDate(logs, h.id).get(today);
+                          const cur = log?.value ?? 0;
+                          const step = Math.max(1, Math.round(h.targetValue! / 4));
+                          void changeHabitValue(h.id, today, cur + step);
+                        }}
+                        title="Add"
+                      >
+                        +
+                      </button>
+                      {isHabitDone(h, logsByDate(logs, h.id).get(today)) && (
+                        <span style={{ color: 'var(--positive, #16a34a)', display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: '0.8rem', marginLeft: 4 }}>
+                          <Check size={14} /> Met target!
+                        </span>
+                      )}
+                    </div>
+                  ) : (
+                    <button
+                      className={`habit-toggle ${doneToday ? 'done' : ''}`}
+                      disabled={checkPending.has(`${h.id}:${today}`)}
+                      onClick={() => void toggleCheck(h.id, today)}
+                    >
+                      {doneToday ? 'Done today' : 'Mark done'}
+                    </button>
+                  )
                 )}
                 {[...checkPending].some(key => key.startsWith(`${h.id}:`)) && <p className="workflow-hint" role="status">Saving check-in…</p>}
                 {Object.entries(checkErrors).filter(([key]) => key.startsWith(`${h.id}:`)).map(([key, error]) => <p key={key} className="form-save-error" role="alert">{error}</p>)}

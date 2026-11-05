@@ -12,13 +12,32 @@ export function logsByDate(logs: HabitLog[], habitId: string): Map<string, Habit
   return m;
 }
 
+/** Determines whether a habit is considered completed for a given log row. */
+export function isHabitDone(habit: Habit, log?: HabitLog | null): boolean {
+  if (!log) return false;
+  if (habit.targetType === 'numeric' && habit.targetValue && habit.targetValue > 0) {
+    return (log.value ?? 0) >= habit.targetValue;
+  }
+  return true;
+}
+
+/** Percentage (0-100) toward target for a given habit log. */
+export function habitProgressPct(habit: Habit, log?: HabitLog | null): number {
+  if (!log) return 0;
+  if (habit.targetType === 'numeric' && habit.targetValue && habit.targetValue > 0) {
+    return Math.min(100, Math.round(((log.value ?? 0) / habit.targetValue) * 100));
+  }
+  return 100;
+}
+
 // Consecutive scheduled days completed, ending at the most recent scheduled
 // day. A not-yet-done today does not break the streak; a missed scheduled
 // day does.
 export function currentStreak(habit: Habit, logs: HabitLog[], today: string): number {
-  const done = logsByDate(logs, habit.id);
+  const m = logsByDate(logs, habit.id);
+  const isDone = (d: string) => isHabitDone(habit, m.get(d));
   let day = today;
-  if (isScheduledOn(habit, day) && !done.has(day)) day = addDays(day, -1);
+  if (isScheduledOn(habit, day) && !isDone(day)) day = addDays(day, -1);
   let streak = 0;
   // safety bound: a habit can't have a longer history than the app exists
   for (let i = 0; i < 3700; i++) {
@@ -26,7 +45,7 @@ export function currentStreak(habit: Habit, logs: HabitLog[], today: string): nu
       day = addDays(day, -1);
       continue;
     }
-    if (!done.has(day)) break;
+    if (!isDone(day)) break;
     streak++;
     day = addDays(day, -1);
   }
@@ -41,14 +60,14 @@ export interface DayCell {
 }
 
 export function weekGrid(habit: Habit, logs: HabitLog[], today: string, days = 7): DayCell[] {
-  const done = logsByDate(logs, habit.id);
+  const m = logsByDate(logs, habit.id);
   const cells: DayCell[] = [];
   for (let i = days - 1; i >= 0; i--) {
     const date = addDays(today, -i);
     cells.push({
       date,
       scheduled: isScheduledOn(habit, date),
-      done: done.has(date),
+      done: isHabitDone(habit, m.get(date)),
       isToday: date === today,
     });
   }
@@ -57,7 +76,8 @@ export function weekGrid(habit: Habit, logs: HabitLog[], today: string, days = 7
 
 // Longest run of consecutive scheduled-and-done days in the habit's history.
 export function bestStreak(habit: Habit, logs: HabitLog[]): number {
-  const dates = logs.filter((l) => l.habitId === habit.id).map((l) => l.date).sort();
+  const m = logsByDate(logs, habit.id);
+  const dates = [...m.keys()].filter((d) => isHabitDone(habit, m.get(d))).sort();
   if (dates.length === 0) return 0;
   const done = new Set(dates);
   let best = 0;
@@ -82,14 +102,14 @@ export function bestStreak(habit: Habit, logs: HabitLog[]): number {
 
 // Completion rate over the last `days` days: done / scheduled (0 when unscheduled).
 export function completionRate(habit: Habit, logs: HabitLog[], today: string, days = 30): number | null {
-  const done = logsByDate(logs, habit.id);
+  const m = logsByDate(logs, habit.id);
   let scheduled = 0;
   let hit = 0;
   for (let i = 0; i < days; i++) {
     const d = addDays(today, -i);
     if (!isScheduledOn(habit, d)) continue;
     scheduled++;
-    if (done.has(d)) hit++;
+    if (isHabitDone(habit, m.get(d))) hit++;
   }
   return scheduled === 0 ? null : hit / scheduled;
 }

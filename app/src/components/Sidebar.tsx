@@ -3,7 +3,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Settings, CalendarClock,
   Sun, CalendarDays, Archive, Clock, CalendarRange, Repeat, CheckCircle2,
   Search, Plus, Menu, X, Palette, Zap, House, Target, StickyNote, BookOpen, Monitor,
-  PanelLeftClose, PanelLeft, Sparkles, ChevronDown, ChevronRight,
+  PanelLeftClose, PanelLeft, Sparkles, ChevronDown, ChevronRight, Flag, AlertCircle,
 } from 'lucide-react';
 import { projectTree } from '../projects';
 import type { Project } from '../types';
@@ -14,6 +14,7 @@ export type Selection =
   | { kind: 'notes'; openId?: string }
   | { kind: 'journal'; date?: string }
   | { kind: 'project'; id: string }
+  | { kind: 'filter'; filterId: 'quick-wins' | 'high-priority' | 'blocked' }
   | { kind: 'search'; query: string; status?: 'all' | 'open' | 'done'; projectId?: string | null; scope?: 'all' | 'tasks' | 'notes' | 'journal' | 'goals' };
 
 const COLORS = ['#0f766e', '#2563eb', '#b45309', '#be123c', '#4d7c0f', '#0e7490'];
@@ -27,7 +28,19 @@ function Mark() {
   );
 }
 
-const NAV_GROUPS = [
+export interface NavItemConfig {
+  kind: Selection['kind'];
+  filterId?: 'quick-wins' | 'high-priority' | 'blocked';
+  label: string;
+  Icon: any;
+}
+
+export interface NavGroupConfig {
+  label: string;
+  items: NavItemConfig[];
+}
+
+const NAV_GROUPS: NavGroupConfig[] = [
   { label: 'Start', items: [
     { kind: 'home', label: 'Home', Icon: House },
   ] },
@@ -39,6 +52,11 @@ const NAV_GROUPS = [
     { kind: 'calendar', label: 'Calendar', Icon: CalendarDays },
     { kind: 'backlog', label: 'Backlog', Icon: Archive },
   ] },
+  { label: 'Smart filters', items: [
+    { kind: 'filter', filterId: 'quick-wins', label: 'Quick Wins', Icon: Zap },
+    { kind: 'filter', filterId: 'high-priority', label: 'High Priority', Icon: Flag },
+    { kind: 'filter', filterId: 'blocked', label: 'Blocked', Icon: AlertCircle },
+  ] },
   { label: 'History', items: [
     { kind: 'completed', label: 'Completed', Icon: CheckCircle2 },
   ] },
@@ -48,7 +66,7 @@ const NAV_GROUPS = [
     { kind: 'journal', label: 'Journal', Icon: BookOpen },
     { kind: 'notes', label: 'Notes', Icon: StickyNote },
   ] },
-] as const;
+];
 
 const DOCK_ITEMS = [
   { kind: 'home', label: 'Home', Icon: House },
@@ -62,6 +80,7 @@ export default function Sidebar(props: {
   selection: Selection;
   onSelect: (s: Selection) => void;
   counts: { today: number; backlog: number };
+  smartFilterCounts?: { 'quick-wins': number; 'high-priority': number; 'blocked': number };
   activeByProject?: Record<string, number>;
   onScheduleToday?: (taskId: string) => void;
   onScheduleBacklog?: (taskId: string) => void;
@@ -289,10 +308,21 @@ export default function Sidebar(props: {
   const countFor = (kind: string) =>
     kind === 'today' ? props.counts.today : kind === 'backlog' ? props.counts.backlog : 0;
 
-  const item = (kind: Selection['kind'], label: string, Icon: typeof Sun, after?: () => void, shortcut?: string) => {
-    const isSelected = props.selection.kind === kind;
-    const count = countFor(kind);
-    const isDropTarget = dragOverTarget === kind;
+  const item = (
+    kind: Selection['kind'],
+    label: string,
+    Icon: any,
+    after?: () => void,
+    shortcut?: string,
+    filterId?: 'quick-wins' | 'high-priority' | 'blocked'
+  ) => {
+    const isSelected = filterId
+      ? props.selection.kind === 'filter' && props.selection.filterId === filterId
+      : props.selection.kind === kind;
+    const count = filterId
+      ? (props.smartFilterCounts?.[filterId] ?? 0)
+      : countFor(kind);
+    const isDropTarget = !filterId && dragOverTarget === kind;
 
     const handleDragOver = (e: React.DragEvent) => {
       if ((kind === 'today' && props.onScheduleToday) || (kind === 'backlog' && props.onScheduleBacklog)) {
@@ -322,13 +352,17 @@ export default function Sidebar(props: {
 
     return (
       <button
-        key={kind}
+        key={filterId ? `filter-${filterId}` : kind}
         className={`nav ${isSelected ? 'active' : ''} ${isDropTarget ? 'drop-target-active' : ''}`}
         title={label}
         aria-label={label}
         aria-current={isSelected ? 'page' : undefined}
         onClick={() => {
-          props.onSelect({ kind } as Selection);
+          if (filterId) {
+            props.onSelect({ kind: 'filter', filterId });
+          } else {
+            props.onSelect({ kind } as Selection);
+          }
           after?.();
         }}
         onMouseEnter={(e) => showTooltip(e, label, shortcut, count)}
@@ -701,9 +735,9 @@ export default function Sidebar(props: {
             )}
           </div>
           {!isCollapsed &&
-            group.items.map(({ kind, label, Icon }) => {
+            group.items.map(({ kind, filterId, label, Icon }) => {
               const shortcut = kind === 'today' ? 't' : undefined;
-              return item(kind, label, Icon, after, shortcut);
+              return item(kind, label, Icon, after, shortcut, filterId);
             })}
         </div>
       );

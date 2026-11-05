@@ -3,8 +3,8 @@ import './planner.css';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   Clock,
+  Calendar,
   CalendarRange,
-  CircleDot,
   ChevronLeft,
   ChevronRight,
   Plus,
@@ -24,6 +24,7 @@ import {
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db, INBOX_ID } from '../db';
 import type { Task } from '../types';
+import { webcalEventsToDayBlocks, type WebcalEvent } from '../webcal';
 import { addTask, deleteTask, toggleComplete, updateTask } from '../repo';
 import { addDays, friendlyDate, parseLocalDate, todayStr, weekdayLabel } from '../dates';
 import { PageHeader } from '../components/Page';
@@ -35,7 +36,6 @@ import {
   DEFAULT_SNAP,
   LIFEDASH_PALETTE,
   combineDayBlocks,
-  computeCircleLayout,
   computeTimelineLayout,
   cut,
   fmt,
@@ -45,7 +45,6 @@ import {
   nowMin,
   pad,
   parseTime,
-  polarToCartesian,
   saveRecurringDoneKeys,
   saveRecurringPlans,
   snap,
@@ -54,6 +53,10 @@ import {
   type ScheduledBlock,
 } from '../dayPlanner';
 import { planError, validDate, type PlanPatch } from '../planning';
+import { RecurringPlanModal } from './planner/RecurringPlanModal';
+import { TaskPlanModal } from './planner/TaskPlanModal';
+import { PlannerTray } from './planner/PlannerTray';
+export { PlanEditor } from './planner/PlanEditor';
 
 export default function PlannerView(props: {
   tasks: Task[];
@@ -63,7 +66,7 @@ export default function PlannerView(props: {
 }) {
   const today = todayStr();
   const [date, setDate] = useState<string>(today);
-  const [viewMode, setViewMode] = useState<'day' | 'week' | 'circle'>('day');
+  const [viewMode, setViewMode] = useState<'day' | 'week'>('day');
 
   // Query projects for color mapping
   const projects = useLiveQuery(() => db.projects.toArray(), []) || [];
@@ -246,26 +249,30 @@ export default function PlannerView(props: {
     });
   };
 
-  // Scheduled blocks for the selected day (tasks + recurring)
+  // Webcal external calendar events
+  const webcalMeta = useLiveQuery(() => db.syncmeta.get('webcal.eventsCache'), []);
+  const webcalEvents = useMemo(
+    () => (webcalMeta?.value as WebcalEvent[] | undefined) ?? [],
+    [webcalMeta]
+  );
+
+  // Scheduled blocks for the selected day (tasks + recurring + webcal)
   const scheduledBlocks = useMemo(() => {
-    return combineDayBlocks(
+    const base = combineDayBlocks(
       props.tasks,
       recurringPlans,
       recurringDoneKeys,
       date,
       projectColors
     );
-  }, [props.tasks, recurringPlans, recurringDoneKeys, date, projectColors]);
+    const webcal = webcalEventsToDayBlocks(webcalEvents, date);
+    return [...base, ...webcal];
+  }, [props.tasks, recurringPlans, recurringDoneKeys, date, projectColors, webcalEvents]);
 
   const timelineLayout = useMemo(() => {
     return computeTimelineLayout(scheduledBlocks);
   }, [scheduledBlocks]);
 
-  const circleLayout = useMemo(() => {
-    return computeCircleLayout(scheduledBlocks, nowMinute);
-  }, [scheduledBlocks, nowMinute]);
-
-  const [nx, ny] = polarToCartesian(260, 260, 226, nowMinute);
 
   // 7 days of the current week (Monday through Sunday)
   const weekDays = useMemo(() => {
@@ -508,36 +515,6 @@ export default function PlannerView(props: {
     dragPayload.current = null;
   };
 
-  // Drop onto 24-hour Circle
-  const handleCircleDrop = async (e: React.DragEvent) => {
-    e.preventDefault();
-    const payload = dragPayload.current;
-    if (!payload) return;
-
-    const svg = (e.target as HTMLElement).closest('.planner-circle-svg');
-    if (!svg) return;
-    const rect = svg.getBoundingClientRect();
-    const dx = e.clientX - (rect.left + rect.width / 2);
-    const dy = e.clientY - (rect.top + rect.height / 2);
-
-    let m = (Math.atan2(dx, -dy) / (2 * Math.PI)) * DAY_MINUTES;
-    if (m < 0) m += DAY_MINUTES;
-    const clampedStart = Math.max(0, Math.min(DAY_MINUTES - snapVal, snap(m, snapVal)));
-
-    if (payload.type === 'task') {
-      const task = props.tasks.find((t) => t.id === payload.id);
-      if (!task) return;
-      const dur = task.durationMinutes && task.durationMinutes >= 1 ? task.durationMinutes : 45;
-      await updateTask(task.id, {
-        plannedDate: date,
-        plannedTime: fmt(clampedStart),
-        durationMinutes: dur,
-      });
-      showToast(`Scheduled "${task.title}" at ${fmt(clampedStart)}`);
-    }
-
-    dragPayload.current = null;
-  };
 
   // Quick schedule task at next free slot
   const handleQuickSchedule = async (task: Task) => {
@@ -763,14 +740,6 @@ export default function PlannerView(props: {
                 <CalendarRange size={15} />
                 <span>Week</span>
               </button>
-              <button
-                type="button"
-                className={`planner-segmented-btn ${viewMode === 'circle' ? 'active' : ''}`}
-                onClick={() => setViewMode('circle')}
-              >
-                <CircleDot size={15} />
-                <span>24h Circle</span>
-              </button>
             </div>
           </div>
         }
@@ -846,194 +815,21 @@ export default function PlannerView(props: {
       {/* Main Layout: Tray + Canvas */}
       <div className="planner-layout">
         {/* Left Tray: Tasks to Plan & Recurring Plans */}
-        <aside className={`planner-tray ${trayCollapsed ? 'collapsed' : ''}`}>
-          <div
-            className="planner-tray-head"
-            onClick={trayCollapsed ? toggleTray : undefined}
-            role={trayCollapsed ? 'button' : undefined}
-            tabIndex={trayCollapsed ? 0 : undefined}
-            aria-label={trayCollapsed ? 'Expand tasks to plan' : undefined}
-            onKeyDown={
-              trayCollapsed
-                ? (e) => {
-                    if (e.key === 'Enter' || e.key === ' ') {
-                      e.preventDefault();
-                      toggleTray();
-                    }
-                  }
-                : undefined
-            }
-          >
-            <h2 className="planner-tray-title">
-              {trayCollapsed ? (
-                <span className="planner-tray-collapsed-label">
-                  <ListPlus size={15} aria-hidden="true" />
-                  <span>Tasks to Plan ({unscheduledTasks.length})</span>
-                </span>
-              ) : (
-                trayTab === 'tasks' ? 'Tasks to Plan' : 'Recurring Plans'
-              )}
-            </h2>
-            <button
-              type="button"
-              className="icon-btn"
-              onClick={(e) => {
-                e.stopPropagation();
-                toggleTray();
-              }}
-              title={trayCollapsed ? 'Expand planning tray' : 'Collapse planning tray'}
-            >
-              {trayCollapsed ? <PanelLeftOpen size={16} /> : <PanelLeftClose size={16} />}
-            </button>
-          </div>
-
-          {!trayCollapsed && (
-            <>
-              {/* Tab Selector */}
-              <div className="planner-tray-tabs">
-                <button
-                  type="button"
-                  className={`planner-tray-tab-btn ${trayTab === 'tasks' ? 'active' : ''}`}
-                  onClick={() => setTrayTab('tasks')}
-                >
-                  Tasks ({unscheduledTasks.length})
-                </button>
-                <button
-                  type="button"
-                  className={`planner-tray-tab-btn ${trayTab === 'recurring' ? 'active' : ''}`}
-                  onClick={() => setTrayTab('recurring')}
-                >
-                  Recurring ({recurringPlans.length})
-                </button>
-              </div>
-
-              {trayTab === 'tasks' ? (
-                <>
-                  <input
-                    type="text"
-                    className="planner-tray-search"
-                    placeholder="Search tasks to plan…"
-                    value={taskSearch}
-                    onChange={(e) => setTaskSearch(e.target.value)}
-                  />
-                  <div className="planner-tray-list">
-                    {unscheduledTasks.map((t) => {
-                      const color =
-                        projectColors.get(t.projectId) ||
-                        (t.priority === 1
-                          ? '#dc2626'
-                          : t.priority === 2
-                          ? '#d97706'
-                          : '#0f766e');
-                      return (
-                        <div
-                          key={t.id}
-                          className="planner-tray-card"
-                          draggable
-                          onDragStart={(e) => {
-                            dragPayload.current = { type: 'task', id: t.id };
-                            e.dataTransfer.effectAllowed = 'move';
-                            e.dataTransfer.setData('text/plain', t.title);
-                          }}
-                          onDragEnd={() => {
-                            dragPayload.current = null;
-                          }}
-                        >
-                          <GripVertical size={13} className="planner-card-grip" />
-                          <span
-                            className="planner-card-color"
-                            style={{ background: color }}
-                          />
-                          <div className="planner-card-info">
-                            <div className="planner-card-title">{t.title}</div>
-                            <div className="planner-card-meta">
-                              {t.dueDate === date
-                                ? 'Due today'
-                                : t.dueDate
-                                ? `Due ${t.dueDate}`
-                                : 'No deadline'}
-                              {t.durationMinutes ? ` · ${fmtD(t.durationMinutes)}` : ''}
-                            </div>
-                          </div>
-                          <button
-                            type="button"
-                            className="planner-card-add-btn"
-                            title="Schedule at next slot"
-                            onClick={() => void handleQuickSchedule(t)}
-                          >
-                            <Plus size={14} />
-                          </button>
-                        </div>
-                      );
-                    })}
-                    {!unscheduledTasks.length && (
-                      <p className="workflow-hint" style={{ margin: '16px 0', textAlign: 'center' }}>
-                        No waiting tasks. All set!
-                      </p>
-                    )}
-                  </div>
-                </>
-              ) : (
-                <>
-                  {/* Recurring Plans List */}
-                  <button
-                    type="button"
-                    className="btn-secondary planner-tray-add-header-btn"
-                    onClick={() => {
-                      setEditingRecurring({
-                        id: `rec-${Date.now()}`,
-                        title: '',
-                        color: '#0f766e',
-                        startTime: '09:00',
-                        durationMinutes: 60,
-                        recurrence: 'weekdays',
-                        active: true,
-                      });
-                    }}
-                  >
-                    <Plus size={14} />
-                    <span>Add recurring plan</span>
-                  </button>
-
-                  <div className="planner-tray-list">
-                    {recurringPlans.map((r) => (
-                      <div
-                        key={r.id}
-                        className="planner-tray-card"
-                        style={{ opacity: r.active ? 1 : 0.55 }}
-                        onClick={() => setEditingRecurring(r)}
-                      >
-                        <Repeat size={13} className="planner-card-grip" />
-                        <span
-                          className="planner-card-color"
-                          style={{ background: r.color }}
-                        />
-                        <div className="planner-card-info">
-                          <div className="planner-card-title">{r.title}</div>
-                          <div className="planner-card-meta">
-                            <span>{fmt(parseTime(r.startTime))}</span>
-                            <span>·</span>
-                            <span>{fmtD(r.durationMinutes)}</span>
-                            <span>·</span>
-                            <span>
-                              {r.recurrence === 'daily'
-                                ? 'Daily'
-                                : r.recurrence === 'weekdays'
-                                ? 'Mon–Fri'
-                                : r.recurrence === 'weekends'
-                                ? 'Sat–Sun'
-                                : 'Custom'}
-                            </span>
-                          </div>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </>
-              )}
-            </>
-          )}
-        </aside>
+        <PlannerTray
+          trayCollapsed={trayCollapsed}
+          toggleTray={toggleTray}
+          trayTab={trayTab}
+          setTrayTab={setTrayTab}
+          unscheduledTasks={unscheduledTasks}
+          recurringPlans={recurringPlans}
+          taskSearch={taskSearch}
+          setTaskSearch={setTaskSearch}
+          projectColors={projectColors}
+          date={date}
+          dragPayload={dragPayload}
+          handleQuickSchedule={handleQuickSchedule}
+          setEditingRecurring={setEditingRecurring}
+        />
 
         {/* Right Canvas: Day, Week, or Circle */}
         <main className="planner-canvas">
@@ -1093,8 +889,10 @@ export default function PlannerView(props: {
                       key={`${b.id}:${idx}`}
                       className={`planner-block ${seg.cont ? 'continuation' : ''} ${
                         b.done ? 'done' : ''
-                      } ${seg.n > 1 ? 'overlap' : ''} ${b.isRecurring ? 'is-recurring' : ''}`}
-                      draggable={!seg.cont && !b.isRecurring}
+                      } ${seg.n > 1 ? 'overlap' : ''} ${b.isRecurring ? 'is-recurring' : ''} ${
+                        b.id.startsWith('webcal-') ? 'is-webcal' : ''
+                      }`}
+                      draggable={!seg.cont && !b.isRecurring && !b.id.startsWith('webcal-')}
                       onDragStart={(e) => {
                         const rect = e.currentTarget.getBoundingClientRect();
                         dragPayload.current = {
@@ -1125,18 +923,27 @@ export default function PlannerView(props: {
                       }}
                     >
                       <div className="planner-block-head">
-                        <button
-                          type="button"
-                          className={`planner-block-check ${b.done ? 'checked' : ''}`}
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            if (task) void toggleComplete(task);
-                            else if (b.recurringPlanId) toggleRecurringDone(b.recurringPlanId, date);
-                          }}
-                          title={b.done ? 'Mark open' : 'Mark completed'}
-                        >
-                          {b.done ? <CheckCircle2 size={14} /> : <Circle size={14} />}
-                        </button>
+                        {b.id.startsWith('webcal-') ? (
+                          <span
+                            title="Calendar event"
+                            style={{ display: 'inline-flex', alignItems: 'center', opacity: 0.75, marginRight: 4 }}
+                          >
+                            <Calendar size={13} aria-hidden="true" />
+                          </span>
+                        ) : (
+                          <button
+                            type="button"
+                            className={`planner-block-check ${b.done ? 'checked' : ''}`}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              if (task) void toggleComplete(task);
+                              else if (b.recurringPlanId) toggleRecurringDone(b.recurringPlanId, date);
+                            }}
+                            title={b.done ? 'Mark open' : 'Mark completed'}
+                          >
+                            {b.done ? <CheckCircle2 size={14} /> : <Circle size={14} />}
+                          </button>
+                        )}
                         <span className="planner-block-title">{b.title}</span>
                         {b.isRecurring && (
                           <span className="planner-block-badge">
@@ -1171,7 +978,7 @@ export default function PlannerView(props: {
                 )}
               </div>
             </div>
-          ) : viewMode === 'week' ? (
+          ) : (
             /* 7-Day Multi-Day Week Board */
             <div className="planner-timeline-wrapper planner-week-timeline">
               <div className="planner-time-axis">
@@ -1188,13 +995,16 @@ export default function PlannerView(props: {
 
               <div className="planner-week-board">
                 {weekDays.map((dStr) => {
-                  const dayBlocks = combineDayBlocks(
-                    props.tasks,
-                    recurringPlans,
-                    recurringDoneKeys,
-                    dStr,
-                    projectColors
-                  );
+                  const dayBlocks = [
+                    ...combineDayBlocks(
+                      props.tasks,
+                      recurringPlans,
+                      recurringDoneKeys,
+                      dStr,
+                      projectColors
+                    ),
+                    ...webcalEventsToDayBlocks(webcalEvents, dStr),
+                  ];
                   const dayLayout = computeTimelineLayout(dayBlocks);
                   const isTodayCol = dStr === today;
                   const isSelectedCol = dStr === date;
@@ -1253,8 +1063,10 @@ export default function PlannerView(props: {
                               key={`${b.id}:${idx}`}
                               className={`planner-block ${seg.cont ? 'continuation' : ''} ${
                                 b.done ? 'done' : ''
-                              } ${seg.n > 1 ? 'overlap' : ''} ${b.isRecurring ? 'is-recurring' : ''}`}
-                              draggable={!seg.cont && !b.isRecurring}
+                              } ${seg.n > 1 ? 'overlap' : ''} ${b.isRecurring ? 'is-recurring' : ''} ${
+                                b.id.startsWith('webcal-') ? 'is-webcal' : ''
+                              }`}
+                              draggable={!seg.cont && !b.isRecurring && !b.id.startsWith('webcal-')}
                               onDragStart={(e) => {
                                 const rect = e.currentTarget.getBoundingClientRect();
                                 dragPayload.current = {
@@ -1286,17 +1098,26 @@ export default function PlannerView(props: {
                               }}
                             >
                               <div className="planner-block-head">
-                                <button
-                                  type="button"
-                                  className={`planner-block-check ${b.done ? 'checked' : ''}`}
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    if (task) void toggleComplete(task);
-                                    else if (b.recurringPlanId) toggleRecurringDone(b.recurringPlanId, dStr);
-                                  }}
-                                >
-                                  {b.done ? <CheckCircle2 size={12} /> : <Circle size={12} />}
-                                </button>
+                                {b.id.startsWith('webcal-') ? (
+                                  <span
+                                    title="Calendar event"
+                                    style={{ display: 'inline-flex', alignItems: 'center', opacity: 0.75, marginRight: 2 }}
+                                  >
+                                    <Calendar size={11} aria-hidden="true" />
+                                  </span>
+                                ) : (
+                                  <button
+                                    type="button"
+                                    className={`planner-block-check ${b.done ? 'checked' : ''}`}
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      if (task) void toggleComplete(task);
+                                      else if (b.recurringPlanId) toggleRecurringDone(b.recurringPlanId, dStr);
+                                    }}
+                                  >
+                                    {b.done ? <CheckCircle2 size={12} /> : <Circle size={12} />}
+                                  </button>
+                                )}
                                 <span className="planner-block-title">{b.title}</span>
                               </div>
                             </div>
@@ -1318,180 +1139,6 @@ export default function PlannerView(props: {
                     </div>
                   );
                 })}
-              </div>
-            </div>
-          ) : (
-            /* 24-Hour Circle Mode */
-            <div className="planner-circle-wrapper">
-              <div
-                className="planner-circle-container"
-                onDragOver={(e) => e.preventDefault()}
-                onDrop={handleCircleDrop}
-              >
-                <svg className="planner-circle-svg" viewBox="0 0 520 520">
-                  <circle
-                    cx="260"
-                    cy="260"
-                    r="226"
-                    fill="none"
-                    stroke="var(--border)"
-                    strokeWidth="1.5"
-                  />
-                  <circle
-                    cx="260"
-                    cy="260"
-                    r="108"
-                    fill="var(--surface-2)"
-                    stroke="var(--border)"
-                  />
-                  {Array.from({ length: 24 }, (_, h) => {
-                    const [a, b] = polarToCartesian(260, 260, 108, h * 60);
-                    const [c, d2] = polarToCartesian(260, 260, 226, h * 60);
-                    const [, f] = polarToCartesian(260, 260, 233, h * 60);
-                    const [x, y] = polarToCartesian(260, 260, 247, h * 60);
-                    return (
-                      <React.Fragment key={h}>
-                        <line
-                          x1={a}
-                          y1={b}
-                          x2={c}
-                          y2={d2}
-                          stroke="var(--rule)"
-                          strokeWidth="1"
-                        />
-                        <line
-                          x1={c}
-                          y1={d2}
-                          x2={c}
-                          y2={f}
-                          stroke="var(--muted)"
-                          strokeWidth="1"
-                        />
-                        <text
-                          x={x}
-                          y={y}
-                          textAnchor="middle"
-                          dominantBaseline="middle"
-                        >
-                          {pad(h)}
-                        </text>
-                      </React.Fragment>
-                    );
-                  })}
-
-                  {circleLayout.arcs.map((item, idx) => (
-                    <React.Fragment key={`${item.b.id}:${idx}`}>
-                      <path
-                        d={item.pathD}
-                        fill={item.b.color}
-                        data-b={item.b.id}
-                        opacity={item.b.done ? 0.45 : 0.85}
-                        onClick={() => {
-                          if (item.b.rawTask) setEditingTask(item.b.rawTask);
-                          else if (item.b.recurringPlanId) {
-                            const plan = recurringPlans.find(
-                              (p) => p.id === item.b.recurringPlanId
-                            );
-                            if (plan) setEditingRecurring(plan);
-                          }
-                        }}
-                      >
-                        <title>
-                          {item.b.title} ({fmt(item.b.start)} – {fmt(item.b.start + item.b.dur)})
-                        </title>
-                      </path>
-                      {item.labelCoord && item.labelText && (
-                        <text
-                          x={item.labelCoord[0]}
-                          y={item.labelCoord[1]}
-                          fill="#ffffff"
-                          fontSize="10"
-                          fontWeight="600"
-                          textAnchor="middle"
-                          dominantBaseline="middle"
-                          pointerEvents="none"
-                        >
-                          {item.labelText}
-                        </text>
-                      )}
-                    </React.Fragment>
-                  ))}
-
-                  {date === today && (
-                    <>
-                      <line
-                        x1="260"
-                        y1="260"
-                        x2={nx}
-                        y2={ny}
-                        stroke="#ef4444"
-                        strokeWidth="2.5"
-                      />
-                      <circle cx={nx} cy={ny} r="4.5" fill="#ef4444" />
-                      <circle cx="260" cy="260" r="4" fill="#ef4444" />
-                    </>
-                  )}
-
-                  <text className="circle-day-title" x="260" y="236" textAnchor="middle">
-                    {friendlyDate(date, today)}
-                  </text>
-                  <text className="circle-stat" x="260" y="258" textAnchor="middle">
-                    {fmtD(circleLayout.totalPlannedMinutes)} planned
-                  </text>
-                  <text className="circle-active-label" x="260" y="282" textAnchor="middle">
-                    {fmt(Math.floor(nowMinute))} ·{' '}
-                    {circleLayout.activeBlock
-                      ? cut(circleLayout.activeBlock.title, 16)
-                      : 'Free time'}
-                  </text>
-                </svg>
-              </div>
-
-              <div className="planner-circle-list">
-                <div className="planner-circle-list-title">Day Agenda</div>
-                {scheduledBlocks.length > 0 ? (
-                  scheduledBlocks
-                    .sort((a, b) => a.start - b.start)
-                    .map((b) => (
-                      <div
-                        key={b.id}
-                        className={`planner-agenda-row ${b.done ? 'done' : ''}`}
-                        onClick={() => {
-                          if (b.rawTask) setEditingTask(b.rawTask);
-                          else if (b.recurringPlanId) {
-                            const plan = recurringPlans.find(
-                              (p) => p.id === b.recurringPlanId
-                            );
-                            if (plan) setEditingRecurring(plan);
-                          }
-                        }}
-                      >
-                        <button
-                          type="button"
-                          className={`planner-block-check ${b.done ? 'checked' : ''}`}
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            if (b.rawTask) void toggleComplete(b.rawTask);
-                            else if (b.recurringPlanId) toggleRecurringDone(b.recurringPlanId, date);
-                          }}
-                        >
-                          {b.done ? <CheckCircle2 size={15} /> : <Circle size={15} />}
-                        </button>
-                        <span
-                          className="planner-agenda-color"
-                          style={{ background: b.color }}
-                        />
-                        <span className="planner-agenda-title">{b.title}</span>
-                        <span className="planner-agenda-time">
-                          {fmt(b.start)} – {fmt(b.start + b.dur)}
-                        </span>
-                      </div>
-                    ))
-                ) : (
-                  <p className="workflow-hint">
-                    No tasks planned yet. Drag any task onto the circle clock to schedule it.
-                  </p>
-                )}
               </div>
             </div>
           )}
@@ -1651,442 +1298,5 @@ export default function PlannerView(props: {
         </div>
       )}
     </section>
-  );
-}
-
-// Recurring Plan Modal
-function RecurringPlanModal(props: {
-  plan: RecurringPlan;
-  onClose: () => void;
-  onSave: (updated: RecurringPlan) => void;
-  onDelete: (id: string) => void;
-}) {
-  const { plan, onClose, onSave, onDelete } = props;
-  const [title, setTitle] = useState(plan.title);
-  const [recurrence, setRecurrence] = useState<RecurrenceType>(plan.recurrence);
-  const [weekdays, setWeekdays] = useState<number[]>(plan.weekdays || [1, 2, 3, 4, 5]);
-  const [startTime, setStartTime] = useState(plan.startTime);
-  const [duration, setDuration] = useState(String(plan.durationMinutes));
-  const [color, setColor] = useState(plan.color);
-  const [active, setActive] = useState(plan.active);
-
-  const startMin = parseTime(startTime);
-  const durMin = Math.max(5, Number(duration) || 30);
-
-  const toggleWeekday = (dayNum: number) => {
-    setWeekdays((prev) =>
-      prev.includes(dayNum) ? prev.filter((d) => d !== dayNum) : [...prev, dayNum].sort()
-    );
-  };
-
-  const WEEKDAY_NAMES = [
-    { num: 1, label: 'Mo' },
-    { num: 2, label: 'Tu' },
-    { num: 3, label: 'We' },
-    { num: 4, label: 'Th' },
-    { num: 5, label: 'Fr' },
-    { num: 6, label: 'Sa' },
-    { num: 0, label: 'Su' },
-  ];
-
-  return (
-    <div className="planner-modal-overlay" onClick={onClose}>
-      <div className="planner-modal-card" onClick={(e) => e.stopPropagation()}>
-        <h3>{plan.title ? `Edit Recurring: ${plan.title}` : 'New Recurring Plan'}</h3>
-
-        <label>Title</label>
-        <input
-          type="text"
-          value={title}
-          autoFocus
-          placeholder="e.g. Deep Work, Gym, Sleep…"
-          onChange={(e) => setTitle(e.target.value)}
-        />
-
-        <label>Repeats</label>
-        <select
-          value={recurrence}
-          onChange={(e) => setRecurrence(e.target.value as RecurrenceType)}
-        >
-          <option value="daily">Daily (Every day)</option>
-          <option value="weekdays">Weekdays (Mon–Fri)</option>
-          <option value="weekends">Weekends (Sat–Sun)</option>
-          <option value="weekly">Custom days of the week</option>
-        </select>
-
-        {recurrence === 'weekly' && (
-          <div className="planner-weekday-chips">
-            {WEEKDAY_NAMES.map((wd) => (
-              <button
-                key={wd.num}
-                type="button"
-                className={`planner-weekday-chip ${weekdays.includes(wd.num) ? 'active' : ''}`}
-                onClick={() => toggleWeekday(wd.num)}
-              >
-                {wd.label}
-              </button>
-            ))}
-          </div>
-        )}
-
-        <div style={{ display: 'flex', gap: '10px' }}>
-          <div style={{ flex: 1 }}>
-            <label>Start Time</label>
-            <input
-              type="time"
-              value={startTime}
-              onChange={(e) => setStartTime(e.target.value)}
-            />
-          </div>
-          <div style={{ flex: 1 }}>
-            <label>Duration (minutes)</label>
-            <input
-              type="number"
-              min="5"
-              step="5"
-              value={duration}
-              onChange={(e) => setDuration(e.target.value)}
-            />
-          </div>
-        </div>
-
-        <div style={{ margin: '6px 0', fontFamily: 'var(--font-mono)', fontSize: '11.5px', color: 'var(--muted)' }}>
-          Runs from {startTime} to {fmt(startMin + durMin)} ({fmtD(durMin)})
-        </div>
-
-        <label>Color</label>
-        <select
-          value={color}
-          onChange={(e) => setColor(e.target.value)}
-          style={{ width: '100%', marginBottom: '10px' }}
-        >
-          {LIFEDASH_PALETTE.map((c) => (
-            <option key={c} value={c}>
-              ● {c}
-            </option>
-          ))}
-        </select>
-
-        <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
-          <input
-            type="checkbox"
-            checked={active}
-            onChange={(e) => setActive(e.target.checked)}
-          />
-          Active in schedule
-        </label>
-
-        <div className="planner-modal-actions">
-          <span>
-            {plan.id.startsWith('rec-') && (
-              <button
-                type="button"
-                className="icon-btn"
-                style={{ color: 'var(--negative)' }}
-                onClick={() => onDelete(plan.id)}
-                title="Delete recurring plan"
-              >
-                <Trash2 size={16} />
-              </button>
-            )}
-          </span>
-          <span style={{ display: 'flex', gap: '8px' }}>
-            <button type="button" className="btn-secondary" onClick={onClose}>
-              Cancel
-            </button>
-            <button
-              type="button"
-              className="btn-primary"
-              onClick={() => {
-                onSave({
-                  ...plan,
-                  title: title.trim() || 'Untitled Recurring Plan',
-                  recurrence,
-                  weekdays,
-                  startTime,
-                  durationMinutes: durMin,
-                  color,
-                  active,
-                });
-              }}
-            >
-              Save Recurring Plan
-            </button>
-          </span>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// Task Plan Modal
-function TaskPlanModal(props: {
-  task: Task;
-  date: string;
-  onClose: () => void;
-  onOpenDetail: () => void;
-  onSave: (patch: {
-    title: string;
-    plannedDate: string | null;
-    plannedTime: string | null;
-    durationMinutes: number | null;
-  }) => Promise<void>;
-  onUnschedule: () => Promise<void>;
-  onDelete: () => Promise<void>;
-}) {
-  const { task, date, onClose, onOpenDetail, onSave, onUnschedule, onDelete } = props;
-  const [title, setTitle] = useState(task.title);
-  const [planDate, setPlanDate] = useState(task.plannedDate || date);
-  const [planTime, setPlanTime] = useState(task.plannedTime || '09:00');
-  const [duration, setDuration] = useState(
-    task.durationMinutes ? String(task.durationMinutes) : '45'
-  );
-
-  const startMin = parseTime(planTime);
-  const durMin = Math.max(1, Number(duration) || 45);
-
-  return (
-    <div className="planner-modal-overlay" onClick={onClose}>
-      <div className="planner-modal-card" onClick={(e) => e.stopPropagation()}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <h3>Plan Work Block</h3>
-          <button
-            type="button"
-            className="btn-quiet"
-            onClick={onOpenDetail}
-            title="Open full task detail"
-            style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', fontSize: '12px' }}
-          >
-            Full detail <ExternalLink size={13} />
-          </button>
-        </div>
-
-        <label>Task Title</label>
-        <input
-          type="text"
-          value={title}
-          autoFocus
-          onChange={(e) => setTitle(e.target.value)}
-        />
-
-        <div style={{ display: 'flex', gap: '10px' }}>
-          <div style={{ flex: 1 }}>
-            <label>Work Date</label>
-            <input
-              type="date"
-              value={planDate}
-              onChange={(e) => setPlanDate(e.target.value)}
-            />
-          </div>
-          <div style={{ flex: 1 }}>
-            <label>Start Time</label>
-            <input
-              type="time"
-              value={planTime}
-              onChange={(e) => setPlanTime(e.target.value)}
-            />
-          </div>
-        </div>
-
-        <div style={{ display: 'flex', gap: '10px' }}>
-          <div style={{ flex: 1 }}>
-            <label>Duration (minutes)</label>
-            <input
-              type="number"
-              min="5"
-              step="5"
-              value={duration}
-              onChange={(e) => setDuration(e.target.value)}
-            />
-          </div>
-          <div style={{ flex: 1, alignSelf: 'flex-end', paddingBottom: '8px' }}>
-            <span style={{ fontFamily: 'var(--font-mono)', fontSize: '12px', color: 'var(--muted)' }}>
-              Ends at {fmt(startMin + durMin)}
-            </span>
-          </div>
-        </div>
-
-        <div className="planner-modal-actions">
-          <span>
-            <button
-              type="button"
-              className="btn-secondary"
-              onClick={() => void onUnschedule()}
-            >
-              Unschedule
-            </button>
-            <button
-              type="button"
-              className="icon-btn"
-              style={{ color: 'var(--negative)', marginLeft: '6px' }}
-              onClick={() => void onDelete()}
-              title="Delete task"
-            >
-              <Trash2 size={16} />
-            </button>
-          </span>
-          <span style={{ display: 'flex', gap: '8px' }}>
-            <button type="button" className="btn-secondary" onClick={onClose}>
-              Cancel
-            </button>
-            <button
-              type="button"
-              className="btn-primary"
-              onClick={() => {
-                void onSave({
-                  title: title.trim() || task.title,
-                  plannedDate: planDate,
-                  plannedTime: planTime,
-                  durationMinutes: durMin,
-                });
-              }}
-            >
-              Save
-            </button>
-          </span>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// Preserve exported PlanEditor for HomeView.tsx compatibility
-const dirtyPlanEditors = new Set<string>();
-if (typeof window !== 'undefined') {
-  window.addEventListener('beforeunload', (event) => {
-    if (dirtyPlanEditors.size) {
-      event.preventDefault();
-      event.returnValue = '';
-    }
-  });
-}
-
-export function PlanEditor({
-  task,
-  date,
-  suggestedTime,
-  close,
-}: {
-  task: Task;
-  date: string;
-  suggestedTime: string | null;
-  close: () => void;
-}) {
-  const [workDate, setDate] = useState(suggestedTime !== null ? date : task.plannedDate || date);
-  const [time, setTime] = useState(suggestedTime ?? task.plannedTime ?? '');
-  const [duration, setDuration] = useState(
-    task.durationMinutes ? String(task.durationMinutes) : ''
-  );
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState('');
-  const lock = useRef(false);
-  const formRef = useRef<HTMLFormElement>(null);
-
-  useEffect(() => {
-    formRef.current?.scrollIntoView({ block: 'nearest' });
-    formRef.current?.querySelector('input')?.focus();
-  }, []);
-
-  const initial = useRef({ workDate, time, duration });
-  useEffect(() => {
-    const dirty =
-      workDate !== initial.current.workDate ||
-      time !== initial.current.time ||
-      duration !== initial.current.duration;
-    if (dirty) dirtyPlanEditors.add(task.id);
-    else dirtyPlanEditors.delete(task.id);
-    return () => {
-      dirtyPlanEditors.delete(task.id);
-    };
-  }, [workDate, time, duration, task.id]);
-
-  async function save(patch: PlanPatch) {
-    if (lock.current) return;
-    lock.current = true;
-    setBusy(true);
-    setError('');
-    try {
-      await updateTask(task.id, patch);
-      close();
-    } catch {
-      setError('Plan was not saved. Your choices are kept; retry.');
-    } finally {
-      lock.current = false;
-      setBusy(false);
-    }
-  }
-
-  return (
-    <form
-      ref={formRef}
-      className="planner-editor"
-      onSubmit={(e) => {
-        e.preventDefault();
-        const invalid = planError(workDate, time, duration);
-        if (invalid) {
-          setError(invalid);
-          return;
-        }
-        void save({
-          plannedDate: workDate || null,
-          plannedTime: time || null,
-          durationMinutes: duration ? Number(duration) : null,
-        });
-      }}
-    >
-      <fieldset disabled={busy}>
-        <legend>Work plan for {task.title}</legend>
-        <p>Saving changes only the work plan and estimate, never the deadline or calendar.</p>
-        <label>
-          Planned work date
-          <input
-            type="date"
-            value={workDate}
-            onChange={(e) => setDate(e.target.value)}
-          />
-        </label>
-        <label>
-          Planned start
-          <input
-            type="time"
-            value={time}
-            onChange={(e) => setTime(e.target.value)}
-          />
-        </label>
-        <label>
-          Estimate (minutes)
-          <input
-            type="number"
-            min="1"
-            max="1440"
-            step="1"
-            value={duration}
-            onChange={(e) => setDuration(e.target.value)}
-          />
-        </label>
-        <div className="planner-toolbar">
-          <button type="submit" className="btn-primary">
-            {busy ? 'Saving…' : 'Save plan'}
-          </button>
-          <button
-            type="button"
-            className="btn-secondary planner-action"
-            onClick={() =>
-              void save({
-                plannedDate: null,
-                plannedTime: null,
-                durationMinutes: task.durationMinutes ?? null,
-              })
-            }
-          >
-            Remove work plan
-          </button>
-          <button type="button" className="btn-secondary planner-action" onClick={close}>
-            Cancel
-          </button>
-        </div>
-        {error && <p role="alert">{error}</p>}
-      </fieldset>
-    </form>
   );
 }

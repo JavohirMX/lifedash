@@ -539,6 +539,12 @@
   border-style: solid;
 }
 
+.planner-block.is-webcal {
+  border-left-style: dashed;
+  background: var(--surface-2, var(--surface));
+  cursor: default;
+}
+
 .planner-block.continuation {
   border-top-left-radius: 0;
   border-top-right-radius: 0;

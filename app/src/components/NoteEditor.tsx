@@ -6,7 +6,7 @@ import StarterKit from '@tiptap/starter-kit';
 import TaskList from '@tiptap/extension-task-list';
 import TaskItem from '@tiptap/extension-task-item';
 import Link from '@tiptap/extension-link';
-import { Bold, Italic, List, ListOrdered, ListChecks, Link as LinkIcon } from 'lucide-react';
+import { Bold, Italic, List, ListOrdered, ListChecks, Link as LinkIcon, FileText } from 'lucide-react';
 
 // Session-only drafts survive internal navigation, without writing unconfirmed
 // data to the saved record or carrying sample drafts into the user's database.
@@ -36,6 +36,48 @@ export default function NoteEditor(props: {
   const revision = useRef(initialDraft.current?.revision ?? 0);
   const mounted = useRef(true);
   const latest = useRef<EditorDraft | null>(initialDraft.current ?? null);
+
+  const [showNotePicker, setShowNotePicker] = useState(false);
+  const [noteQuery, setNoteQuery] = useState('');
+  const [availableNotes, setAvailableNotes] = useState<Array<{ id: string; title: string }>>([]);
+
+  useEffect(() => {
+    if (showNotePicker) {
+      void db.notes.toArray().then((all) => {
+        setAvailableNotes(
+          all
+            .filter((n) => n.id !== props.docKey)
+            .map((n) => ({ id: n.id, title: n.title || 'Untitled' }))
+        );
+      });
+    }
+  }, [showNotePicker, props.docKey]);
+
+  function insertNoteLink(targetNote: { id: string; title: string }) {
+    if (!editor) return;
+    const { from } = editor.state.selection;
+    const textBefore = editor.state.doc.textBetween(Math.max(0, from - 2), from, '\n', '\0');
+    let chain = editor.chain().focus();
+    if (textBefore === '[[') {
+      chain = chain.deleteRange({ from: from - 2, to: from });
+    }
+    chain
+      .insertContent(`<a href="#note:${targetNote.id}">[[${targetNote.title}]]</a> `)
+      .run();
+    setShowNotePicker(false);
+    setNoteQuery('');
+  }
+
+  const handleContentClick = (e: React.MouseEvent) => {
+    const anchor = (e.target as HTMLElement).closest('a');
+    if (!anchor) return;
+    const href = anchor.getAttribute('href');
+    if (href && (href.startsWith('#note:') || href.startsWith('#note/'))) {
+      e.preventDefault();
+      const noteId = href.replace(/^#note[:/]/, '');
+      window.dispatchEvent(new CustomEvent('lifedash-navigate-note', { detail: { noteId } }));
+    }
+  };
 
   function persist(snapshot: NonNullable<typeof latest.current>) {
     snapshot.status = 'pending';
@@ -67,7 +109,12 @@ export default function NoteEditor(props: {
     ],
     content: (initialDraft.current?.doc as object | undefined) ?? (props.noteDoc as object | null) ?? (props.note ? `<p>${escapeHtml(props.note).replace(/\n/g, '<br>')}</p>` : ''),
     onUpdate: ({ editor }) => {
-      const snapshot = { doc: editor.getJSON(), text: editor.getText(), revision: ++revision.current, status: 'pending' as const };
+      const text = editor.getText();
+      if (text.endsWith('[[')) {
+        setShowNotePicker(true);
+        setNoteQuery('');
+      }
+      const snapshot = { doc: editor.getJSON(), text, revision: ++revision.current, status: 'pending' as const };
       latest.current = snapshot;
       sessionDrafts.set(draftKey, snapshot);
       setRecovered(false);
@@ -134,8 +181,50 @@ export default function NoteEditor(props: {
           const url = window.prompt('Link URL:');
           if (url) editor.chain().focus().setLink({ href: url }).run();
         }, 'Add/remove link')}
+        {btn(<FileText size={15} strokeWidth={2} aria-hidden="true" />, showNotePicker, () => {
+          setShowNotePicker(!showNotePicker);
+          setNoteQuery('');
+        }, 'Link note ([[ )')}
       </div>
-      <EditorContent editor={editor} className="ed-content" />
+      {showNotePicker && (
+        <div className="ed-wiki-picker" role="dialog" aria-label="Link note">
+          <input
+            type="text"
+            className="ed-wiki-search"
+            autoFocus
+            placeholder="Search note to link…"
+            value={noteQuery}
+            onChange={(e) => setNoteQuery(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Escape') {
+                setShowNotePicker(false);
+              }
+            }}
+          />
+          <div className="ed-wiki-list">
+            {availableNotes
+              .filter((n) => n.title.toLowerCase().includes(noteQuery.toLowerCase()))
+              .slice(0, 8)
+              .map((n) => (
+                <button
+                  key={n.id}
+                  type="button"
+                  className="ed-wiki-item"
+                  onClick={() => insertNoteLink(n)}
+                >
+                  <FileText size={13} aria-hidden="true" />
+                  <span>{n.title}</span>
+                </button>
+              ))}
+            {availableNotes.filter((n) => n.title.toLowerCase().includes(noteQuery.toLowerCase())).length === 0 && (
+              <span className="workflow-hint" style={{ padding: '6px' }}>No notes found</span>
+            )}
+          </div>
+        </div>
+      )}
+      <div onClick={handleContentClick}>
+        <EditorContent editor={editor} className="ed-content" />
+      </div>
       <div className="ed-save-status" role="status">
         {saveState === 'waiting' || saveState === 'saving' ? 'Saving…' : saveState === 'saved' ? 'Saved on this device' : ''}
       </div>

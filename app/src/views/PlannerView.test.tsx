@@ -10,13 +10,12 @@ import PlannerView, { PlanEditor } from './PlannerView';
 import type { Task } from '../types';
 
 describe('Lifedash Day & Week Planner presentation', () => {
-  it('renders Day, Week, 24h Circle tabs, capacity stats, and planning tray', () => {
+  it('renders Day, Week tabs, capacity stats, and planning tray', () => {
     const h = renderToStaticMarkup(<PlannerView tasks={[]} onOpen={() => {}} />);
     expect(h).toContain('Planner');
     expect(h).toContain('Plan · Daily &amp; weekly time blocking');
     expect(h).toContain('Day');
     expect(h).toContain('Week');
-    expect(h).toContain('24h Circle');
     expect(h).toContain('planned');
     expect(h).toContain('free');
     expect(h).toContain('Zoom');

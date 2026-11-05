@@ -17,6 +17,7 @@ import {
   Repeat,
   ChevronLeft,
   Sparkles,
+  Maximize2,
 } from 'lucide-react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import CompletionButton from './CompletionButton';
@@ -47,7 +48,12 @@ import { parseAiResponse } from '../ai/proposalParser';
 const DEFAULT_WIDTH = 420;
 const MIN_WIDTH = 320;
 
-export default function TaskDetail(props: { taskId: string; onClose: () => void; onOpenNote: (noteId: string) => void }) {
+export default function TaskDetail(props: {
+  taskId: string;
+  onClose: () => void;
+  onOpenNote: (noteId: string) => void;
+  onOpenFocusWorkspace?: (taskId: string) => void;
+}) {
   const aiSettings = useAiSettings();
   const panel = useRef<HTMLElement>(null);
   const opener = useRef<HTMLElement | null>(null);
@@ -452,6 +458,18 @@ export default function TaskDetail(props: { taskId: string; onClose: () => void;
                   {formatDuration(focusTotals(focusSessions, todayStr(), focusNow).perTask.get(task.id) ?? 0)} total
                 </span>
               ) : null}
+              {props.onOpenFocusWorkspace && runningHere && (
+                <button
+                  type="button"
+                  className="btn-secondary mini"
+                  onClick={() => props.onOpenFocusWorkspace!(task.id)}
+                  title="Open fullscreen focus workspace"
+                  style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}
+                >
+                  <Maximize2 size={12} aria-hidden="true" />
+                  Workspace
+                </button>
+              )}
             </TaskFocus>
           </div>
         ) : (
@@ -503,6 +521,18 @@ export default function TaskDetail(props: { taskId: string; onClose: () => void;
                   {formatDuration(focusTotals(focusSessions, todayStr(), focusNow).perTask.get(task.id) ?? 0)} total
                 </span>
               ) : null}
+              {props.onOpenFocusWorkspace && runningHere && (
+                <button
+                  type="button"
+                  className="btn-secondary mini"
+                  onClick={() => props.onOpenFocusWorkspace!(task.id)}
+                  title="Open fullscreen focus workspace"
+                  style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}
+                >
+                  <Maximize2 size={12} aria-hidden="true" />
+                  Workspace
+                </button>
+              )}
             </TaskFocus>
           </>
         )}

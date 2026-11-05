@@ -12,7 +12,11 @@ from contextlib import asynccontextmanager
 
 from fastapi import Depends, FastAPI, Header, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, PlainTextResponse
+import ipaddress
+import socket
+import urllib.parse
+import urllib.request
 from pydantic import BaseModel, Field
 
 from .auth import _is_digest, current_user, hash_password, hash_token, migrate_tokens, new_token, store_token, verify_password
@@ -399,3 +403,50 @@ def push(body: PushBody, user_id: int = Depends(current_user)):
         conn.rollback()
         raise
     return {"results": results}
+
+
+def _is_safe_proxy_url(target_url: str) -> bool:
+    parsed = urllib.parse.urlparse(target_url)
+    if parsed.scheme not in ("http", "https"):
+        return False
+    hostname = parsed.hostname
+    if not hostname:
+        return False
+    try:
+        ip = ipaddress.ip_address(hostname)
+        if ip.is_private or ip.is_loopback or ip.is_link_local:
+            return False
+    except ValueError:
+        try:
+            addr_info = socket.getaddrinfo(hostname, None)
+            for _, _, _, _, sockaddr in addr_info:
+                resolved_ip = ipaddress.ip_address(sockaddr[0])
+                if resolved_ip.is_private or resolved_ip.is_loopback or resolved_ip.is_link_local:
+                    return False
+        except (socket.error, ValueError):
+            return False
+    return True
+
+
+@app.get("/api/webcal/proxy", response_class=PlainTextResponse)
+def webcal_proxy(url: str, user_id: int = Depends(current_user)):
+    clean_url = url.strip()
+    if clean_url.startswith("webcal://"):
+        clean_url = "https://" + clean_url[len("webcal://"):]
+    elif clean_url.startswith("webcals://"):
+        clean_url = "https://" + clean_url[len("webcals://"):]
+
+    if not _is_safe_proxy_url(clean_url):
+        raise HTTPException(status_code=400, detail="invalid or forbidden target URL")
+
+    req = urllib.request.Request(
+        clean_url,
+        headers={"User-Agent": "Lifedash/1.0 (+https://github.com/devmjxio/lifedash)"},
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=10.0) as resp:
+            content = resp.read(5 * 1024 * 1024)
+            return PlainTextResponse(content.decode("utf-8", errors="replace"), media_type="text/calendar")
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"failed to fetch calendar feed: {str(e)}")
+

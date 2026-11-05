@@ -208,4 +208,33 @@ describe('Sidebar UI/UX Improvements', () => {
     );
     expect(markup).toContain('TV dashboard');
   });
+
+  it('renders smart filters group with counts and highlights active selection', () => {
+    const markup = renderToStaticMarkup(
+      <Sidebar
+        projects={sampleProjects}
+        selection={{ kind: 'filter', filterId: 'quick-wins' }}
+        onSelect={vi.fn()}
+        counts={{ today: 2, backlog: 5 }}
+        smartFilterCounts={{ 'quick-wins': 4, 'high-priority': 1, 'blocked': 3 }}
+        onAutomation={vi.fn()}
+        journalNudge={false}
+        onToggleJournalNudge={vi.fn()}
+        onSync={vi.fn()}
+        reminders="off"
+        onToggleReminders={vi.fn()}
+        onAppearance={vi.fn()}
+        onSettings={vi.fn()}
+      />
+    );
+
+    expect(markup).toContain('Smart filters');
+    expect(markup).toContain('Quick Wins');
+    expect(markup).toContain('High Priority');
+    expect(markup).toContain('Blocked');
+    // Active item has .active and aria-current="page"
+    expect(markup).toContain('aria-label="Quick Wins" aria-current="page"');
+    // Smart filter count is rendered
+    expect(markup).toContain('4');
+  });
 });

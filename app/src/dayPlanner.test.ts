@@ -6,9 +6,6 @@ import {
   parseTime,
   snap,
   computeTimelineLayout,
-  computeCircleLayout,
-  polarToCartesian,
-  describeArc,
   DEFAULT_RECURRING_PLANS,
   isRecurringOnDate,
   combineDayBlocks,
@@ -97,39 +94,6 @@ describe('dayPlanner pure functions', () => {
     expect(morning?.last).toBe(true);
   });
 
-  it('computes circle layout with radial arcs and active block', () => {
-    const blocks: ScheduledBlock[] = [
-      { id: '1', title: 'Morning Deep Work', color: '#0f766e', start: 540, dur: 180 },
-    ];
-    const layout = computeCircleLayout(blocks, 600);
-    expect(layout.totalPlannedMinutes).toBe(180);
-    expect(layout.activeBlock?.id).toBe('1');
-    expect(layout.arcs).toHaveLength(1);
-    expect(layout.arcs[0].pathD).toContain('M');
-    expect(layout.arcs[0].pathD).toContain('A');
-    expect(layout.arcs[0].labelText).toBe('Morning Dee…');
-
-    const layoutAfter = computeCircleLayout(blocks, 840);
-    expect(layoutAfter.activeBlock).toBeNull();
-  });
-
-  it('calculates polar coordinates and SVG arc paths correctly', () => {
-    const [x0, y0] = polarToCartesian(260, 260, 100, 0);
-    expect(x0).toBe(260);
-    expect(y0).toBe(160);
-
-    const [x6, y6] = polarToCartesian(260, 260, 100, 360);
-    expect(x6).toBe(360);
-    expect(y6).toBe(260);
-
-    const [x12, y12] = polarToCartesian(260, 260, 100, 720);
-    expect(x12).toBe(260);
-    expect(y12).toBe(360);
-
-    const arc = describeArc(260, 260, 200, 150, 0, 180);
-    expect(arc.startsWith('M')).toBe(true);
-    expect(arc.endsWith('Z')).toBe(true);
-  });
 
   it('evaluates recurring plan patterns correctly (daily, weekdays, weekends, weekly)', () => {
     // 2026-11-05 is a Thursday (weekday)

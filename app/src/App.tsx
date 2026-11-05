@@ -37,6 +37,8 @@ import AppearanceDialog from './components/AppearanceDialog';
 import AiSettingsDialog from './components/AiSettingsDialog';
 import { useAiSettings } from './ai/aiSettings';
 import GoogleCalendarDialog from './components/GoogleCalendarDialog';
+import WebcalDialog from './components/WebcalDialog';
+import FocusWorkspace from './components/FocusWorkspace';
 import SettingsView from './views/SettingsView';
 import Onboarding from './components/Onboarding';
 import { isFreshInstallPending, markFreshInstall, markOnboardingDone } from './onboarding';
@@ -58,6 +60,7 @@ import {
   completedTasks, groupCompletedByDay,
   searchTasks,
   projectTreeTasks,
+  activeBlockers,
 } from './logic';
 import { todayStr, friendlyDate, weekdayLabel } from './dates';
 import { updateTask, moveTask, updateProject, deleteProject } from './repo';
@@ -85,6 +88,17 @@ export default function App() {
     const onTvChange = () => setTvOn(isTvEnabled());
     window.addEventListener(TV_PREFERENCE_CHANGED_EVENT, onTvChange);
     return () => window.removeEventListener(TV_PREFERENCE_CHANGED_EVENT, onTvChange);
+  }, []);
+  useEffect(() => {
+    const onNavigateNote = (e: Event) => {
+      const noteId = (e as CustomEvent<{ noteId: string }>).detail?.noteId;
+      if (noteId) {
+        setOpenId(null);
+        setSelection({ kind: 'notes', openId: noteId });
+      }
+    };
+    window.addEventListener('lifedash-navigate-note', onNavigateNote);
+    return () => window.removeEventListener('lifedash-navigate-note', onNavigateNote);
   }, []);
   const toggleTv = () => {
     const next = !tvOn;
@@ -144,6 +158,8 @@ export default function App() {
   const [aiSettingsOpen, setAiSettingsOpen] = useState(false);
   const [appearanceOpen, setAppearanceOpen] = useState(false);
   const [googleCalendarOpen,setGoogleCalendarOpen]=useState(false);
+  const [webcalOpen, setWebcalOpen] = useState(false);
+  const [focusWorkspaceTaskId, setFocusWorkspaceTaskId] = useState<string | null>(null);
   const [agentKeysOpen, setAgentKeysOpen] = useState(false);
   const [dataBackupOpen, setDataBackupOpen] = useState(false);
   const [settingsChild, setSettingsChild] = useState<'appearance' | 'sync' | null>(null);
@@ -313,6 +329,15 @@ export default function App() {
     };
   }, [tasks, today]);
 
+  const smartFilterCounts = useMemo(() => {
+    const all = (tasks ?? []).filter((t) => t.status === 'active' && t.parentId === null);
+    return {
+      'quick-wins': all.filter((t) => typeof t.durationMinutes === 'number' && t.durationMinutes > 0 && t.durationMinutes <= 15).length,
+      'high-priority': all.filter((t) => t.priority === 1).length,
+      'blocked': all.filter((t) => activeBlockers(tasks ?? [], t).length > 0).length,
+    };
+  }, [tasks]);
+
   if (!tasks || !projects) {
     return <div className="boot">Loading LifeDash...</div>;
   }
@@ -330,6 +355,10 @@ export default function App() {
   const quickAddContext = (() => {
     if (selection.kind === 'today') return { projectId: INBOX_ID, dueDate: today };
     if (selection.kind === 'project') return { projectId: selection.id, dueDate: null };
+    if (selection.kind === 'filter') {
+      if (selection.filterId === 'high-priority') return { projectId: INBOX_ID, dueDate: null, priority: 1 };
+      if (selection.filterId === 'quick-wins') return { projectId: INBOX_ID, dueDate: null, durationMinutes: 15 };
+    }
     return { projectId: INBOX_ID, dueDate: null };
   })();
   const openTag = (tag: string) => setSelection({ kind: 'search', query: `#${tag}` });
@@ -346,6 +375,7 @@ export default function App() {
         onAppearance={() => { setSettingsChild('appearance'); setAppearanceOpen(true); }}
         onAiSettings={() => setAiSettingsOpen(true)}
         onGoogleCalendar={() => setGoogleCalendarOpen(true)}
+        onWebcal={() => setWebcalOpen(true)}
         onAgentKeys={() => setAgentKeysOpen(true)}
         onShortcuts={() => setShortcutsOpen(true)}
         onAutomation={() => setAutomationOpen(true)}
@@ -363,7 +393,15 @@ export default function App() {
     );
   }
   if (selection.kind === 'home') {
-    body = <HomeView tasks={tasks} onNavigate={setSelection} onSelect={(kind) => setSelection({ kind } as Selection)} onOpen={setOpenId} />;
+    body = (
+      <HomeView
+        tasks={tasks}
+        onNavigate={setSelection}
+        onSelect={(kind) => setSelection({ kind } as Selection)}
+        onOpen={setOpenId}
+        onOpenFocusWorkspace={setFocusWorkspaceTaskId}
+      />
+    );
   } else if (selection.kind === 'today') {
     const list = todayTasks(tasks, today);
     body = (
@@ -474,6 +512,51 @@ export default function App() {
         onSelect={setSelection}
       />
     );
+  } else if (selection.kind === 'filter') {
+    let title = 'Filter';
+    let eyebrow = 'Smart List';
+    let description = '';
+    let filtered: Task[] = [];
+
+    const activeTopTasks = tasks.filter((t) => t.status === 'active' && t.parentId === null);
+
+    if (selection.filterId === 'quick-wins') {
+      title = 'Quick Wins';
+      eyebrow = 'Smart List · 15 minutes or less';
+      description = 'Small tasks with estimated duration up to 15 minutes to knock out quickly.';
+      filtered = activeTopTasks.filter((t) => typeof t.durationMinutes === 'number' && t.durationMinutes > 0 && t.durationMinutes <= 15);
+    } else if (selection.filterId === 'high-priority') {
+      title = 'High Priority';
+      eyebrow = 'Smart List · Priority 1';
+      description = 'Critical and high-priority tasks requiring urgent attention.';
+      filtered = activeTopTasks.filter((t) => t.priority === 1);
+    } else if (selection.filterId === 'blocked') {
+      title = 'Blocked Tasks';
+      eyebrow = 'Smart List · Waiting on blockers';
+      description = 'Tasks with unresolved dependencies that cannot be completed yet.';
+      filtered = activeTopTasks.filter((t) => activeBlockers(tasks, t).length > 0);
+    }
+
+    body = (
+      <section>
+        <PageHeader
+          eyebrow={eyebrow}
+          title={title}
+          meta={filtered.length > 0 ? `${filtered.length} task${filtered.length === 1 ? '' : 's'}` : undefined}
+          description={description}
+        />
+        {filtered.length === 0 && (
+          <EmptyState>No tasks match this filter right now.</EmptyState>
+        )}
+        <TaskList
+          tasks={filtered}
+          allTasks={tasks}
+          showDate
+          onOpen={setOpenId}
+          onTag={openTag}
+        />
+      </section>
+    );
   } else if (selection.kind === 'project') {
     const project = projects.find((p) => p.id === selection.id);
     const list = projectTreeTasks(tasks, projects, selection.id);
@@ -557,7 +640,7 @@ export default function App() {
 
   return (
     <div className="app">
-      <Sidebar projects={projects} selection={selection} onSelect={setSelection} counts={counts} activeByProject={activeByProject}
+      <Sidebar projects={projects} selection={selection} onSelect={setSelection} counts={counts} smartFilterCounts={smartFilterCounts} activeByProject={activeByProject}
         onCapture={quickAddFocus}
         onPalette={() => setPaletteOpen(true)}
         reminders={reminderGate(remindOn)}
@@ -626,6 +709,7 @@ export default function App() {
           taskId={openId}
           onClose={() => setOpenId(null)}
           onOpenNote={(nid) => { setOpenId(null); setSelection({ kind: 'notes', openId: nid }); }}
+          onOpenFocusWorkspace={setFocusWorkspaceTaskId}
         />
       )}
       {importPreset !== false && <ImportDialog projects={projects} initialSource={importPreset} onRestoreSettled={() => { setRules(loadRules()); setUserRules(loadUserRules()); }} onClose={() => setImportPreset(false)} />}
@@ -634,6 +718,14 @@ export default function App() {
       {aiSettingsOpen && <AiSettingsDialog onClose={() => setAiSettingsOpen(false)} />}
       {syncOpen && <SyncDialog onClose={() => { setSyncOpen(false); if (loadSyncSettings()) { markOnboardingDone(); setFreshInstall(false); } }} onBack={settingsChild === 'sync' ? () => setSyncOpen(false) : undefined} />}
       {googleCalendarOpen && <GoogleCalendarDialog onClose={()=>setGoogleCalendarOpen(false)} onBack={()=>setGoogleCalendarOpen(false)}/>}
+      {webcalOpen && <WebcalDialog onClose={() => setWebcalOpen(false)} />}
+      {focusWorkspaceTaskId && (
+        <FocusWorkspace
+          taskId={focusWorkspaceTaskId}
+          onClose={() => setFocusWorkspaceTaskId(null)}
+          onOpenDetail={setOpenId}
+        />
+      )}
       {dataBackupOpen && <DataBackupDialog onClose={() => setDataBackupOpen(false)} />}
       {agentKeysOpen && <AgentKeysDialog onClose={() => setAgentKeysOpen(false)} />}
       {appearanceOpen && <AppearanceDialog onClose={() => setAppearanceOpen(false)} onBack={settingsChild === 'appearance' ? () => setAppearanceOpen(false) : undefined} />}

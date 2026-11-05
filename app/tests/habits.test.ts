@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { isScheduledOn, currentStreak, weekGrid, bestStreak, completionRate } from '../src/habits';
+import { isScheduledOn, currentStreak, weekGrid, bestStreak, completionRate, isHabitDone, habitProgressPct } from '../src/habits';
 import type { Habit, HabitLog } from '../src/types';
 
 function habit(weekdays: number[] | null = null): Habit {
@@ -74,5 +74,43 @@ describe('completionRate', () => {
   });
   it('null when nothing scheduled in the window', () => {
     expect(completionRate(habit([1]), [], '2026-10-18', 2)).toBeNull(); // Sun+Mon, habit on Mon only... 2026-10-18 is Sunday, window Sun+Mon
+  });
+});
+
+describe('numeric habits', () => {
+  const waterHabit: Habit = {
+    id: 'h-water',
+    name: 'Drink Water',
+    color: '#0284c7',
+    weekdays: null,
+    targetType: 'numeric',
+    targetValue: 2000,
+    unit: 'ml',
+    order: 0,
+    archived: false,
+    createdAt: 0,
+  };
+
+  it('determines completion based on target value', () => {
+    expect(isHabitDone(waterHabit, null)).toBe(false);
+    expect(isHabitDone(waterHabit, { id: '1', habitId: 'h-water', date: '2026-10-20', value: 1500, doneAt: 0 })).toBe(false);
+    expect(isHabitDone(waterHabit, { id: '1', habitId: 'h-water', date: '2026-10-20', value: 2000, doneAt: 0 })).toBe(true);
+    expect(isHabitDone(waterHabit, { id: '1', habitId: 'h-water', date: '2026-10-20', value: 2500, doneAt: 0 })).toBe(true);
+  });
+
+  it('calculates progress percentage toward target', () => {
+    expect(habitProgressPct(waterHabit, null)).toBe(0);
+    expect(habitProgressPct(waterHabit, { id: '1', habitId: 'h-water', date: '2026-10-20', value: 1000, doneAt: 0 })).toBe(50);
+    expect(habitProgressPct(waterHabit, { id: '1', habitId: 'h-water', date: '2026-10-20', value: 2500, doneAt: 0 })).toBe(100);
+  });
+
+  it('only counts days meeting target toward streaks', () => {
+    const logs: HabitLog[] = [
+      { id: '1', habitId: 'h-water', date: '2026-10-20', value: 2000, doneAt: 0 },
+      { id: '2', habitId: 'h-water', date: '2026-10-19', value: 1500, doneAt: 0 }, // Under target!
+      { id: '3', habitId: 'h-water', date: '2026-10-18', value: 2000, doneAt: 0 },
+    ];
+    // 10-19 missed the target, so current streak ending on 10-20 is 1
+    expect(currentStreak(waterHabit, logs, '2026-10-20')).toBe(1);
   });
 });
