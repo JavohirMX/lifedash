@@ -3,7 +3,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useDialogFocus } from '../hooks/useDialogFocus';
 import { checkSyncUrl, syncFailureMessage } from '../syncFormFeedback';
 import './SyncDialog.css';
-import { ArrowLeft, X } from 'lucide-react';
+import { ArrowLeft, Eye, EyeOff, X } from 'lucide-react';
 import {
   loadSyncSettings,
   loadSyncStatus,
@@ -28,6 +28,7 @@ export default function SyncDialog(props: { onClose: () => void; onBack?: () => 
   const [feedback, setFeedback] = useState<'status'|'error'>('status');
   const [urlError,setUrlError]=useState('');
   const [authAction,setAuthAction]=useState<'login'|'register'|null>(null);
+  const [showPassword, setShowPassword] = useState(false);
   const urlInput=useRef<HTMLInputElement>(null);
   const [last, setLast] = useState(loadSyncStatus);
   useEffect(() => {
@@ -149,11 +150,6 @@ export default function SyncDialog(props: { onClose: () => void; onBack?: () => 
               Connect to your own Lifedash sync server. Syncing is automatic once connected. Registration closes after the first account by default.
             </p>
             <p className="rule-note"><a href="./selfhost.html" target="_blank" rel="noreferrer">Self-host setup guide (opens in a new tab)</a></p>
-            <label className="field">
-              <span>Server URL</span>
-              <input ref={urlInput} aria-invalid={!!urlError} aria-describedby={urlError?'sync-url-error':undefined} type="url" inputMode="url" autoCapitalize="off" autoCorrect="off" value={url} onChange={(e) => {setUrl(e.target.value);if(urlError)setUrlError('');}} placeholder="https://sync.example.com" />
-            </label>
-            {urlError && <p id="sync-url-error" className="sync-feedback-error" role="alert">{urlError}</p>}
             <form noValidate
               onSubmit={(e) => {
                 e.preventDefault();
@@ -161,12 +157,36 @@ export default function SyncDialog(props: { onClose: () => void; onBack?: () => 
               }}
             >
               <label className="field">
+                <span>Server URL</span>
+                <input ref={urlInput} aria-invalid={!!urlError} aria-describedby={urlError?'sync-url-error':undefined} type="url" inputMode="url" autoCapitalize="off" autoCorrect="off" value={url} onChange={(e) => {setUrl(e.target.value);if(urlError)setUrlError('');}} placeholder="https://sync.example.com" />
+              </label>
+              {urlError && <p id="sync-url-error" className="sync-feedback-error" role="alert">{urlError}</p>}
+              <label className="field">
                 <span>Username</span>
-                <input value={username} onChange={(e) => setUsername(e.target.value)} autoComplete="username" />
+                <input value={username} onChange={(e) => setUsername(e.target.value)} autoComplete="username" autoCapitalize="off" autoCorrect="off" spellCheck={false} />
               </label>
               <label className="field">
                 <span>Password (8+ characters)</span>
-                <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} autoComplete="current-password" />
+                <div className="password-input-wrap">
+                  <input
+                    type={showPassword ? 'text' : 'password'}
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    autoComplete="current-password"
+                    autoCapitalize="off"
+                    autoCorrect="off"
+                    spellCheck={false}
+                  />
+                  <button
+                    type="button"
+                    className="password-toggle-btn"
+                    aria-label={showPassword ? 'Hide password' : 'Show password'}
+                    title={showPassword ? 'Hide password' : 'Show password'}
+                    onClick={() => setShowPassword((p) => !p)}
+                  >
+                    {showPassword ? <EyeOff size={16} aria-hidden="true" /> : <Eye size={16} aria-hidden="true" />}
+                  </button>
+                </div>
               </label>
               <div className="sync-actions">
                 <button type="submit" className="btn-primary" disabled={busy || !url || !username || password.length < 8}>{authAction==='login'?'Signing in…':'Sign in'}</button>

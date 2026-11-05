@@ -99,6 +99,7 @@ export default function GoalsView(props: { tasks: Task[]; onOpen: (id: string) =
       {statusError && <p className="form-save-error" role="alert">{statusError}</p>}
       {adding && (
         <fieldset className="goal-add save-form" disabled={saving !== null} aria-busy={saving === 'create'}>
+          <legend className="quick-add-label--sr">New goal</legend>
           <input
             autoFocus
             value={title}
@@ -110,7 +111,19 @@ export default function GoalsView(props: { tasks: Task[]; onOpen: (id: string) =
               if (e.key === 'Escape' && !e.nativeEvent.isComposing) setAdding(false);
             }}
           />
-          <input type="date" value={target} aria-label="Target date (optional)" onChange={(e) => setTarget(e.target.value)} />
+          <label className="field row" style={{ margin: 0 }}>
+            <span style={{ whiteSpace: 'nowrap' }}>Target date</span>
+            <input
+              type="date"
+              value={target}
+              aria-label="Target date (optional)"
+              onChange={(e) => setTarget(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && !e.nativeEvent.isComposing) void submit();
+                if (e.key === 'Escape' && !e.nativeEvent.isComposing) setAdding(false);
+              }}
+            />
+          </label>
           <button className="btn-primary" onClick={submit} disabled={!title.trim()}>Add goal</button>
           <button className="mini" onClick={() => setAdding(false)}>Cancel</button>
         {createError && <p className="form-save-error" role="alert">{createError}</p>}
@@ -148,6 +161,7 @@ export default function GoalsView(props: { tasks: Task[]; onOpen: (id: string) =
               </div>
               {editingId === g.id ? (
                 <fieldset className="goal-add goal-edit save-form" disabled={saving !== null} aria-busy={saving === 'edit'}>
+                  <legend className="quick-add-label--sr">Edit goal</legend>
                   <input
                     autoFocus
                     value={editTitle}
@@ -155,7 +169,16 @@ export default function GoalsView(props: { tasks: Task[]; onOpen: (id: string) =
                     onChange={(e) => setEditTitle(e.target.value)}
                     onKeyDown={(e) => { if (e.key === 'Enter' && !e.nativeEvent.isComposing) void saveEdit(); if (e.key === 'Escape' && !e.nativeEvent.isComposing) setEditingId(null); }}
                   />
-                  <input type="date" value={editTarget} aria-label="Target date (optional)" onChange={(e) => setEditTarget(e.target.value)} />
+                  <label className="field row" style={{ margin: 0 }}>
+                    <span style={{ whiteSpace: 'nowrap' }}>Target date</span>
+                    <input
+                      type="date"
+                      value={editTarget}
+                      aria-label="Target date (optional)"
+                      onChange={(e) => setEditTarget(e.target.value)}
+                      onKeyDown={(e) => { if (e.key === 'Enter' && !e.nativeEvent.isComposing) void saveEdit(); if (e.key === 'Escape' && !e.nativeEvent.isComposing) setEditingId(null); }}
+                    />
+                  </label>
                   <button className="btn-primary" onClick={saveEdit} disabled={!editTitle.trim()}>Save</button>
                   <button className="mini" onClick={() => setEditingId(null)}>Cancel</button>
                 {editError && <p className="form-save-error" role="alert">{editError}</p>}

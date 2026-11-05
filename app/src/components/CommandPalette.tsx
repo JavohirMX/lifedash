@@ -113,6 +113,11 @@ export default function CommandPalette(props: {
           <input
             value={query}
             placeholder="Type a command or search tasks, notes, journal"
+            aria-label="Search commands and content"
+            enterKeyHint="go"
+            autoCorrect="off"
+            autoCapitalize="off"
+            spellCheck={false}
             onChange={(e) => setQuery(e.target.value)}
             onKeyDown={(e) => {
               if (e.nativeEvent.isComposing) return;

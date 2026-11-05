@@ -83,6 +83,13 @@ function TitleInput(props: { id: string; title: string }) {
   return <div className="task-title-field">
     <input className="detail-title" value={draft} placeholder="Task title" aria-label="Task title"
       onChange={(event) => { setDraft(event.target.value); latest.current = event.target.value; save(event.target.value); }}
+      onKeyDown={(event) => {
+        if (event.key === 'Enter' && !event.nativeEvent.isComposing) {
+          event.preventDefault();
+          if (debounceTimer.current) flush(latest.current);
+          (event.target as HTMLInputElement).blur();
+        }
+      }}
       onBlur={() => { if (debounceTimer.current) flush(latest.current); }} />
     <span className="task-title-status" role="status">{state === 'saving' ? 'Saving title…' : state === 'saved' ? 'Title saved on this device' : ''}</span>
     {state === 'error' && <div className="task-title-error">

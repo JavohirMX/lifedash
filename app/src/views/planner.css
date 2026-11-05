@@ -217,7 +217,9 @@
 .planner-tray-search {
   width: 100%;
   font-size: var(--fs-small);
-  padding: 6px 10px;
+  min-height: 36px;
+  height: 36px;
+  padding: 6px 12px;
   border: 1px solid var(--border);
   border-radius: var(--radius-control);
   background: var(--ground);
@@ -225,9 +227,12 @@
   margin-bottom: 10px;
 }
 
-.planner-tray-search:focus {
+.planner-tray-search:focus,
+.planner-tray-search:focus-visible {
   outline: 2px solid var(--accent);
-  border-color: transparent;
+  outline-offset: 1px;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-soft);
 }
 
 .planner-tray-list {
@@ -785,12 +790,14 @@
 }
 
 .planner-modal-card input[type='text'],
+.planner-modal-card input[type='date'],
 .planner-modal-card input[type='time'],
 .planner-modal-card input[type='number'],
 .planner-modal-card select,
 .planner-modal-card textarea {
   width: 100%;
-  padding: 8px 10px;
+  min-height: var(--control-height);
+  padding: 8px 12px;
   border: 1px solid var(--border);
   border-radius: var(--radius-control);
   background: var(--ground);
@@ -800,9 +807,14 @@
 
 .planner-modal-card input:focus,
 .planner-modal-card select:focus,
-.planner-modal-card textarea:focus {
+.planner-modal-card textarea:focus,
+.planner-modal-card input:focus-visible,
+.planner-modal-card select:focus-visible,
+.planner-modal-card textarea:focus-visible {
   outline: 2px solid var(--accent);
-  border-color: transparent;
+  outline-offset: 1px;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-soft);
 }
 
 .planner-modal-actions {

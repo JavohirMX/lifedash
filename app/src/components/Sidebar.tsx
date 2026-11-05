@@ -193,6 +193,11 @@ export default function Sidebar(props: {
     </button>
   );
 
+  const handleClearSearch = () => {
+    setQuery('');
+    props.onSelect(prevSelection.current ?? { kind: 'today' });
+  };
+
   const searchBox = (
     <div className="search-wrap">
       <Search size={14} strokeWidth={1.75} aria-hidden="true" className="search-icon" />
@@ -201,6 +206,10 @@ export default function Sidebar(props: {
         placeholder="Search tasks, #tags"
         aria-label="Search tasks, #tags"
         value={query}
+        enterKeyHint="search"
+        autoCorrect="off"
+        autoCapitalize="off"
+        spellCheck={false}
         onChange={(e) => {
           setQuery(e.target.value);
           if (e.target.value.trim()) {
@@ -210,11 +219,20 @@ export default function Sidebar(props: {
         }}
         onKeyDown={(e) => {
           if (e.key === 'Escape' && !e.nativeEvent.isComposing) {
-            setQuery('');
-            props.onSelect(prevSelection.current ?? { kind: 'today' });
+            handleClearSearch();
           }
         }}
       />
+      {query.length > 0 && (
+        <button
+          type="button"
+          className="search-clear-btn"
+          aria-label="Clear search"
+          onClick={handleClearSearch}
+        >
+          <X size={13} strokeWidth={2} aria-hidden="true" />
+        </button>
+      )}
     </div>
   );
 

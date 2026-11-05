@@ -452,7 +452,9 @@ export default function App() {
             <input
               autoFocus
               value={projName}
+              placeholder="Project name"
               aria-label="Project name"
+              enterKeyHint="done"
               onChange={(e) => setProjName(e.target.value)}
               onKeyDown={(e) => {
                 if (e.key === 'Enter' && !e.nativeEvent.isComposing) void saveProject(project.id);

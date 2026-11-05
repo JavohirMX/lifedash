@@ -2,7 +2,7 @@ import './workflow.css';
 import CompletionButton from '../components/CompletionButton';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
-import { Check, ListPlus, Pin, PinOff, Plus, Search, StickyNote, Trash2 } from 'lucide-react';
+import { Check, ListPlus, Pin, PinOff, Plus, Search, StickyNote, Trash2, X } from 'lucide-react';
 
 import { addNote, updateNote, deleteNote, addTasksFromNoteChecklist } from '../repo';
 import { extractChecklistItems, searchNotes } from '../logic';
@@ -120,9 +120,23 @@ export default function NotesView(props: { initialOpenId?: string }) {
             placeholder="Filter notes"
             aria-label="Filter notes"
             value={q}
+            enterKeyHint="search"
+            autoCorrect="off"
+            autoCapitalize="off"
+            spellCheck={false}
             onChange={(e) => setQ(e.target.value)}
             onKeyDown={(e) => { if (e.key === 'Escape' && !e.nativeEvent.isComposing) setQ(''); }}
           />
+          {q.length > 0 && (
+            <button
+              type="button"
+              className="search-clear-btn"
+              aria-label="Clear filter"
+              onClick={() => setQ('')}
+            >
+              <X size={13} strokeWidth={2} aria-hidden="true" />
+            </button>
+          )}
         </div>
       )}
       {filtering && shown.length === 0 ? (

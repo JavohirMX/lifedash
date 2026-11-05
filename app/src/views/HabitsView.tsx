@@ -116,11 +116,13 @@ export default function HabitsView() {
       {archiveError && <p className="form-save-error" role="alert">{archiveError}</p>}
       {adding && (
         <fieldset className="habit-add save-form" disabled={saving !== null} aria-busy={saving === 'create'}>
+          <legend className="quick-add-label--sr">New habit</legend>
           <input
             autoFocus
             value={name}
             placeholder="Habit name (e.g. Read 20 min)"
             aria-label="New habit name"
+            enterKeyHint="done"
             onChange={(e) => setName(e.target.value)}
             onKeyDown={(e) => {
               if (e.key === 'Enter' && !e.nativeEvent.isComposing) void submitHabit();
@@ -186,10 +188,12 @@ export default function HabitsView() {
               </div>
               {editingId === h.id && (
                 <fieldset className="habit-add habit-edit save-form" disabled={saving !== null} aria-busy={saving === 'edit'}>
+                  <legend className="quick-add-label--sr">Edit habit</legend>
                   <input
                     autoFocus
                     value={editName}
                     aria-label="Habit name"
+                    enterKeyHint="done"
                     onChange={(e) => setEditName(e.target.value)}
                     onKeyDown={(e) => { if (e.key === 'Enter' && !e.nativeEvent.isComposing) void saveEdit(); if (e.key === 'Escape' && !e.nativeEvent.isComposing) setEditingId(null); }}
                   />

@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { Eye, EyeOff } from 'lucide-react';
 import { radioKeyIndex } from '../radioKeys';
 import type { Task } from '../types';
 import { requestAdvice, reviewRequest, type ReviewedRequest } from './provider';
@@ -12,6 +13,7 @@ export default function AssistantDialog({ tasks, onClose }: { tasks: Task[]; onC
   const [baseUrl, setBaseUrl] = useState('http://localhost:11434/v1');
   const [model, setModel] = useState('');
   const [apiKey, setApiKey] = useState('');
+  const [showApiKey, setShowApiKey] = useState(false);
   const [prompt, setPrompt] = useState('Help me choose a realistic order for these tasks. Explain tradeoffs and do not change anything.');
   const [selected, setSelected] = useState<string[]>([]);
   const [reviewed, setReviewed] = useState<ReviewedRequest | null>(null);
@@ -66,7 +68,28 @@ export default function AssistantDialog({ tasks, onClose }: { tasks: Task[]; onC
     <fieldset disabled={busy}>
       {mode === 'provider' && <>
         <div className="ai-fields"><label>Provider API base URL<input type="url" value={baseUrl} onChange={e => setBaseUrl(e.target.value)} placeholder="http://localhost:11434/v1" /></label><label>Model ID<input value={model} onChange={e => setModel(e.target.value)} placeholder="Your installed or cloud model ID" autoComplete="off" /></label></div>
-        <label>API key (optional, held only while this window is open)<input type="password" value={apiKey} onChange={e => setApiKey(e.target.value)} autoComplete="off" /></label>
+        <label><span>API key (optional, held only while this window is open)</span>
+          <div className="password-input-wrap">
+            <input
+              type={showApiKey ? 'text' : 'password'}
+              value={apiKey}
+              onChange={e => setApiKey(e.target.value)}
+              autoComplete="off"
+              autoCapitalize="off"
+              autoCorrect="off"
+              spellCheck={false}
+            />
+            <button
+              type="button"
+              className="password-toggle-btn"
+              aria-label={showApiKey ? 'Hide API key' : 'Show API key'}
+              title={showApiKey ? 'Hide API key' : 'Show API key'}
+              onClick={() => setShowApiKey(p => !p)}
+            >
+              {showApiKey ? <EyeOff size={16} aria-hidden="true" /> : <Eye size={16} aria-hidden="true" />}
+            </button>
+          </div>
+        </label>
       </>}
       <h3>{mode === 'local' ? 'Choose tasks to summarize' : 'Choose what to share'}</h3><p className="ai-hint">{mode === 'local'
         ? 'Only titles, due dates, priority and status are used, on this device only.'

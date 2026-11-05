@@ -302,14 +302,16 @@ button, input, select, textarea, .task-row, .week-col, .cell, .wd {
 }
 .search-box {
   width: 100%;
-  height: 32px;
+  min-height: 36px;
+  height: 36px;
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: var(--radius-control);
-  padding: 0 8px 0 30px;
+  padding: 0 32px 0 34px;
   font-size: var(--fs-body);
 }
-.search-box:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+.search-box:focus,
+.search-box:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
 
 .nav {
   display: flex;
@@ -515,7 +517,8 @@ h2 { font-family: var(--font-display); font-size: var(--fs-section); font-weight
 .quick-add-failed { padding: 10px; border: 1px solid var(--border); border-left: 3px solid var(--accent); border-radius: var(--radius-card); }
 .quick-add-failed p { margin: 0 0 8px; }
 .quick-add-draft { white-space: pre-wrap; overflow-wrap: anywhere; }
-.quick-add input:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+.quick-add input:focus,
+.quick-add input:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
 
 /* ---------- Task rows ---------- */
 .task-list {
@@ -660,27 +663,27 @@ h2 { font-family: var(--font-display); font-size: var(--fs-section); font-weight
 .field { display: flex; flex-direction: column; gap: 5px; font-size: var(--fs-small); font-weight: 500; color: var(--muted); }
 .field.row { flex-direction: row; align-items: center; gap: 8px; }
 .field input[type='date'], .field input[type='time'], .field select, .field input[type='number'], .field input[type='text'] {
-  height: 34px;
+  min-height: var(--control-height);
   background: var(--surface);
   border: 1px solid var(--control);
   border-radius: var(--radius-control);
   color: var(--text);
-  padding: 0 8px;
+  padding: 8px 10px;
   font-weight: 400;
 }
 .ndays { display: flex; align-items: center; gap: 8px; }
-.ndays input { width: 72px; }
+.ndays input { width: 76px; text-align: center; font-variant-numeric: tabular-nums; }
 .subs h3 { font-size: var(--fs-small); font-weight: 600; color: var(--muted); margin: 8px 0 4px; }
 .sub-row { display: flex; align-items: center; gap: 8px; padding: 5px 0; }
 .sub-row.done span { text-decoration: line-through; opacity: 0.6; }
 .sub-add input {
   width: 100%;
-  height: 34px;
+  min-height: var(--control-height);
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: var(--radius-control);
   color: var(--text);
-  padding: 0 10px;
+  padding: 8px 12px;
   margin-top: 6px;
 }
 .danger {
@@ -703,12 +706,12 @@ h2 { font-family: var(--font-display); font-size: var(--fs-section); font-weight
 .dep-add select {
   flex: 1;
   min-width: 0;
-  height: 34px;
+  min-height: var(--control-height);
   background: var(--surface);
   border: 1px solid var(--control);
   border-radius: var(--radius-control);
   color: var(--text);
-  padding: 0 8px;
+  padding: 8px 10px;
   max-width: 100%;
 }
 .dep-error { color: var(--negative); font-size: var(--fs-small); margin: 5px 0 0; }
@@ -729,6 +732,8 @@ h2 { font-family: var(--font-display); font-size: var(--fs-section); font-weight
 .chip button { background: none; border: 0; color: var(--faint); cursor: pointer; padding: 0; font-size: 14px; line-height: 1; }
 .chip button:hover { color: var(--negative); }
 .chip-input {
+  min-height: 30px;
+  height: 30px;
   background: var(--surface);
   border: 1px solid var(--control);
   border-radius: 999px;
@@ -1146,9 +1151,10 @@ h2 { font-family: var(--font-display); font-size: var(--fs-section); font-weight
   border: 1px solid var(--control);
   border-radius: var(--radius-control);
   color: var(--text);
-  padding: 8px 10px;
+  padding: 10px 12px;
   resize: vertical;
   font-size: 13px;
+  font-family: var(--font-mono);
 }
 .import-summary { display: flex; flex-direction: column; gap: 10px; border-top: 1px solid var(--rule); padding-top: 12px; }
 .import-count { margin: 0; font-weight: 500; }
@@ -1198,7 +1204,7 @@ h2 { font-family: var(--font-display); font-size: var(--fs-section); font-weight
 .switch.on .knob { transform: translateX(14px); background: var(--accent-ink); }
 .rule-user-list { display: flex; flex-direction: column; gap: 2px; margin: 4px 0; }
 .rule-form { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
-.rule-form select, .rule-form input { min-height: 34px; padding: 4px 8px; border: 1px solid var(--control); border-radius: var(--radius, 8px); background: var(--surface); color: var(--text); font: inherit; }
+.rule-form select, .rule-form input { min-height: var(--control-height); padding: 8px 12px; border: 1px solid var(--control); border-radius: var(--radius-control); background: var(--surface); color: var(--text); font: inherit; }
 .rule-form select { min-width: 10rem; }
 .rule-form input { flex: 1; min-width: 8rem; }
 .rule-form .rule-check { display: flex; align-items: center; gap: 6px; font-size: var(--fs-small); color: var(--muted); }
@@ -1351,8 +1357,14 @@ button.cal-more:hover { color: var(--accent); }
 .note-item-when { flex: none; font-variant-numeric: tabular-nums; }
 .note-editor-pane { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-card); padding: 14px; min-height: 300px; }
 .note-editor-head { display: flex; align-items: center; gap: 6px; margin-bottom: 8px; }
-.note-title-input { flex: 1; border: none; background: transparent; font-size: var(--fs-section); font-weight: 600; font-family: var(--font); color: var(--text); padding: 4px 0; }
-.note-title-input:focus { outline: none; }
+.note-title-input {
+  flex: 1; border: none; border-bottom: 1.5px solid transparent; background: transparent;
+  font-size: var(--fs-section); font-weight: 600; font-family: var(--font); color: var(--text); padding: 4px 0;
+  transition: border-color 0.15s ease;
+}
+.note-title-input:hover { border-bottom-color: var(--border); }
+.note-title-input:focus { outline: none; border-bottom-color: var(--accent); }
+.note-title-input:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .ed-content .ProseMirror:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 4px; }
 @media (max-width: 700px) {
   .notes-layout { grid-template-columns: 1fr; }
