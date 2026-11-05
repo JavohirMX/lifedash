@@ -765,11 +765,13 @@ export default function Sidebar(props: {
                 onFocus={(e) => showTooltip(e, 'Capture task', 'n')}
                 onBlur={hideTooltip}
               >
-                <Plus size={16} strokeWidth={2} aria-hidden="true" />
+                <Plus size={16} strokeWidth={2.2} aria-hidden="true" />
               </button>
             ) : (
-              <button className="sidebar-capture btn-secondary" aria-label="Capture task" onClick={props.onCapture}>
-                <Plus size={16} aria-hidden="true" />Capture task <kbd>n</kbd>
+              <button className="sidebar-capture btn-primary" aria-label="Capture task" onClick={props.onCapture}>
+                <Plus size={16} strokeWidth={2.2} aria-hidden="true" />
+                <span>Capture task</span>
+                <kbd className="sidebar-capture-kbd">n</kbd>
               </button>
             )
           )}
@@ -906,7 +908,13 @@ export default function Sidebar(props: {
               <X size={20} strokeWidth={1.75} />
             </button>
           </div>
-          {props.onCapture && <button className="sidebar-capture btn-secondary" aria-label="Capture task" onClick={props.onCapture}><Plus size={16} aria-hidden="true" />Capture task <kbd>n</kbd></button>}
+          {props.onCapture && (
+            <button className="sidebar-capture btn-primary" aria-label="Capture task" onClick={props.onCapture}>
+              <Plus size={16} strokeWidth={2.2} aria-hidden="true" />
+              <span>Capture task</span>
+              <kbd className="sidebar-capture-kbd">n</kbd>
+            </button>
+          )}
           {searchBox}
           {navigation(() => setSheet(false))}
           {projectsBlock}

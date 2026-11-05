@@ -134,6 +134,13 @@ export default function App() {
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
   const [rules, setRules] = useState<AutomationRules>(loadRules);
   const [userRules, setUserRules] = useState<UserRule[]>(loadUserRules);
+  const [sampleDismissed, setSampleDismissed] = useState(() => {
+    try {
+      return sessionStorage.getItem('lifedash-sample-banner-dismissed') === '1';
+    } catch {
+      return false;
+    }
+  });
 
   useEffect(() => {
     const onAutomationChanged = () => { setRules(loadRules()); setUserRules(loadUserRules()); };
@@ -541,7 +548,27 @@ export default function App() {
         onMoveToProject={(id, pId) => void moveDroppedProject(id, pId)}
         onAI={() => setAiOpen(true)} onAutomation={() => setAutomationOpen(true)} onSync={() => { setSettingsChild(null); setSyncOpen(true); }} onAppearance={() => { setSettingsChild(null); setAppearanceOpen(true); }} onSettings={() => setSelection({ kind: 'settings' })} />
       <main className={selection.kind === 'home' ? 'home-main' : ['week', 'calendar'].includes(selection.kind) ? 'schedule-main' : undefined}>
-        {SAMPLE_MODE && <div className="sample-banner" role="status">Sample-data sandbox · Fictional data · <a href="/">Exit to your real data</a></div>}
+        {SAMPLE_MODE && !sampleDismissed && (
+          <div className="sample-banner" role="status">
+            <div className="sample-banner-text">
+              Sample-data sandbox · Fictional data · <a href="/">Exit to your real data</a>
+            </div>
+            <button
+              type="button"
+              className="sample-banner-dismiss"
+              aria-label="Dismiss sample banner"
+              title="Dismiss"
+              onClick={() => {
+                setSampleDismissed(true);
+                try {
+                  sessionStorage.setItem('lifedash-sample-banner-dismissed', '1');
+                } catch {}
+              }}
+            >
+              <X size={14} aria-hidden="true" />
+            </button>
+          </div>
+        )}
         <SyncConflictBanner />
         {weeklyFailed && !automationOpen && <div role="alert"><p>Couldn't finish running weekly rules. Some tasks may have been created or rule history may not have been saved. Check tasks and rules before trying again.</p><button className="btn-secondary" onClick={() => setWeeklyFailed(false)}>Dismiss weekly-rule notice</button></div>}
         {rolloverFailed && !automationOpen && <div role="alert"><p>Couldn't finish moving overdue tasks to Today. Part of the change may have been saved. Check task dates before trying again. Your automation setting is unchanged.</p><button className="btn-secondary" onClick={() => setRolloverFailed(false)}>Dismiss rollover notice</button></div>}

@@ -1,6 +1,6 @@
 import './workflow.css';
 import { useRef, useState } from 'react';
-import { ChevronDown, ChevronRight, Flame, Plus } from 'lucide-react';
+import { ChevronDown, ChevronRight, Flame, Plus, X } from 'lucide-react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db } from '../db';
 import { addHabit, archiveHabit, restoreHabit, toggleHabitForDate, updateHabit } from '../repo';
@@ -107,7 +107,7 @@ export default function HabitsView() {
         description="Small recurring actions, tracked one day at a time. Streaks follow the schedule you set."
         actions={(
           <button className="btn-secondary" disabled={saving !== null} onClick={() => { setAdding(!adding); setCreateError(''); setSaveStatus(''); }}>
-            {adding ? 'Cancel' : <><Plus size={14} strokeWidth={2} aria-hidden="true" /> New habit</>}
+            {adding ? <><X size={14} strokeWidth={2} aria-hidden="true" /> Cancel</> : <><Plus size={14} strokeWidth={2} aria-hidden="true" /> New habit</>}
           </button>
         )}
       />

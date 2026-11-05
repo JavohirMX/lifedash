@@ -141,4 +141,30 @@ describe('Sidebar UI/UX Improvements', () => {
     expect(markup).toContain('class="bottombar"');
     expect(markup).toContain('class="mobile-topbar"');
   });
+
+  it('renders capture task button as a distinct primary action button with shortcut badge', () => {
+    const markup = renderToStaticMarkup(
+      <Sidebar
+        projects={sampleProjects}
+        selection={{ kind: 'home' }}
+        onSelect={vi.fn()}
+        counts={{ today: 0, backlog: 0 }}
+        onAutomation={vi.fn()}
+        journalNudge={false}
+        onToggleJournalNudge={vi.fn()}
+        onSync={vi.fn()}
+        reminders="off"
+        onToggleReminders={vi.fn()}
+        onAppearance={vi.fn()}
+        onSettings={vi.fn()}
+        onCapture={vi.fn()}
+      />
+    );
+
+    // Primary button styling, distinct from input
+    expect(markup).toContain('class="sidebar-capture btn-primary"');
+    expect(markup).toContain('aria-label="Capture task"');
+    expect(markup).toContain('class="sidebar-capture-kbd"');
+    expect(markup).toContain('>n</kbd>');
+  });
 });

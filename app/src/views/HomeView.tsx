@@ -8,7 +8,7 @@ import { goalsWithoutNextAction } from '../review';
 import CompletionButton from '../components/CompletionButton';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { ArrowRight, BookOpen, Check, Clock, RotateCcw, SkipForward, SlidersHorizontal, Target, Zap } from 'lucide-react';
+import { ArrowRight, BookOpen, Calendar, CalendarCheck, Check, Clock, ListTodo, PenLine, RotateCcw, SkipForward, SlidersHorizontal, Target, X } from 'lucide-react';
 import QuickAdd from '../components/QuickAdd';
 import { db } from '../db';
 import { saveWidgetVisibility } from '../widgetPreferences';
@@ -227,6 +227,7 @@ export default function HomeView(props: { tasks: Task[]; onSelect: (kind: string
               className="btn-secondary mini widget-settings-done"
               onClick={() => setCustomizing(false)}
             >
+              <Check size={13} strokeWidth={2.2} aria-hidden="true" />
               Done
             </button>
           </div>
@@ -320,49 +321,51 @@ export default function HomeView(props: { tasks: Task[]; onSelect: (kind: string
                       <span>Reset ({skippedIds.length})</span>
                     </button>
                   )}
-                  <span className="home-focus-mark" aria-hidden="true"><Zap size={18} strokeWidth={1.75} /></span>
                 </div>
               </div>
-              <div className="focus-task">
-                <CompletionButton task={suggestion.task} className="checkbox home-check" label={`Mark ${suggestion.task.title} done`} />
-                <button className="focus-title" onClick={() => props.onOpen(suggestion.task.id)}>
-                  {suggestion.task.title}
-                </button>
-              </div>
-              <div className="home-focus-meta">
-                {(() => {
-                  const proj = projectMap.get(suggestion.task.projectId);
-                  const sub = getSubtaskSummary(suggestion.task.id);
-                  return (
-                    <>
-                      {proj && proj.id !== 'inbox' && (
-                        <span className="home-meta-pill project">
-                          <span className="dot" style={{ background: proj.color }} />
-                          {proj.name}
-                        </span>
-                      )}
-                      {suggestion.task.durationMinutes && (
-                        <span className="home-meta-pill duration num">{suggestion.task.durationMinutes}m</span>
-                      )}
-                      {sub && (
-                        <span className="home-meta-pill subtask num">{sub.done}/{sub.total} subtasks</span>
-                      )}
-                      {suggestion.task.priority === 1 && (
-                        <span className="home-meta-pill priority-high">High priority</span>
-                      )}
-                      {suggestion.task.priority === 2 && (
-                        <span className="home-meta-pill priority-med">Medium priority</span>
-                      )}
-                      {suggestion.task.dueTime && (
-                        <span className="home-meta-pill due-time num">Due {suggestion.task.dueTime}</span>
-                      )}
-                    </>
-                  );
-                })()}
-              </div>
-              <div className="home-focus-actions">
-                <HomeFocusStart taskId={suggestion.task.id} />
-                <button className="btn-secondary" onClick={() => props.onOpen(suggestion.task.id)}>Open task</button>
+              <div className="home-focus-body">
+                <div className="home-focus-content">
+                  <div className="focus-task">
+                    <CompletionButton task={suggestion.task} className="checkbox home-check" label={`Mark ${suggestion.task.title} done`} />
+                    <button className="focus-title" onClick={() => props.onOpen(suggestion.task.id)}>
+                      {suggestion.task.title}
+                    </button>
+                  </div>
+                  <div className="home-focus-meta">
+                    {(() => {
+                      const proj = projectMap.get(suggestion.task.projectId);
+                      const sub = getSubtaskSummary(suggestion.task.id);
+                      return (
+                        <>
+                          {proj && proj.id !== 'inbox' && (
+                            <span className="home-meta-pill project">
+                              <span className="dot" style={{ background: proj.color }} />
+                              {proj.name}
+                            </span>
+                          )}
+                          {suggestion.task.durationMinutes && (
+                            <span className="home-meta-pill duration num">{suggestion.task.durationMinutes}m</span>
+                          )}
+                          {sub && (
+                            <span className="home-meta-pill subtask num">{sub.done}/{sub.total} subtasks</span>
+                          )}
+                          {suggestion.task.priority === 1 && (
+                            <span className="home-meta-pill priority-high">High priority</span>
+                          )}
+                          {suggestion.task.priority === 2 && (
+                            <span className="home-meta-pill priority-med">Medium priority</span>
+                          )}
+                          {suggestion.task.dueTime && (
+                            <span className="home-meta-pill due-time num">Due {suggestion.task.dueTime}</span>
+                          )}
+                        </>
+                      );
+                    })()}
+                  </div>
+                </div>
+                <div className="home-focus-actions">
+                  <HomeFocusStart taskId={suggestion.task.id} />
+                </div>
               </div>
             </section>
           )}
@@ -371,7 +374,10 @@ export default function HomeView(props: { tasks: Task[]; onSelect: (kind: string
               <p className="eyebrow" id="home-focus-heading">Next action</p>
               <h2>No unblocked tasks due now.</h2>
               <p className="home-empty-copy">Choose something from Backlog, or enjoy the quiet.</p>
-              <button className="btn-secondary" onClick={() => props.onSelect('backlog')}>Choose a task</button>
+              <button className="btn-secondary" onClick={() => props.onSelect('backlog')}>
+                <ListTodo size={14} strokeWidth={2} aria-hidden="true" />
+                Choose a task
+              </button>
             </section>
           )}
 
@@ -381,70 +387,110 @@ export default function HomeView(props: { tasks: Task[]; onSelect: (kind: string
                 <div>
                   <p className="eyebrow">Today</p>
                   <h2>Next commitment</h2>
+                  <p className="home-section-subtitle">Your next scheduled work session or commitment due today</p>
                 </div>
                 <button className="widget-link" onClick={() => props.onSelect('planner')}>Day <ArrowRight size={13} aria-hidden="true" /></button>
               </div>
               {commitment ? (
-                <div className="home-commitment-body">
-                  <div className="home-commitment-strip">
-                    <div className="home-commitment-main">
-                      <div className="home-commitment-time-pill num">
-                        <Clock size={12} strokeWidth={2} aria-hidden="true" />
-                        <time>{commitment.time}</time>
-                      </div>
-                      <div className="home-commitment-details">
-                        <div className="home-commitment-task-row">
-                          <CompletionButton task={commitment.task} className="checkbox home-check" label={`Mark ${commitment.task.title} done`} />
-                          <button className="widget-task home-commitment-title" onClick={() => props.onOpen(commitment.task.id)}>
-                            {projectMap.get(commitment.task.projectId)?.id !== 'inbox' && (
-                              <span className="dot briefing-dot" style={{ background: projectMap.get(commitment.task.projectId)?.color }} title={projectMap.get(commitment.task.projectId)?.name} />
-                            )}
-                            {commitment.task.title}
-                          </button>
-                          {suggestion?.task.id === commitment.task.id && (
-                            <span className="home-same-task-badge">Current focus</span>
-                          )}
+                (() => {
+                  const proj = projectMap.get(commitment.task.projectId);
+                  return (
+                    <div className="home-commitment-body">
+                      <div className="home-commitment-header-row">
+                        <div className="home-commitment-time-pill num">
+                          <Clock size={13} strokeWidth={2} aria-hidden="true" />
+                          <time>{commitment.kind === 'Planned work' ? `Planned ${commitment.time}` : `Due ${commitment.time}`}</time>
                         </div>
-                        <p className="home-commitment-meta">
-                          <span>{friendlyDate(commitment.date, today)} · {commitment.kind}{commitment.overdue ? ' (overdue)' : ''}</span>
-                          {commitment.kind === 'Planned work' && commitment.task.durationMinutes ? ` · ${commitment.task.durationMinutes}m est` : ''}
-                          {suggestion?.task.id === commitment.task.id
-                            ? ' · Scheduled for current focus task'
-                            : ''}
-                        </p>
                       </div>
+
+                      <div className="home-commitment-task-row">
+                        <CompletionButton
+                          task={commitment.task}
+                          className="checkbox home-check"
+                          label={`Mark ${commitment.task.title} done`}
+                        />
+                        <div className="home-commitment-task-info">
+                          <div className="home-commitment-title-line">
+                            {proj && proj.id !== 'inbox' && (
+                              <span
+                                className="dot briefing-dot"
+                                style={{ background: proj.color }}
+                                title={proj.name}
+                              />
+                            )}
+                            <button
+                              className="widget-task home-commitment-title"
+                              onClick={() => props.onOpen(commitment.task.id)}
+                            >
+                              {commitment.task.title}
+                            </button>
+                            {suggestion?.task.id === commitment.task.id && (
+                              <span className="home-same-task-badge">In focus</span>
+                            )}
+                          </div>
+                          <div className="home-commitment-meta">
+                            {proj && proj.id !== 'inbox' && (
+                              <span className="meta-item project-name">{proj.name}</span>
+                            )}
+                            {commitment.kind === 'Planned work' && commitment.task.durationMinutes ? (
+                              <span className="meta-item num">{commitment.task.durationMinutes}m focus session</span>
+                            ) : null}
+                            {commitment.overdue ? (
+                              <span className="meta-item overdue">Overdue</span>
+                            ) : (
+                              <span className="meta-item">{friendlyDate(commitment.date, today)}</span>
+                            )}
+                            {commitment.task.priority === 1 && (
+                              <span className="meta-item priority-1">High priority</span>
+                            )}
+                            {commitment.task.priority === 2 && (
+                              <span className="meta-item priority-2">Medium priority</span>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+
+                      {remainingTodayCommitments.length > 0 && (
+                        <div className="home-mini-agenda" aria-label="Later commitments today">
+                          <div className="home-mini-agenda-head">
+                            <span className="home-mini-agenda-label">Later today</span>
+                            <span className="home-mini-agenda-count num">{remainingTodayCommitments.length}</span>
+                          </div>
+                          <ul className="home-agenda-list">
+                            {remainingTodayCommitments.map((rem, idx) => {
+                              const remProj = projectMap.get(rem.task.projectId);
+                              return (
+                                <li key={`${rem.task.id}-${rem.time}-${idx}`} className="home-agenda-item">
+                                  <div className="home-agenda-time-pill num">
+                                    <Clock size={11} strokeWidth={2} aria-hidden="true" />
+                                    <time>{rem.kind === 'Planned work' ? `Planned ${rem.time}` : `Due ${rem.time}`}</time>
+                                  </div>
+                                  <div className="home-agenda-task">
+                                    {remProj && remProj.id !== 'inbox' && (
+                                      <span
+                                        className="dot briefing-dot"
+                                        style={{ background: remProj.color }}
+                                        title={remProj.name}
+                                      />
+                                    )}
+                                    <button className="home-agenda-title" onClick={() => props.onOpen(rem.task.id)}>
+                                      {rem.task.title}
+                                    </button>
+                                  </div>
+                                  {rem.overdue && (
+                                    <div className="home-agenda-meta">
+                                      <span className="home-agenda-overdue">overdue</span>
+                                    </div>
+                                  )}
+                                </li>
+                              );
+                            })}
+                          </ul>
+                        </div>
+                      )}
                     </div>
-                    <div className="home-commitment-actions">
-                      <button className="btn-secondary mini" onClick={() => commitment.kind === 'Planned work' ? setEditingPlan(commitment.task.id) : props.onOpen(commitment.task.id)}>
-                        {commitment.kind === 'Planned work' ? 'Reschedule work' : 'Reschedule task'}
-                      </button>
-                    </div>
-                  </div>
-                  {remainingTodayCommitments.length > 0 && (
-                    <div className="home-mini-agenda" aria-label="Later commitments today">
-                      <p className="home-mini-agenda-label">Later today ({remainingTodayCommitments.length})</p>
-                      <ul className="home-agenda-list">
-                        {remainingTodayCommitments.map((rem, idx) => {
-                          const proj = projectMap.get(rem.task.projectId);
-                          return (
-                            <li key={`${rem.task.id}-${rem.time}-${idx}`} className="home-agenda-item">
-                              <time className="home-agenda-time num">{rem.time}</time>
-                              <button className="home-agenda-title" onClick={() => props.onOpen(rem.task.id)}>
-                                {rem.task.title}
-                              </button>
-                              <span className="home-agenda-meta">
-                                {proj && proj.id !== 'inbox' && (
-                                  <span className="dot" style={{ background: proj.color }} title={proj.name} />
-                                )}
-                                <span className="home-agenda-kind">{rem.kind}</span>
-                              </span>
-                            </li>
-                          );
-                        })}
-                      </ul>
-                    </div>
-                  )}
-                </div>
+                  );
+                })()
               ) : (
                 <p className="home-empty-copy">No timed commitments left today. The rest of the day is yours.</p>
               )}
@@ -568,10 +614,16 @@ export default function HomeView(props: { tasks: Task[]; onSelect: (kind: string
                   />
                   <div className="home-journal-actions">
                     <button type="submit" className="btn-secondary mini home-journal-save-btn" disabled={journalSaving || !journalDraft.trim()}>
-                      {journalSaving ? 'Saving…' : 'Save'}
+                      {journalSaving ? 'Saving…' : (
+                        <>
+                          <Check size={12} strokeWidth={2.4} aria-hidden="true" />
+                          Save
+                        </>
+                      )}
                     </button>
                     {editingJournal && (
                       <button type="button" className="btn-quiet mini" onClick={() => setEditingJournal(false)}>
+                        <X size={12} strokeWidth={2} aria-hidden="true" />
                         Cancel
                       </button>
                     )}
@@ -591,7 +643,10 @@ export default function HomeView(props: { tasks: Task[]; onSelect: (kind: string
                     </div>
                   </div>
                   <div className="home-journal-actions">
-                    <button className="btn-secondary" onClick={() => props.onSelect('journal')}>Continue writing</button>
+                    <button className="btn-secondary" onClick={() => props.onSelect('journal')}>
+                      <PenLine size={13} strokeWidth={2} aria-hidden="true" />
+                      Continue writing
+                    </button>
                     <button
                       type="button"
                       className="btn-quiet mini"
@@ -600,6 +655,7 @@ export default function HomeView(props: { tasks: Task[]; onSelect: (kind: string
                         setEditingJournal(true);
                       }}
                     >
+                      <PenLine size={12} strokeWidth={2} aria-hidden="true" />
                       Edit highlight
                     </button>
                   </div>
@@ -626,7 +682,10 @@ export default function HomeView(props: { tasks: Task[]; onSelect: (kind: string
                 ))}
               </ul>
               <p className="widget-meta">{noNextAction} active goal{noNextAction === 1 ? '' : 's'} without a next task.</p>
-              <button className="btn-secondary" onClick={() => setReviewOpen(true)}>Review this week</button>
+              <button className="btn-secondary" onClick={() => setReviewOpen(true)}>
+                <CalendarCheck size={14} strokeWidth={2} aria-hidden="true" />
+                Review this week
+              </button>
             </section>
           )}
 

@@ -5,7 +5,7 @@ import type { Selection } from '../components/Sidebar';
 import './workflow.css';
 import { useRef, useState } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
-import { Check, ChevronDown, ChevronRight, Pencil, Plus, Target, X } from 'lucide-react';
+import { CalendarCheck, Check, ChevronDown, ChevronRight, Pencil, Plus, Target, X } from 'lucide-react';
 import { db } from '../db';
 import { addGoal, updateGoal } from '../repo';
 import TaskList from '../components/TaskList';
@@ -87,7 +87,11 @@ export default function GoalsView(props: { tasks: Task[]; onOpen: (id: string) =
         description="Progress tracks linked tasks. Marking a goal done is separate."
         actions={(
           <>
-            {!reviewOpen && <button className="btn-secondary" onClick={() => setReviewOpen(true)}>Weekly review</button>}
+            {!reviewOpen && (
+              <button className="btn-secondary" onClick={() => setReviewOpen(true)}>
+                <CalendarCheck size={14} strokeWidth={2} aria-hidden="true" /> Weekly review
+              </button>
+            )}
             <button className="btn-primary" disabled={saving !== null} onClick={() => { setAdding(!adding); setCreateError(''); setSaveStatus(''); }} aria-label="New goal">
               <Plus size={14} strokeWidth={2} aria-hidden="true" /> New goal
             </button>

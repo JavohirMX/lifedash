@@ -28,12 +28,13 @@ export async function addTask(input: {
   noteId?: string | null;
   tags?: string[];
   pinned?: boolean;
+  note?: string;
 }): Promise<Task> {
   const now = Date.now();
   const task: Task = {
     id: newId(),
     title: input.title.trim(),
-    note: '',
+    note: input.note ? input.note.trim() : '',
     noteDoc: null,
     projectId: input.projectId,
     parentId: input.parentId ?? null,

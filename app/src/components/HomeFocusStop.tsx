@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { Square } from 'lucide-react';
 import { stopFocus } from '../repo';
 export default function HomeFocusStop({ children }: { children: ReactNode }) {
   const [busy, setBusy] = useState(false), [error, setError] = useState('');
@@ -12,7 +13,13 @@ export default function HomeFocusStop({ children }: { children: ReactNode }) {
     finally { writing.current = false; if (mounted.current) setBusy(false); }
   }
   return <div aria-busy={busy}>
-    <div className="focus-task">{children}<button className="btn-secondary focus-stop" disabled={busy} onClick={() => void stop()}>Stop</button></div>
+    <div className="focus-task">
+      {children}
+      <button className="btn-secondary focus-stop" disabled={busy} onClick={() => void stop()}>
+        <Square size={11} fill="currentColor" strokeWidth={0} aria-hidden="true" />
+        Stop
+      </button>
+    </div>
     {busy && <p className="sub-add-feedback" role="status">Stopping focus…</p>}
     {error && <p className="sub-add-feedback" role="alert">{error}</p>}
   </div>;
