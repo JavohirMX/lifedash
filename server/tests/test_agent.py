@@ -1267,3 +1267,61 @@ def test_device_settings_accept_new_designprompts_styles(client):
         assert r.status_code == 200, (style, r.text)
         assert r.json()["settings"]["style"] == style
     assert client.put(f"/api/agent/devices/{device_id}/settings", json={"style": "vaporwave"}, headers=h).status_code == 422
+
+
+def test_recurrence_monthly_dtstart_derived_day_respects_count(client):
+    # Parity finding: dateutil derives BYMONTHDAY from DTSTART when the string
+    # omits it, so the clamp fast-path fired and rr.after's COUNT enforcement
+    # was bypassed - completing an exhausted monthly series spawned a new
+    # occurrence the client never spawns.
+    session = register(client)
+    seed_inbox(client, session)
+    key = make_key(client, session)
+    h = auth(key["token"])
+    rule = "DTSTART:20260514T090000\nRRULE:FREQ=MONTHLY;COUNT=4"  # last: 2026-08-14
+    t = client.post("/api/agent/tasks", json={"title": "m", "recurrence": rule, "dueDate": "2026-08-14"}, headers=h)
+    assert t.status_code == 201, t.text
+    r = client.post(f"/api/agent/tasks/{t.json()['id']}/complete", json={"today": "2026-11-25"}, headers=h)
+    assert r.status_code == 200, r.text
+    assert r.json()["spawned"] is None
+
+
+def test_recurrence_monthly_explicit_bymonthday_still_clamps(client):
+    # The written BYMONTHDAY keeps the client-parity clamp (31st -> Feb 28),
+    # and the clamp path intentionally ignores COUNT/UNTIL exactly like the
+    # client's nextMonthlyClamped does - parity, not a new policy.
+    session = register(client)
+    seed_inbox(client, session)
+    key = make_key(client, session)
+    h = auth(key["token"])
+    rule = "DTSTART:20260131T090000\nRRULE:FREQ=MONTHLY;BYMONTHDAY=31"
+    t = client.post("/api/agent/tasks", json={"title": "c", "recurrence": rule, "dueDate": "2026-01-31"}, headers=h)
+    assert t.status_code == 201, t.text
+    r = client.post(f"/api/agent/tasks/{t.json()['id']}/complete", json={"today": "2026-02-15"}, headers=h)
+    assert r.status_code == 200, r.text
+    assert r.json()["spawned"]["dueDate"] == "2026-02-28"
+
+
+def test_recurrence_mixed_naive_dtstart_utc_until(client):
+    # Parity finding: rrule.js parses every datetime as UTC, but dateutil
+    # refuses naive DTSTART + UTC UNTIL, so agent completion silently spawned
+    # nothing and create/patch 422'd rules the client accepts (imported ICS
+    # feeds produce this shape). The naive side is now normalized to UTC.
+    session = register(client)
+    seed_inbox(client, session)
+    key = make_key(client, session)
+    h = auth(key["token"])
+    for rule, due, today, want in (
+        ("DTSTART:20260528T090000\nRRULE:FREQ=DAILY;UNTIL=20270315T000000Z", "2026-12-25", "2026-08-12", "2026-12-26"),
+        ("DTSTART:20260528T090000Z\nRRULE:FREQ=DAILY;UNTIL=20270315T000000", "2026-12-25", "2026-08-12", "2026-12-26"),
+    ):
+        t = client.post("/api/agent/tasks", json={"title": "u", "recurrence": rule, "dueDate": due}, headers=h)
+        assert t.status_code == 201, (rule, t.text)
+        r = client.post(f"/api/agent/tasks/{t.json()['id']}/complete", json={"today": today}, headers=h)
+        assert r.status_code == 200, (rule, r.text)
+        assert r.json()["spawned"]["dueDate"] == want, rule
+    # A series whose UNTIL already passed still spawns nothing after normalization.
+    t = client.post("/api/agent/tasks", json={"title": "x", "recurrence": "DTSTART:20260101T090000\nRRULE:FREQ=DAILY;UNTIL=20260110T000000Z", "dueDate": "2026-01-09"}, headers=h)
+    assert t.status_code == 201, t.text
+    r = client.post(f"/api/agent/tasks/{t.json()['id']}/complete", json={"today": "2026-06-01"}, headers=h)
+    assert r.json()["spawned"] is None

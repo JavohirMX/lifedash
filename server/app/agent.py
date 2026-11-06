@@ -250,7 +250,21 @@ def _norm_tags(tags: list[str]) -> list[str]:
 
 
 def _parse_rule(rule: str):
-    """dateutil rruleset for an RRULE string with DTSTART; None when malformed."""
+    """dateutil rruleset for an RRULE string with DTSTART; None when malformed.
+
+    Client parity: rrule.js parses every datetime as UTC, so a naive DTSTART
+    mixed with a UTC UNTIL (or the reverse) still evaluates. dateutil refuses
+    the mix, which would silently stop agent-side completion from spawning
+    (and 422 create/patch) for rules the client accepts - imported ICS feeds
+    produce exactly this shape. Normalize by marking the naive side UTC too.
+    """
+    dtstart_naive = re.search(r"^DTSTART:(\d{8}T\d{6})(?!Z)\s*$", rule, re.M)
+    until_z = re.search(r"UNTIL=\d{8}T\d{6}Z", rule)
+    until_naive = re.search(r"UNTIL=(\d{8}T\d{6})(?!Z)", rule)
+    if dtstart_naive and until_z:
+        rule = re.sub(r"^(DTSTART:\d{8}T\d{6})(?!Z)(\s*)$", r"\1Z\2", rule, count=1, flags=re.M)
+    elif until_naive and re.search(r"^DTSTART:\d{8}T\d{6}Z\s*$", rule, re.M):
+        rule = re.sub(r"UNTIL=(\d{8}T\d{6})(?!Z)", r"UNTIL=\1Z", rule, count=1)
     try:
         return rrule.rrulestr(rule, forceset=False)
     except (ValueError, TypeError):
@@ -278,7 +292,14 @@ def _next_occurrence(rule: str, due_date: str, today: str) -> str | None:
     if rr is None:
         return None
     base = max(due_date, today)
-    mdays = rr._bymonthday if isinstance(rr._bymonthday, (list, tuple)) else ([rr._bymonthday] if rr._bymonthday else [])
+    # Clamp-path eligibility uses only the BYMONTHDAY written in the rule
+    # string, matching the client's rr.origOptions check. dateutil derives
+    # BYMONTHDAY from DTSTART when the string omits it; taking the clamp path
+    # on that derived value would skip COUNT/UNTIL enforcement (rr.after is
+    # bypassed) and spawn occurrences past the series end, which the client
+    # never does.
+    m = re.search(r"(?:^|[;\n])BYMONTHDAY=(-?[\d,]+)", rule)
+    mdays = [int(x) for x in m.group(1).split(",")] if m else []
     if (
         rr._freq == rrule.MONTHLY
         and (rr._interval or 1) == 1
