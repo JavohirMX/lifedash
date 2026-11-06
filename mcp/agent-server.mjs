@@ -29,8 +29,23 @@ async function api(method, path, body) {
   return res.json();
 }
 
+// The live read surface is the generic entities route; the named list/search
+// routes an earlier draft called (/api/agent/tasks etc.) never existed.
+async function listEntities(collection) {
+  const data = await api('GET', `/api/agent/entities/${collection}?limit=5000`);
+  return (data.entities || []).map((e) => ({ ...e.data, id: e.id }));
+}
+
+function matchesQuery(text, query) {
+  return !query || String(text || '').toLowerCase().includes(query.toLowerCase());
+}
+
+function textResult(value) {
+  return { content: [{ type: 'text', text: JSON.stringify(value) }] };
+}
+
 try {
-  const server = new McpServer({ name: 'lifedash-live-agent', version: '0.2.0' });
+  const server = new McpServer({ name: 'lifedash-live-agent', version: '0.3.0' });
 
   // search_tasks
   server.registerTool(
@@ -47,12 +62,10 @@ try {
       annotations: { readOnlyHint: true, destructiveHint: false, openWorldHint: false },
     },
     async (args) => {
-      const q = new URLSearchParams();
-      if (args.query) q.set('q', args.query);
-      if (args.status !== 'all') q.set('status', args.status);
-      q.set('limit', String(args.limit));
-      const data = await api('GET', `/api/agent/tasks?${q.toString()}`);
-      return { content: [{ type: 'text', text: JSON.stringify(data) }] };
+      let tasks = await listEntities('tasks');
+      if (args.status !== 'all') tasks = tasks.filter((t) => (t.status || 'active') === args.status);
+      tasks = tasks.filter((t) => matchesQuery(t.title, args.query));
+      return textResult({ tasks: tasks.slice(0, args.limit) });
     },
   );
 
@@ -76,7 +89,7 @@ try {
     },
     async (args) => {
       const data = await api('POST', '/api/agent/tasks', args);
-      return { content: [{ type: 'text', text: JSON.stringify(data) }] };
+      return textResult(data);
     },
   );
 
@@ -98,8 +111,36 @@ try {
       annotations: { readOnlyHint: false, destructiveHint: false, openWorldHint: false },
     },
     async ({ id, ...patch }) => {
-      const data = await api('PATCH', `/api/agent/tasks/${encodeURIComponent(id)}`, patch);
-      return { content: [{ type: 'text', text: JSON.stringify(data) }] };
+      // The server PATCH only accepts status active|archived; completing and
+      // reactivating go through their dedicated endpoints (they also drive
+      // recurrence spawning / completedAt, which a raw PATCH would skip).
+      const { status, ...fields } = patch;
+      let result = null;
+      if (Object.keys(fields).length > 0 || status === 'archived') {
+        const body = status === 'archived' ? { ...fields, status } : fields;
+        result = await api('PATCH', `/api/agent/tasks/${encodeURIComponent(id)}`, body);
+      }
+      if (status === 'done' || status === 'active') {
+        const tasks = await listEntities('tasks');
+        const current = tasks.find((t) => t.id === id);
+        if (!current) throw new Error(`Lifedash Agent API error (404): task ${id} not found`);
+        const currentStatus = current.status || 'active';
+        if (status === currentStatus) {
+          if (!result) result = { changed: false, task: current };
+        } else if (status === 'done') {
+          if (currentStatus === 'active') {
+            result = await api('POST', `/api/agent/tasks/${encodeURIComponent(id)}/complete`, {});
+          } else {
+            throw new Error(`Cannot complete task ${id}: current status is ${currentStatus}`);
+          }
+        } else if (currentStatus === 'done') {
+          result = await api('POST', `/api/agent/tasks/${encodeURIComponent(id)}/uncomplete`, {});
+        } else {
+          // archived -> active is a plain PATCH status change.
+          result = await api('PATCH', `/api/agent/tasks/${encodeURIComponent(id)}`, { status: 'active' });
+        }
+      }
+      return textResult(result || { changed: false });
     },
   );
 
@@ -111,10 +152,7 @@ try {
       inputSchema: z.object({}).strict(),
       annotations: { readOnlyHint: true, destructiveHint: false, openWorldHint: false },
     },
-    async () => {
-      const data = await api('GET', '/api/agent/projects');
-      return { content: [{ type: 'text', text: JSON.stringify(data) }] };
-    },
+    async () => textResult({ projects: await listEntities('projects') }),
   );
 
   // list_habits
@@ -125,10 +163,7 @@ try {
       inputSchema: z.object({}).strict(),
       annotations: { readOnlyHint: true, destructiveHint: false, openWorldHint: false },
     },
-    async () => {
-      const data = await api('GET', '/api/agent/habits');
-      return { content: [{ type: 'text', text: JSON.stringify(data) }] };
-    },
+    async () => textResult({ habits: await listEntities('habits') }),
   );
 
   // list_goals
@@ -139,10 +174,7 @@ try {
       inputSchema: z.object({}).strict(),
       annotations: { readOnlyHint: true, destructiveHint: false, openWorldHint: false },
     },
-    async () => {
-      const data = await api('GET', '/api/agent/goals');
-      return { content: [{ type: 'text', text: JSON.stringify(data) }] };
-    },
+    async () => textResult({ goals: await listEntities('goals') }),
   );
 
   // search_notes
@@ -159,11 +191,11 @@ try {
       annotations: { readOnlyHint: true, destructiveHint: false, openWorldHint: false },
     },
     async (args) => {
-      const q = new URLSearchParams();
-      if (args.query) q.set('q', args.query);
-      q.set('limit', String(args.limit));
-      const data = await api('GET', `/api/agent/notes?${q.toString()}`);
-      return { content: [{ type: 'text', text: JSON.stringify(data) }] };
+      let notes = await listEntities('notes');
+      notes = notes.filter(
+        (n) => matchesQuery(n.title, args.query) || matchesQuery(n.text ?? n.content, args.query),
+      );
+      return textResult({ notes: notes.slice(0, args.limit) });
     },
   );
 

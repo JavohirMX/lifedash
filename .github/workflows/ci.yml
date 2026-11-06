@@ -123,6 +123,18 @@ jobs:
       - name: Install dependencies
         if: steps.dup.outputs.skip != 'true' && hashFiles('mcp/package.json') != ''
         run: npm ci
+      - name: Install uv
+        if: steps.dup.outputs.skip != 'true' && hashFiles('mcp/package.json') != ''
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+      - name: Set up Python
+        if: steps.dup.outputs.skip != 'true' && hashFiles('mcp/package.json') != ''
+        run: uv python install 3.11
+      - name: Install sync-server dependencies (live protocol test)
+        if: steps.dup.outputs.skip != 'true' && hashFiles('mcp/package.json') != ''
+        working-directory: server
+        run: uv sync --all-groups
       - name: Run tests
         if: steps.dup.outputs.skip != 'true' && hashFiles('mcp/package.json') != ''
         run: npm test
