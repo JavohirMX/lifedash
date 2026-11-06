@@ -84,6 +84,13 @@ function TitleInput(props: { id: string; title: string }) {
   return <div className="note-title-field">
     <input className="note-title-input" value={draft} placeholder="Note title" aria-label="Note title"
       onChange={(event) => { setDraft(event.target.value); latest.current = event.target.value; save(event.target.value); }}
+      onKeyDown={(event) => {
+        if (event.key === 'Enter' && !event.nativeEvent.isComposing) {
+          event.preventDefault();
+          if (debounceTimer.current) flush(latest.current);
+          (event.target as HTMLInputElement).blur();
+        }
+      }}
       onBlur={() => { if (debounceTimer.current) flush(latest.current); }} />
     <span className="note-title-status" role="status">{state === 'saving' ? 'Saving title…' : state === 'saved' ? 'Title saved on this device' : ''}</span>
     {state === 'error' && <div className="note-title-error">

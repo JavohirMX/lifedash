@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { Play } from 'lucide-react';
 import { startFocus } from '../repo';
 export default function HomeFocusStart({ taskId }: { taskId: string }) {
   const lock = useRef(false), mounted = useRef(true);
@@ -11,5 +12,13 @@ export default function HomeFocusStart({ taskId }: { taskId: string }) {
     catch { if (mounted.current) setError("Couldn't start focus. Try Start focus again."); }
     finally { lock.current = false; if (mounted.current) setBusy(false); }
   }
-  return <div aria-busy={busy}><button className="btn-primary" disabled={busy} onClick={() => void start()}>{busy ? 'Starting…' : 'Start focus'}</button>{error && <p role="alert">{error}</p>}</div>;
+  return (
+    <div aria-busy={busy}>
+      <button className="btn-primary" disabled={busy} onClick={() => void start()}>
+        <Play size={13} fill="currentColor" strokeWidth={2} aria-hidden="true" />
+        {busy ? 'Starting…' : 'Start focus'}
+      </button>
+      {error && <p role="alert">{error}</p>}
+    </div>
+  );
 }

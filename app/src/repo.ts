@@ -28,12 +28,13 @@ export async function addTask(input: {
   noteId?: string | null;
   tags?: string[];
   pinned?: boolean;
+  note?: string;
 }): Promise<Task> {
   const now = Date.now();
   const task: Task = {
     id: newId(),
     title: input.title.trim(),
-    note: '',
+    note: input.note ? input.note.trim() : '',
     noteDoc: null,
     projectId: input.projectId,
     parentId: input.parentId ?? null,
@@ -419,23 +420,53 @@ export async function moveTask(taskId: string, targetId: string, after: boolean,
   await updateTask(taskId, { order });
 }
 
-export async function addHabit(name: string, color: string, weekdays: number[] | null): Promise<void> {
+export async function addHabit(
+  name: string,
+  color: string,
+  weekdays: number[] | null,
+  options?: {
+    targetType?: 'binary' | 'numeric';
+    targetValue?: number;
+    unit?: string;
+    targetFrequencyDays?: number | null;
+  }
+): Promise<void> {
   const count = await db.habits.count();
   await db.habits.add({
     id: newId(),
     name: name.trim(),
     color,
     weekdays,
+    targetType: options?.targetType ?? 'binary',
+    targetValue: options?.targetValue,
+    unit: options?.unit?.trim() || undefined,
+    targetFrequencyDays: options?.targetFrequencyDays,
     order: count,
     archived: false,
     createdAt: Date.now(),
   });
 }
 
-export async function updateHabit(id: string, patch: { name?: string; weekdays?: number[] | null }): Promise<void> {
-  const clean: { name?: string; weekdays?: number[] | null } = {};
+export async function updateHabit(
+  id: string,
+  patch: {
+    name?: string;
+    color?: string;
+    weekdays?: number[] | null;
+    targetType?: 'binary' | 'numeric';
+    targetValue?: number;
+    unit?: string;
+    targetFrequencyDays?: number | null;
+  }
+): Promise<void> {
+  const clean: Record<string, unknown> = {};
   if (patch.name !== undefined) clean.name = patch.name.trim();
+  if (patch.color !== undefined) clean.color = patch.color;
   if (patch.weekdays !== undefined) clean.weekdays = patch.weekdays;
+  if (patch.targetType !== undefined) clean.targetType = patch.targetType;
+  if (patch.targetValue !== undefined) clean.targetValue = patch.targetValue;
+  if (patch.unit !== undefined) clean.unit = patch.unit.trim() || undefined;
+  if (patch.targetFrequencyDays !== undefined) clean.targetFrequencyDays = patch.targetFrequencyDays;
   await db.habits.update(id, clean);
 }
 
@@ -447,11 +478,31 @@ export async function restoreHabit(id: string): Promise<void> {
   await db.habits.update(id, { archived: false });
 }
 
+export async function deleteHabit(id: string): Promise<void> {
+  await db.transaction('rw', db.habits, db.habitLogs, async () => {
+    await db.habitLogs.where('habitId').equals(id).delete();
+    await db.habits.delete(id);
+  });
+}
+
 export async function toggleHabitForDate(habitId: string, date: string): Promise<void> {
   const id = `${habitId}:${date}`;
   const existing = await db.habitLogs.get(id);
   if (existing) await db.habitLogs.delete(id);
   else await db.habitLogs.add({ id, habitId, date, doneAt: Date.now() });
+}
+
+export async function setHabitValueForDate(
+  habitId: string,
+  date: string,
+  value: number
+): Promise<void> {
+  const id = `${habitId}:${date}`;
+  if (value <= 0) {
+    await db.habitLogs.delete(id);
+  } else {
+    await db.habitLogs.put({ id, habitId, date, value, doneAt: Date.now() });
+  }
 }
 
 export async function importTasks(

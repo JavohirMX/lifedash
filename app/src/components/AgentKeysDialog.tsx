@@ -92,16 +92,16 @@ export function AgentKeysView(props: {
                 ))}
                 {state.createError && <p className="form-save-error" role="alert">{state.createError}</p>}
                 <form onSubmit={e => { e.preventDefault(); if (name.trim()) props.onCreate?.(name, scope, projectId || null); }}>
-                  <label className="field">Name
+                  <label className="field"><span>Name</span>
                     <input id="agent-key-name" type="text" value={name} onChange={e => setName(e.target.value)} placeholder="e.g. Claude" maxLength={64} disabled={state.busy} />
                   </label>
-                  <label className="field">Access
+                  <label className="field"><span>Access</span>
                     <select aria-label="Key scope" value={scope} onChange={e => setScope(e.target.value as AgentKeyScope)} disabled={state.busy}>
                       <option value="read-write">Read & change</option>
                       <option value="read">Read only</option>
                     </select>
                   </label>
-                  <label className="field">Limit to project
+                  <label className="field"><span>Limit to project</span>
                     <select aria-label="Key project" value={projectId} onChange={e => setProjectId(e.target.value)} disabled={state.busy}>
                       <option value="">All projects</option>
                       {props.projects.filter(p => !p.archived).map(p => (

@@ -5,7 +5,7 @@ import type { Selection } from '../components/Sidebar';
 import './workflow.css';
 import { useRef, useState } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
-import { Check, ChevronDown, ChevronRight, Pencil, Plus, Target, X } from 'lucide-react';
+import { CalendarCheck, Check, ChevronDown, ChevronRight, Pencil, Plus, Target, X } from 'lucide-react';
 import { db } from '../db';
 import { addGoal, updateGoal } from '../repo';
 import TaskList from '../components/TaskList';
@@ -87,7 +87,11 @@ export default function GoalsView(props: { tasks: Task[]; onOpen: (id: string) =
         description="Progress tracks linked tasks. Marking a goal done is separate."
         actions={(
           <>
-            {!reviewOpen && <button className="btn-secondary" onClick={() => setReviewOpen(true)}>Weekly review</button>}
+            {!reviewOpen && (
+              <button className="btn-secondary" onClick={() => setReviewOpen(true)}>
+                <CalendarCheck size={14} strokeWidth={2} aria-hidden="true" /> Weekly review
+              </button>
+            )}
             <button className="btn-primary" disabled={saving !== null} onClick={() => { setAdding(!adding); setCreateError(''); setSaveStatus(''); }} aria-label="New goal">
               <Plus size={14} strokeWidth={2} aria-hidden="true" /> New goal
             </button>
@@ -99,6 +103,7 @@ export default function GoalsView(props: { tasks: Task[]; onOpen: (id: string) =
       {statusError && <p className="form-save-error" role="alert">{statusError}</p>}
       {adding && (
         <fieldset className="goal-add save-form" disabled={saving !== null} aria-busy={saving === 'create'}>
+          <legend className="quick-add-label--sr">New goal</legend>
           <input
             autoFocus
             value={title}
@@ -110,7 +115,19 @@ export default function GoalsView(props: { tasks: Task[]; onOpen: (id: string) =
               if (e.key === 'Escape' && !e.nativeEvent.isComposing) setAdding(false);
             }}
           />
-          <input type="date" value={target} aria-label="Target date (optional)" onChange={(e) => setTarget(e.target.value)} />
+          <label className="field row" style={{ margin: 0 }}>
+            <span style={{ whiteSpace: 'nowrap' }}>Target date</span>
+            <input
+              type="date"
+              value={target}
+              aria-label="Target date (optional)"
+              onChange={(e) => setTarget(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && !e.nativeEvent.isComposing) void submit();
+                if (e.key === 'Escape' && !e.nativeEvent.isComposing) setAdding(false);
+              }}
+            />
+          </label>
           <button className="btn-primary" onClick={submit} disabled={!title.trim()}>Add goal</button>
           <button className="mini" onClick={() => setAdding(false)}>Cancel</button>
         {createError && <p className="form-save-error" role="alert">{createError}</p>}
@@ -148,6 +165,7 @@ export default function GoalsView(props: { tasks: Task[]; onOpen: (id: string) =
               </div>
               {editingId === g.id ? (
                 <fieldset className="goal-add goal-edit save-form" disabled={saving !== null} aria-busy={saving === 'edit'}>
+                  <legend className="quick-add-label--sr">Edit goal</legend>
                   <input
                     autoFocus
                     value={editTitle}
@@ -155,7 +173,16 @@ export default function GoalsView(props: { tasks: Task[]; onOpen: (id: string) =
                     onChange={(e) => setEditTitle(e.target.value)}
                     onKeyDown={(e) => { if (e.key === 'Enter' && !e.nativeEvent.isComposing) void saveEdit(); if (e.key === 'Escape' && !e.nativeEvent.isComposing) setEditingId(null); }}
                   />
-                  <input type="date" value={editTarget} aria-label="Target date (optional)" onChange={(e) => setEditTarget(e.target.value)} />
+                  <label className="field row" style={{ margin: 0 }}>
+                    <span style={{ whiteSpace: 'nowrap' }}>Target date</span>
+                    <input
+                      type="date"
+                      value={editTarget}
+                      aria-label="Target date (optional)"
+                      onChange={(e) => setEditTarget(e.target.value)}
+                      onKeyDown={(e) => { if (e.key === 'Enter' && !e.nativeEvent.isComposing) void saveEdit(); if (e.key === 'Escape' && !e.nativeEvent.isComposing) setEditingId(null); }}
+                    />
+                  </label>
                   <button className="btn-primary" onClick={saveEdit} disabled={!editTitle.trim()}>Save</button>
                   <button className="mini" onClick={() => setEditingId(null)}>Cancel</button>
                 {editError && <p className="form-save-error" role="alert">{editError}</p>}

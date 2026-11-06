@@ -194,7 +194,17 @@ function TagRename({ tag, onRenamed }: { tag: string; onRenamed: (to: string, st
   return <div className="tag-manage">
     {!renaming ? <button className="mini" onClick={() => { setRenaming(true); setNewTag(tag); setError(''); }}>Rename #{tag}</button> :
       <form className="tag-rename" onSubmit={e => { e.preventDefault(); void save(); }} aria-busy={busy}>
-        <input value={newTag} disabled={busy} onChange={e => setNewTag(e.target.value)} aria-label="New tag name" autoFocus />
+        <input
+          value={newTag}
+          disabled={busy}
+          onChange={e => setNewTag(e.target.value)}
+          aria-label="New tag name"
+          autoFocus
+          autoCapitalize="none"
+          autoCorrect="off"
+          spellCheck={false}
+          enterKeyHint="done"
+        />
         <button className="mini" type="submit" disabled={busy}>Save</button>
         <button className="mini" type="button" disabled={busy} onClick={() => setRenaming(false)}>Cancel</button>
         {busy && <p className="sub-add-feedback" role="status">Renaming tag…</p>}

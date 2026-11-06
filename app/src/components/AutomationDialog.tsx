@@ -164,41 +164,56 @@ export default function AutomationDialog(props: {
             submit();
           }}
         >
-          <select
-            aria-label="Rule trigger"
-            value={kind}
-            onChange={(e) => setKind(e.target.value as 'tag' | 'weekly')}
-          >
-            <option value="tag">Tag task completes</option>
-            <option value="weekly">Weekly on a day</option>
-          </select>
+          <div className="field">
+            <span>Trigger</span>
+            <select
+              aria-label="Rule trigger"
+              value={kind}
+              onChange={(e) => setKind(e.target.value as 'tag' | 'weekly')}
+            >
+              <option value="tag">Tag task completes</option>
+              <option value="weekly">Weekly on a day</option>
+            </select>
+          </div>
           {kind === 'tag' ? (
-            <input
-              aria-label="Tag"
-              placeholder="#tag"
-              value={tag}
-              onChange={(e) => setTag(e.target.value)}
-            />
+            <div className="field">
+              <span>When tag completes</span>
+              <input
+                aria-label="Tag"
+                placeholder="#tag"
+                value={tag}
+                onChange={(e) => setTag(e.target.value)}
+              />
+            </div>
           ) : (
-            <select aria-label="Weekday" value={weekday} onChange={(e) => setWeekday(Number(e.target.value))}>
-              {WEEKDAYS.map((d, i) => (
-                <option key={d} value={i}>{d}</option>
+            <div className="field">
+              <span>Day of week</span>
+              <select aria-label="Weekday" value={weekday} onChange={(e) => setWeekday(Number(e.target.value))}>
+                {WEEKDAYS.map((d, i) => (
+                  <option key={d} value={i}>{d}</option>
+                ))}
+              </select>
+            </div>
+          )}
+          <div className="field" style={{ flex: '1 1 180px' }}>
+            <span>Task to create</span>
+            <input
+              aria-label="Task to create"
+              placeholder="e.g. Weekly review"
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+            />
+          </div>
+          <div className="field">
+            <span>Project</span>
+            <select aria-label="Project for the created task" value={projectId} onChange={(e) => setProjectId(e.target.value)}>
+              <option value="">{kind === 'tag' ? 'Same project as completed task' : 'Inbox (default)'}</option>
+              <option value="inbox">Inbox</option>
+              {props.projects.map((p) => (
+                <option key={p.id} value={p.id}>{p.name}</option>
               ))}
             </select>
-          )}
-          <input
-            aria-label="Task to create"
-            placeholder="Task to create"
-            value={title}
-            onChange={(e) => setTitle(e.target.value)}
-          />
-          <select aria-label="Project for the created task" value={projectId} onChange={(e) => setProjectId(e.target.value)}>
-            <option value="">{kind === 'tag' ? 'Same project as completed task' : 'Inbox (default)'}</option>
-            <option value="inbox">Inbox</option>
-            {props.projects.map((p) => (
-              <option key={p.id} value={p.id}>{p.name}</option>
-            ))}
-          </select>
+          </div>
           <label className="rule-check">
             <input type="checkbox" checked={pinned} onChange={(e) => setPinned(e.target.checked)} />
             Pin the created task

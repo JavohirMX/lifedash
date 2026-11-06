@@ -2,14 +2,17 @@ import './workflow.css';
 import CompletionButton from '../components/CompletionButton';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
-import { Check, ListPlus, Pin, PinOff, Plus, Search, StickyNote, Trash2 } from 'lucide-react';
+import { Check, ListPlus, Pin, PinOff, Plus, Search, Sparkles, StickyNote, Trash2, X } from 'lucide-react';
 
-import { addNote, updateNote, deleteNote, addTasksFromNoteChecklist } from '../repo';
+import { addNote, updateNote, deleteNote, addTasksFromNoteChecklist, addTask } from '../repo';
 import { extractChecklistItems, searchNotes } from '../logic';
-import { db } from '../db';
+import { db, INBOX_ID } from '../db';
 import NoteEditor from '../components/NoteEditor';
 import NoteTitle, { discardDeletedNoteTitle } from '../components/NoteTitle';
 import { PageHeader } from '../components/Page';
+import { useAiSettings, loadAiSettings } from '../ai/aiSettings';
+import { reviewRequest, requestAdvice } from '../ai/provider';
+import { parseAiResponse, type TaskItemProposal } from '../ai/proposalParser';
 
 function excerpt(text: string, n = 90): string {
   const t = text.replace(/\s+/g, ' ').trim();
@@ -72,6 +75,74 @@ export default function NotesView(props: { initialOpenId?: string }) {
     catch { setCreateError("Couldn't create a note. No note was added. Try New note again."); }
     finally { creating.current = false; setIsCreating(false); }
   }
+
+  // AI Task Extraction state
+  const aiSettings = useAiSettings();
+  const [aiExtractOpen, setAiExtractOpen] = useState(false);
+  const [aiExtractLoading, setAiExtractLoading] = useState(false);
+  const [aiExtractedTasks, setAiExtractedTasks] = useState<TaskItemProposal[]>([]);
+  const [selectedExtractedTasks, setSelectedExtractedTasks] = useState<Record<number, boolean>>({});
+  const [aiExtractNotice, setAiExtractNotice] = useState<string>('');
+
+  async function handleAiExtract(note: { id: string; title: string; note: string }) {
+    setAiExtractOpen(true);
+    setAiExtractLoading(true);
+    setAiExtractNotice('');
+
+    try {
+      const s = loadAiSettings();
+      if (s.baseUrl && s.model) {
+        const prompt = `Extract all concrete actionable tasks from this note titled "${note.title}". Content:\n${note.note.slice(0, 3000)}\nOutput format: \`\`\`json\n{ "action": "create_tasks", "items": [{ "title": "task title", "priority": 1, "dueDate": null }] }\n\`\`\``;
+        const reviewed = reviewRequest({ baseUrl: s.baseUrl, model: s.model, apiKey: s.apiKey }, prompt, '');
+        const raw = await requestAdvice({ baseUrl: s.baseUrl, model: s.model, apiKey: s.apiKey }, reviewed, true);
+        const parsed = parseAiResponse(raw);
+        const taskProp = parsed.proposals.find((p) => p.action === 'create_tasks');
+        if (taskProp && taskProp.items.length > 0) {
+          setAiExtractedTasks(taskProp.items);
+          const map: Record<number, boolean> = {};
+          taskProp.items.forEach((_, idx) => (map[idx] = true));
+          setSelectedExtractedTasks(map);
+          setAiExtractLoading(false);
+          return;
+        }
+      }
+    } catch {
+      // Fallback to text parsing heuristics
+    }
+
+    const lines = note.note.split('\n').map((l) => l.replace(/^[-*•]\s+/, '').trim()).filter((l) => l.length > 4 && l.length < 120);
+    const candidateTasks: TaskItemProposal[] = lines.slice(0, 5).map((l) => ({ title: l, priority: 0 }));
+    if (candidateTasks.length === 0) {
+      candidateTasks.push({ title: `Follow up on: ${note.title || 'Note'}`, priority: 0 });
+    }
+    setAiExtractedTasks(candidateTasks);
+    const map: Record<number, boolean> = {};
+    candidateTasks.forEach((_, idx) => (map[idx] = true));
+    setSelectedExtractedTasks(map);
+    setAiExtractLoading(false);
+  }
+
+  async function handleApplyExtractedTasks(noteId: string) {
+    let count = 0;
+    for (let i = 0; i < aiExtractedTasks.length; i++) {
+      if (selectedExtractedTasks[i]) {
+        const item = aiExtractedTasks[i];
+        await addTask({
+          title: item.title,
+          priority: item.priority ?? 0,
+          dueDate: item.dueDate,
+          dueTime: item.dueTime,
+          tags: item.tags,
+          noteId,
+          projectId: INBOX_ID,
+        });
+        count++;
+      }
+    }
+    setAiExtractNotice(`Created ${count} task${count === 1 ? '' : 's'} linked to this note.`);
+    setAiExtractOpen(false);
+    setAiExtractedTasks([]);
+  }
   const editorPane = useRef<HTMLDivElement>(null);
   const noteList = useRef<HTMLDivElement>(null);
   useEffect(() => {
@@ -120,9 +191,23 @@ export default function NotesView(props: { initialOpenId?: string }) {
             placeholder="Filter notes"
             aria-label="Filter notes"
             value={q}
+            enterKeyHint="search"
+            autoCorrect="off"
+            autoCapitalize="off"
+            spellCheck={false}
             onChange={(e) => setQ(e.target.value)}
             onKeyDown={(e) => { if (e.key === 'Escape' && !e.nativeEvent.isComposing) setQ(''); }}
           />
+          {q.length > 0 && (
+            <button
+              type="button"
+              className="search-clear-btn"
+              aria-label="Clear filter"
+              onClick={() => setQ('')}
+            >
+              <X size={13} strokeWidth={2} aria-hidden="true" />
+            </button>
+          )}
         </div>
       )}
       {filtering && shown.length === 0 ? (
@@ -158,6 +243,16 @@ export default function NotesView(props: { initialOpenId?: string }) {
               <button className="mini note-back-list" onClick={() => { setOpenId(null); requestAnimationFrame(() => noteList.current?.scrollIntoView({ block: 'start' })); }}>Back to notes</button>
               <div className="note-editor-head">
                 <NoteTitle id={open.id} title={open.title} />
+                {aiSettings.enabled && (
+                  <button
+                    className="icon-btn"
+                    aria-label="Extract tasks with AI"
+                    title="Extract action items with AI"
+                    onClick={() => void handleAiExtract(open)}
+                  >
+                    <Sparkles size={15} strokeWidth={2} />
+                  </button>
+                )}
                 {extractChecklistItems(open.noteDoc).length > 0 && (
                   <button
                     className="icon-btn"
@@ -180,6 +275,7 @@ export default function NotesView(props: { initialOpenId?: string }) {
                   </button>
                 )}
                 {extracted?.id === open.id && <span className="extracted-note num" role="status">{extracted.count === 0 ? 'Already added' : `${extracted.count} task${extracted.count === 1 ? '' : 's'} added`}</span>}
+                {aiExtractNotice && <span className="extracted-note num" role="status" style={{ color: 'var(--accent, #0f766e)' }}>{aiExtractNotice}</span>}
                 <button
                   className="icon-btn"
                   aria-label={open.pinned ? 'Unpin note' : 'Pin note'}
@@ -231,6 +327,100 @@ export default function NotesView(props: { initialOpenId?: string }) {
               )}
             </div>
           )}
+        </div>
+      )}
+      {aiSettings.enabled && aiExtractOpen && open && (
+        <div
+          className="planner-modal-backdrop"
+          style={{
+            position: 'fixed',
+            inset: 0,
+            background: 'rgba(0,0,0,0.5)',
+            zIndex: 999,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+          }}
+          onClick={() => setAiExtractOpen(false)}
+        >
+          <div
+            className="planner-ai-modal"
+            style={{
+              background: 'var(--surface, #fff)',
+              color: 'var(--text, #17202a)',
+              border: '1px solid var(--border, #cad1d7)',
+              borderRadius: 12,
+              padding: 20,
+              width: 'min(480px, 90vw)',
+              maxHeight: '80vh',
+              overflow: 'auto',
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+              <h3 style={{ margin: 0, display: 'flex', alignItems: 'center', gap: 6 }}>
+                <Sparkles size={16} color="var(--accent, #0f766e)" />
+                Extract Action Items
+              </h3>
+              <button type="button" className="mini" onClick={() => setAiExtractOpen(false)}>
+                ✕
+              </button>
+            </div>
+            <p style={{ fontSize: 12, opacity: 0.8, margin: '0 0 14px' }}>
+              Select which action items to turn into tasks linked to "{open.title || 'this note'}".
+            </p>
+
+            {aiExtractLoading ? (
+              <p style={{ fontSize: 13, color: 'var(--muted, #64748b)' }}>Scanning note for action items…</p>
+            ) : aiExtractedTasks.length === 0 ? (
+              <p style={{ fontSize: 13 }}>No action items detected in this note.</p>
+            ) : (
+              <>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 16 }}>
+                  {aiExtractedTasks.map((item, idx) => (
+                    <label
+                      key={idx}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'baseline',
+                        gap: 8,
+                        fontSize: 13,
+                        cursor: 'pointer',
+                        padding: '6px 8px',
+                        background: 'var(--surface-2, #f8fafc)',
+                        borderRadius: 6,
+                      }}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={selectedExtractedTasks[idx] ?? false}
+                        onChange={(e) =>
+                          setSelectedExtractedTasks((prev) => ({ ...prev, [idx]: e.target.checked }))
+                        }
+                      />
+                      <span>
+                        <strong>{item.title}</strong>
+                        {item.priority ? ` (P${item.priority})` : ''}
+                      </span>
+                    </label>
+                  ))}
+                </div>
+                <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
+                  <button type="button" className="mini" onClick={() => setAiExtractOpen(false)}>
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    className="btn-primary"
+                    disabled={!Object.values(selectedExtractedTasks).some(Boolean)}
+                    onClick={() => void handleApplyExtractedTasks(open.id)}
+                  >
+                    Create Selected Tasks
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
         </div>
       )}
     </section>

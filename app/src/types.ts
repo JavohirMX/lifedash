@@ -28,11 +28,17 @@ export interface Task {
   completedAt: number | null;
 }
 
+export type HabitTargetType = 'binary' | 'numeric';
+
 export interface Habit {
   id: string;
   name: string;
   color: string;
   weekdays: number[] | null; // null = every day; else weekday numbers (0=Sun)
+  targetType?: HabitTargetType; // 'binary' (default) or 'numeric'
+  targetValue?: number; // e.g. 2000 (ml), 20 (pages)
+  unit?: string; // e.g. 'ml', 'pages', 'mins'
+  targetFrequencyDays?: number | null; // e.g. 3 (for 3 days per week)
   order: number;
   archived: boolean;
   createdAt: number;
@@ -42,6 +48,7 @@ export interface HabitLog {
   id: string; // `${habitId}:${date}` - idempotent per day
   habitId: string;
   date: string; // local YYYY-MM-DD
+  value?: number; // accumulated progress for numeric habits
   doneAt: number;
 }
 

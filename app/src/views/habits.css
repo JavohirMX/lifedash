@@ -1,0 +1,448 @@
+/* Habits view modern styling - Lifedash */
+
+/* ---------- Today's Momentum Summary Banner ---------- */
+.habits-summary-card {
+  background: var(--surface);
+  border: 1px solid var(--rule);
+  border-radius: var(--radius-card);
+  padding: 16px 20px;
+  margin-bottom: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  box-shadow: var(--shadow-card);
+}
+
+.habits-summary-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.habits-summary-stats {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.habits-summary-count {
+  font-size: 1.15rem;
+  font-weight: 600;
+  color: var(--text);
+  letter-spacing: -0.01em;
+}
+
+.habits-summary-label {
+  font-size: var(--fs-small);
+  color: var(--muted);
+}
+
+.habits-summary-highlight {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: var(--fs-small);
+  color: var(--accent);
+  background: var(--accent-soft);
+  padding: 4px 10px;
+  border-radius: 9999px;
+  font-weight: 500;
+}
+
+.habits-progress-track {
+  width: 100%;
+  height: 8px;
+  background: var(--surface-2);
+  border-radius: 4px;
+  overflow: hidden;
+  position: relative;
+}
+
+.habits-progress-fill {
+  height: 100%;
+  background: var(--accent);
+  border-radius: 4px;
+  transition: width 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.habits-all-done-banner {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: var(--fs-small);
+  font-weight: 600;
+  color: var(--positive);
+  background: rgba(43, 122, 80, 0.08);
+  border: 1px solid rgba(43, 122, 80, 0.2);
+  padding: 5px 12px;
+  border-radius: var(--radius-control);
+}
+
+/* ---------- Horizon Filter Tabs ---------- */
+.habits-filter-bar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 16px;
+  overflow-x: auto;
+  padding-bottom: 2px;
+}
+
+.habits-filter-pill {
+  appearance: none;
+  background: var(--surface-2);
+  border: 1px solid transparent;
+  color: var(--muted);
+  font-size: var(--fs-small);
+  font-weight: 500;
+  padding: 6px 14px;
+  border-radius: 9999px;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.15s ease;
+}
+
+.habits-filter-pill:hover {
+  color: var(--text);
+  background: var(--active);
+}
+
+.habits-filter-pill.active {
+  background: var(--accent-soft);
+  border-color: var(--accent);
+  color: var(--accent);
+  font-weight: 600;
+}
+
+/* ---------- Habit Card Header & Today Action ---------- */
+.habit-card {
+  background: var(--surface);
+  border: 1px solid var(--rule);
+  border-radius: var(--radius-card);
+  padding: 16px 20px;
+  margin-bottom: 14px;
+  box-shadow: var(--shadow-card);
+  transition: border-color 0.15s ease;
+}
+
+.habit-card:hover {
+  border-color: var(--border);
+}
+
+.habit-header-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+  margin-bottom: 14px;
+}
+
+.habit-title-area {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  flex: 1 1 200px;
+}
+
+.habit-color-badge {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  box-shadow: 0 0 0 2px var(--surface), 0 0 0 3px rgba(0, 0, 0, 0.1);
+}
+
+.habit-header-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.habit-card .habit-name {
+  font-size: 1.05rem;
+  font-weight: 600;
+  color: var(--text);
+  margin: 0;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+
+.habit-subtitle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: var(--fs-small);
+  color: var(--muted);
+}
+
+.habit-streak-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  color: var(--warning);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.habit-today-controls {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-left: auto;
+}
+
+/* ---------- Numeric Stepper & Target ---------- */
+.numeric-habit-stepper {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: var(--surface-2);
+  border: 1px solid var(--rule);
+  border-radius: var(--radius-control);
+  padding: 3px 6px;
+}
+
+.stepper-btn {
+  width: 26px;
+  height: 26px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--control);
+  background: var(--surface);
+  color: var(--text);
+  border-radius: 4px;
+  font-weight: 600;
+  font-size: 14px;
+  cursor: pointer;
+  padding: 0;
+  line-height: 1;
+}
+
+.stepper-btn:hover:not(:disabled) {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.stepper-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.stepper-display {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+  padding: 0 4px;
+  white-space: nowrap;
+}
+
+.stepper-met-tag {
+  color: var(--positive);
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  background: rgba(43, 122, 80, 0.1);
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+
+/* ---------- Consistency Grid with ISO Weekday Headers ---------- */
+.habit-grid-section {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 12px 0 14px;
+}
+
+.grid7-header {
+  display: grid;
+  grid-template-columns: repeat(7, 32px);
+  gap: 0 7px;
+}
+
+.grid7-day-name {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--faint);
+  text-align: center;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.cell.future {
+  opacity: 0.22;
+  cursor: not-allowed;
+  border-style: dashed;
+}
+
+.cell-partial {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  background: var(--accent);
+  opacity: 0.55;
+  border-radius: 0 0 3px 3px;
+  pointer-events: none;
+}
+
+/* ---------- Card Footer & Stats ---------- */
+.habit-footer-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-top: 1px solid var(--rule);
+  padding-top: 10px;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.habit-stats-group {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: var(--fs-small);
+  color: var(--muted);
+  flex-wrap: wrap;
+}
+
+.habit-stat-badge {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 4px;
+}
+
+.habit-stat-val {
+  font-weight: 600;
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+}
+
+.habit-card-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: auto;
+}
+
+/* ---------- Color Picker & Presets in Forms ---------- */
+.swatch-group {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin: 8px 0;
+}
+
+.swatch-btn {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  border: 2px solid transparent;
+  cursor: pointer;
+  padding: 0;
+  transition: transform 0.1s ease;
+}
+
+.swatch-btn:hover {
+  transform: scale(1.15);
+}
+
+.swatch-btn.on {
+  border-color: var(--text);
+  box-shadow: 0 0 0 2px var(--surface);
+}
+
+.preset-chips {
+  display: flex;
+  gap: 6px;
+  margin: 6px 0 10px;
+  flex-wrap: wrap;
+}
+
+.preset-chip {
+  appearance: none;
+  background: var(--surface-2);
+  border: 1px solid var(--rule);
+  color: var(--muted);
+  font-size: 11.5px;
+  font-weight: 500;
+  padding: 3px 9px;
+  border-radius: var(--radius-control);
+  cursor: pointer;
+}
+
+.preset-chip:hover {
+  background: var(--active);
+  color: var(--text);
+}
+
+.unit-chips {
+  display: flex;
+  gap: 5px;
+  flex-wrap: wrap;
+  margin-top: 4px;
+}
+
+.unit-chip {
+  appearance: none;
+  background: var(--surface-2);
+  border: 1px solid var(--rule);
+  color: var(--faint);
+  font-size: 11px;
+  padding: 2px 7px;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.unit-chip:hover {
+  color: var(--text);
+  border-color: var(--control);
+}
+
+/* ---------- Mobile Responsiveness ---------- */
+@media (max-width: 720px) {
+  .habits-summary-card {
+    padding: 14px 16px;
+  }
+  .habit-header-row {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 10px;
+  }
+  .habit-today-controls {
+    margin-left: 0;
+    width: 100%;
+    justify-content: space-between;
+  }
+  .grid7-header {
+    width: 100%;
+    max-width: 320px;
+    grid-template-columns: repeat(7, 1fr);
+    gap: 0 4px;
+  }
+  .habit-footer-row {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+  }
+  .habit-card-actions {
+    margin-left: 0;
+    width: 100%;
+    justify-content: flex-end;
+  }
+}
+
+@media (max-width: 400px) {
+  .numeric-habit-stepper {
+    flex-wrap: wrap;
+  }
+}

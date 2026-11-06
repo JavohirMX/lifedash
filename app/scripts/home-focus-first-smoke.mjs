@@ -1,11 +1,12 @@
-import assert from 'node:assert/strict';import {chromium} from 'playwright-core';
-const b=await chromium.launch({executablePath:'/usr/bin/google-chrome',headless:true,args:['--no-sandbox']});
+import assert from 'node:assert/strict';import fs from 'node:fs';import {chromium} from 'playwright-core';
+const d=fs.existsSync('/downloads')?'/downloads':'/tmp';
+const b=await chromium.launch({executablePath:process.env.CHROME_PATH??'/usr/bin/google-chrome',headless:true,args:['--no-sandbox']});
 try{for(const width of[1440,390,320])for(const theme of['light','dark']){
 const p=await b.newPage({viewport:{width,height:900}});const errors=[],requests=[];p.on('pageerror',e=>errors.push(e.message));p.on('request',r=>{if(!r.url().startsWith(process.env.BASE_URL)&&!r.url().startsWith('data:'))requests.push(r.url())});await p.goto(`${process.env.BASE_URL}/?sample`);await p.getByRole('heading',{name:'One thing at a time',exact:true}).waitFor();await p.getByRole('button',{name:'Start focus',exact:true}).waitFor();await p.evaluate(theme=>document.documentElement.dataset.theme=theme,theme);
 // Stable populated fixture and future timed deadline for the selected concept.
 await p.evaluate(async()=>{const{db}=await import('/src/db.ts');const{todayStr}=await import('/src/dates.ts');const task=(await db.tasks.toArray()).find(t=>t.title==='Review the weekly budget');window.commitmentId=task.id;await db.tasks.toCollection().modify({dueTime:null,plannedTime:null});await db.tasks.update(task.id,{dueDate:todayStr(),dueTime:'23:59',plannedDate:null,plannedTime:null});});await p.getByLabel('Next commitment',{exact:true}).getByText('23:59',{exact:true}).waitFor();
 assert.equal(await p.locator('.home-today').count(),0);assert.equal(await p.locator('.home-schedule').count(),0);assert.equal(await p.locator('.home-extra-widgets').getAttribute('open'),null);assert.equal(await p.locator('.home-primary .home-focus').count(),1);
-await p.evaluate(()=>document.fonts.ready);await p.waitForTimeout(200);await p.screenshot({path:`/downloads/focus-first-home-${width}-${theme}.png`,fullPage:true});
+await p.evaluate(()=>document.fonts.ready);await p.waitForTimeout(200);await p.screenshot({path:`${d}/focus-first-home-${width}-${theme}.png`,fullPage:true});
 await p.getByRole('button',{name:'Reschedule task',exact:true}).click();const detail=p.getByLabel('Task details',{exact:true});await detail.waitFor();assert.equal(await detail.getByLabel('Due time',{exact:true}).count(),0);await detail.locator('input[type=time]').first().fill('22:45');await p.waitForFunction(async()=>{const{db}=await import('/src/db.ts');return(await db.tasks.get(window.commitmentId)).dueTime==='22:45'});await p.getByRole('button',{name:'Close task details',exact:true}).click();await p.getByLabel('Next commitment',{exact:true}).getByText('22:45',{exact:true}).waitFor();
 // Planned-work commitment uses the shared explicit-save editor, never the deadline.
 await p.evaluate(async()=>{const{db}=await import('/src/db.ts');const{todayStr}=await import('/src/dates.ts');await db.tasks.update(window.commitmentId,{plannedDate:todayStr(),plannedTime:'21:45',durationMinutes:25})});

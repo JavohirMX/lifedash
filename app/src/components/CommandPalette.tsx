@@ -3,6 +3,7 @@ import { useDialogFocus } from '../hooks/useDialogFocus';
 import {
   Sun, CalendarDays, Archive, Clock, CalendarRange, Repeat, CheckCircle2,
   Search, Plus, Moon, Check, Pin, Home, Target, StickyNote, BookOpen, Calendar,
+  Zap, Flag, AlertCircle,
 } from 'lucide-react';
 import type { JournalEntry, Note, Task } from '../types';
 import type { Selection } from './Sidebar';
@@ -60,6 +61,9 @@ export default function CommandPalette(props: {
       nav('notes', 'Notes', StickyNote),
       nav('journal', 'Journal', BookOpen),
       nav('completed', 'Completed', CheckCircle2),
+      { id: 'filter-quick-wins', label: 'Go to Quick Wins (≤15m)', Icon: Zap, run: () => { props.onSelect({ kind: 'filter', filterId: 'quick-wins' }); props.onClose(); } },
+      { id: 'filter-high-priority', label: 'Go to High Priority (P1)', Icon: Flag, run: () => { props.onSelect({ kind: 'filter', filterId: 'high-priority' }); props.onClose(); } },
+      { id: 'filter-blocked', label: 'Go to Blocked Tasks', Icon: AlertCircle, run: () => { props.onSelect({ kind: 'filter', filterId: 'blocked' }); props.onClose(); } },
       { id: 'appearance', label: 'Appearance: choose style', Icon: Moon, run: () => { props.onAppearance(); props.onClose(); } },
       { id: 'shortcuts', label: 'Keyboard shortcuts', hint: '?', Icon: BookOpen, run: () => { props.onShortcuts(); props.onClose(); } },
       { id: 'theme', label: 'Toggle light/dark', Icon: Moon, run: () => {
@@ -113,6 +117,11 @@ export default function CommandPalette(props: {
           <input
             value={query}
             placeholder="Type a command or search tasks, notes, journal"
+            aria-label="Search commands and content"
+            enterKeyHint="go"
+            autoCorrect="off"
+            autoCapitalize="off"
+            spellCheck={false}
             onChange={(e) => setQuery(e.target.value)}
             onKeyDown={(e) => {
               if (e.nativeEvent.isComposing) return;

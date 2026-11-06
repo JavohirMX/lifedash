@@ -11,7 +11,7 @@
 .appearance-panel .appearance-reset { flex: none; min-height: 40px; height: auto; padding: 8px 12px; }
 .appearance-panel .style-name { display: flex; justify-content: space-between; gap: 8px; align-items: center; }
 .appearance-panel .style-selected { color: var(--accent); font-weight: 700; }
-@media (max-width: 640px) { .appearance-panel .mode-seg button { min-height: 44px; } }
+@media (max-width: 720px) { .appearance-panel .mode-seg button { min-height: 44px; } }
 .appearance-panel .appearance-sections { display: flex; gap: 4px; padding: 4px; border: 1px solid var(--border); border-radius: var(--radius-control); background: var(--surface-2); flex: none; }
 .appearance-sections button { flex: 1; min-width: 0; min-height: 44px; background: transparent; border: 0; border-radius: var(--radius-control); cursor: pointer; color: var(--muted); }
 .appearance-sections button[aria-selected='true'] { background: var(--surface); color: var(--text); box-shadow: var(--shadow-card); font-weight: 600; }

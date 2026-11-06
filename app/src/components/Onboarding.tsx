@@ -1,4 +1,5 @@
-import { Cloud, ArrowRight } from 'lucide-react';
+import { useEffect } from 'react';
+import { Cloud, ArrowRight, X } from 'lucide-react';
 
 /**
  * First-open welcome: offers sync setup (create account or sign in on your
@@ -6,9 +7,35 @@ import { Cloud, ArrowRight } from 'lucide-react';
  * same setup stays available later under Settings > Sync.
  */
 export default function Onboarding(props: { onSetUpSync: () => void; onSkip: () => void }) {
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && !e.defaultPrevented) {
+        e.preventDefault();
+        props.onSkip();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [props.onSkip]);
+
   return (
-    <div className="onboarding" role="dialog" aria-modal="true" aria-label="Welcome to Lifedash">
-      <div className="onboarding-card">
+    <div
+      className="onboarding"
+      role="dialog"
+      aria-modal="true"
+      aria-label="Welcome to Lifedash"
+      onClick={props.onSkip}
+    >
+      <div className="onboarding-card" onClick={(e) => e.stopPropagation()}>
+        <button
+          type="button"
+          className="onboarding-close"
+          aria-label="Dismiss welcome dialog"
+          title="Dismiss"
+          onClick={props.onSkip}
+        >
+          <X size={16} aria-hidden="true" />
+        </button>
         <p className="eyebrow">Welcome to Lifedash</p>
         <h1>One thing at a time.</h1>
         <p>

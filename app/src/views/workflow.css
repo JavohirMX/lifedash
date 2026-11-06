@@ -2,7 +2,7 @@
 .habit-add .wd-picker { flex-wrap: wrap; }
 .habit-add .wd { min-width: 36px; height: 36px; }
 .habit-add .habit-edit-actions { margin-top: 14px; }
-@media(max-width:640px) {
+@media(max-width:720px) {
  .habit-add .wd-picker { gap: 3px; }
  .habit-add .wd { min-width: 32px; height: 44px; flex: 1; }
  .habit-add .wd-hint { flex-basis: 100%; margin-top: 6px; }
@@ -12,7 +12,7 @@
 .habit-add .wd[aria-pressed='true'] { background: var(--accent-soft); color: var(--accent); border: 2px solid var(--accent); font-weight: 600; }
 
 .note-editor-pane > .note-back-list { display: none; }
-@media(max-width:700px) {
+@media(max-width:720px) {
  .note-editor-pane, .notes-list { scroll-margin-top: 62px; }
  .note-is-open .notes-list { display: none; }
  .note-editor-pane > .note-back-list { display: inline-flex; min-height: 44px; align-items: center; margin-bottom: 10px; }
@@ -29,4 +29,4 @@ fieldset.save-form { min-width: 0; border: 0; margin-inline: 0; }
 .backlog-schedule-feedback { flex-basis: 100%; margin: 0 0 10px; }
 .tag-manage, .tag-rename { min-width: 0; flex-wrap: wrap; }
 .tag-rename .sub-add-feedback, .tag-rename .form-save-error { flex-basis: 100%; }
-@media(max-width:640px) { .tag-rename input { min-width: 0; flex: 1 1 140px; } }
+@media(max-width:720px) { .tag-rename input { min-width: 0; flex: 1 1 140px; } }

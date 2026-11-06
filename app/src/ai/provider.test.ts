@@ -40,4 +40,40 @@ describe('model safety boundary', () => {
     const fetcher = vi.fn().mockResolvedValue({ ok: true, json: async () => ({ choices: [] }) });
     await expect(requestAdvice(config, reviewRequest(config, 'plan', ''), true, { fetcher })).rejects.toThrow('no text');
   });
+
+  it('supports streaming response via SSE reader', async () => {
+    const chunks = [
+      'data: {"choices":[{"delta":{"content":"Step 1: "}}]}\n\n',
+      'data: {"choices":[{"delta":{"content":"Organize tasks."}}]}\n\n',
+      'data: [DONE]\n\n',
+    ];
+    let chunkIndex = 0;
+    const encoder = new TextEncoder();
+    const mockStream = {
+      getReader: () => ({
+        read: async () => {
+          if (chunkIndex < chunks.length) {
+            return { done: false, value: encoder.encode(chunks[chunkIndex++]) };
+          }
+          return { done: true, value: undefined };
+        },
+        releaseLock: vi.fn(),
+      }),
+    };
+
+    const fetcher = vi.fn().mockResolvedValue({
+      ok: true,
+      body: mockStream,
+    });
+
+    const received: string[] = [];
+    const text = await requestAdvice(config, reviewRequest(config, 'plan', ''), true, {
+      fetcher,
+      stream: true,
+      onChunk: (chunk, acc) => received.push(acc),
+    });
+
+    expect(text).toBe('Step 1: Organize tasks.');
+    expect(received).toEqual(['Step 1: ', 'Step 1: Organize tasks.']);
+  });
 });

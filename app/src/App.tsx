@@ -31,9 +31,14 @@ import ImportDialog from './components/ImportDialog';
 import type { ImportSource } from './import';
 import AutomationDialog from './components/AutomationDialog';
 import TVDashboard from './views/TVDashboard';
+import { isTvEnabled, setTvEnabled, TV_PREFERENCE_CHANGED_EVENT } from './tv';
 import SyncDialog from './components/SyncDialog';
 import AppearanceDialog from './components/AppearanceDialog';
+import AiSettingsDialog from './components/AiSettingsDialog';
+import { useAiSettings } from './ai/aiSettings';
 import GoogleCalendarDialog from './components/GoogleCalendarDialog';
+import WebcalDialog from './components/WebcalDialog';
+import FocusWorkspace from './components/FocusWorkspace';
 import SettingsView from './views/SettingsView';
 import Onboarding from './components/Onboarding';
 import { isFreshInstallPending, markFreshInstall, markOnboardingDone } from './onboarding';
@@ -55,6 +60,7 @@ import {
   completedTasks, groupCompletedByDay,
   searchTasks,
   projectTreeTasks,
+  activeBlockers,
 } from './logic';
 import { todayStr, friendlyDate, weekdayLabel } from './dates';
 import { updateTask, moveTask, updateProject, deleteProject } from './repo';
@@ -77,6 +83,28 @@ export default function App() {
     window.addEventListener('hashchange', onHash);
     return () => window.removeEventListener('hashchange', onHash);
   }, []);
+  const [tvOn, setTvOn] = useState(() => isTvEnabled());
+  useEffect(() => {
+    const onTvChange = () => setTvOn(isTvEnabled());
+    window.addEventListener(TV_PREFERENCE_CHANGED_EVENT, onTvChange);
+    return () => window.removeEventListener(TV_PREFERENCE_CHANGED_EVENT, onTvChange);
+  }, []);
+  useEffect(() => {
+    const onNavigateNote = (e: Event) => {
+      const noteId = (e as CustomEvent<{ noteId: string }>).detail?.noteId;
+      if (noteId) {
+        setOpenId(null);
+        setSelection({ kind: 'notes', openId: noteId });
+      }
+    };
+    window.addEventListener('lifedash-navigate-note', onNavigateNote);
+    return () => window.removeEventListener('lifedash-navigate-note', onNavigateNote);
+  }, []);
+  const toggleTv = () => {
+    const next = !tvOn;
+    setTvEnabled(next);
+    setTvOn(next);
+  };
   const [projEditing, setProjEditing] = useState(false);
   const [projName, setProjName] = useState('');
   const [projColor, setProjColor] = useState('');
@@ -125,15 +153,26 @@ export default function App() {
     catch { setRolloverFailed(true); }
   }
   const [syncOpen, setSyncOpen] = useState(false);
+  const aiSettings = useAiSettings();
   const [aiOpen, setAiOpen] = useState(false);
+  const [aiSettingsOpen, setAiSettingsOpen] = useState(false);
   const [appearanceOpen, setAppearanceOpen] = useState(false);
   const [googleCalendarOpen,setGoogleCalendarOpen]=useState(false);
+  const [webcalOpen, setWebcalOpen] = useState(false);
+  const [focusWorkspaceTaskId, setFocusWorkspaceTaskId] = useState<string | null>(null);
   const [agentKeysOpen, setAgentKeysOpen] = useState(false);
   const [dataBackupOpen, setDataBackupOpen] = useState(false);
   const [settingsChild, setSettingsChild] = useState<'appearance' | 'sync' | null>(null);
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
   const [rules, setRules] = useState<AutomationRules>(loadRules);
   const [userRules, setUserRules] = useState<UserRule[]>(loadUserRules);
+  const [sampleDismissed, setSampleDismissed] = useState(() => {
+    try {
+      return sessionStorage.getItem('lifedash-sample-banner-dismissed') === '1';
+    } catch {
+      return false;
+    }
+  });
 
   useEffect(() => {
     const onAutomationChanged = () => { setRules(loadRules()); setUserRules(loadUserRules()); };
@@ -249,6 +288,33 @@ export default function App() {
     finally { schedulingToday.current.delete(id); setTodayPending(new Set(schedulingToday.current)); }
   }
 
+  const schedulingBacklog = useRef(new Set<string>());
+  const [backlogPending, setBacklogPending] = useState<Set<string>>(new Set());
+  const [backlogErrors, setBacklogErrors] = useState<Record<string, { title: string }>>({});
+  async function scheduleDroppedBacklog(id: string) {
+    if (schedulingBacklog.current.has(id)) return;
+    schedulingBacklog.current.add(id); setBacklogPending(new Set(schedulingBacklog.current));
+    setBacklogErrors(current => { const next = { ...current }; delete next[id]; return next; });
+    const title = tasks?.find(task => task.id === id)?.title || 'task';
+    try { await updateTask(id, { dueDate: null, dueTime: null }); }
+    catch { setBacklogErrors(current => ({ ...current, [id]: { title } })); }
+    finally { schedulingBacklog.current.delete(id); setBacklogPending(new Set(schedulingBacklog.current)); }
+  }
+
+  const movingProject = useRef(new Set<string>());
+  const [projectMovePending, setProjectMovePending] = useState<Set<string>>(new Set());
+  const [projectMoveErrors, setProjectMoveErrors] = useState<Record<string, { title: string; projectId: string; projectName: string }>>({});
+  async function moveDroppedProject(id: string, projectId: string) {
+    if (movingProject.current.has(id)) return;
+    movingProject.current.add(id); setProjectMovePending(new Set(movingProject.current));
+    setProjectMoveErrors(current => { const next = { ...current }; delete next[id]; return next; });
+    const title = tasks?.find(task => task.id === id)?.title || 'task';
+    const projectName = (projects ?? []).find(p => p.id === projectId)?.name || 'project';
+    try { await updateTask(id, { projectId }); }
+    catch { setProjectMoveErrors(current => ({ ...current, [id]: { title, projectId, projectName } })); }
+    finally { movingProject.current.delete(id); setProjectMovePending(new Set(movingProject.current)); }
+  }
+
 
   const activeByProject = (tasks ?? []).reduce<Record<string, number>>((acc, t) => {
     if (t.status === 'active' && t.parentId === null) acc[t.projectId] = (acc[t.projectId] ?? 0) + 1;
@@ -262,6 +328,15 @@ export default function App() {
       backlog: backlogTasks(all).length,
     };
   }, [tasks, today]);
+
+  const smartFilterCounts = useMemo(() => {
+    const all = (tasks ?? []).filter((t) => t.status === 'active' && t.parentId === null);
+    return {
+      'quick-wins': all.filter((t) => typeof t.durationMinutes === 'number' && t.durationMinutes > 0 && t.durationMinutes <= 15).length,
+      'high-priority': all.filter((t) => t.priority === 1).length,
+      'blocked': all.filter((t) => activeBlockers(tasks ?? [], t).length > 0).length,
+    };
+  }, [tasks]);
 
   if (!tasks || !projects) {
     return <div className="boot">Loading LifeDash...</div>;
@@ -280,6 +355,10 @@ export default function App() {
   const quickAddContext = (() => {
     if (selection.kind === 'today') return { projectId: INBOX_ID, dueDate: today };
     if (selection.kind === 'project') return { projectId: selection.id, dueDate: null };
+    if (selection.kind === 'filter') {
+      if (selection.filterId === 'high-priority') return { projectId: INBOX_ID, dueDate: null, priority: 1 };
+      if (selection.filterId === 'quick-wins') return { projectId: INBOX_ID, dueDate: null, durationMinutes: 15 };
+    }
     return { projectId: INBOX_ID, dueDate: null };
   })();
   const openTag = (tag: string) => setSelection({ kind: 'search', query: `#${tag}` });
@@ -294,21 +373,35 @@ export default function App() {
         onDataBackup={() => setDataBackupOpen(true)}
         onSync={() => { setSettingsChild('sync'); setSyncOpen(true); }}
         onAppearance={() => { setSettingsChild('appearance'); setAppearanceOpen(true); }}
+        onAiSettings={() => setAiSettingsOpen(true)}
         onGoogleCalendar={() => setGoogleCalendarOpen(true)}
+        onWebcal={() => setWebcalOpen(true)}
         onAgentKeys={() => setAgentKeysOpen(true)}
+        onShortcuts={() => setShortcutsOpen(true)}
+        onAutomation={() => setAutomationOpen(true)}
         onImport={() => setImportPreset(null)}
         onRestore={() => setImportPreset('lifedash-json')}
         reminders={reminderGate(remindOn)}
         onToggleReminders={() => void toggleReminders()}
         journalNudge={nudgeOn}
         onToggleJournalNudge={toggleJournalNudge}
+        tvDashboard={tvOn}
+        onToggleTvDashboard={toggleTv}
         notificationError={notificationError}
         notificationBusy={notificationBusy}
       />
     );
   }
   if (selection.kind === 'home') {
-    body = <HomeView tasks={tasks} onNavigate={setSelection} onSelect={(kind) => setSelection({ kind } as Selection)} onOpen={setOpenId} />;
+    body = (
+      <HomeView
+        tasks={tasks}
+        onNavigate={setSelection}
+        onSelect={(kind) => setSelection({ kind } as Selection)}
+        onOpen={setOpenId}
+        onOpenFocusWorkspace={setFocusWorkspaceTaskId}
+      />
+    );
   } else if (selection.kind === 'today') {
     const list = todayTasks(tasks, today);
     body = (
@@ -419,6 +512,51 @@ export default function App() {
         onSelect={setSelection}
       />
     );
+  } else if (selection.kind === 'filter') {
+    let title = 'Filter';
+    let eyebrow = 'Smart List';
+    let description = '';
+    let filtered: Task[] = [];
+
+    const activeTopTasks = tasks.filter((t) => t.status === 'active' && t.parentId === null);
+
+    if (selection.filterId === 'quick-wins') {
+      title = 'Quick Wins';
+      eyebrow = 'Smart List · 15 minutes or less';
+      description = 'Small tasks with estimated duration up to 15 minutes to knock out quickly.';
+      filtered = activeTopTasks.filter((t) => typeof t.durationMinutes === 'number' && t.durationMinutes > 0 && t.durationMinutes <= 15);
+    } else if (selection.filterId === 'high-priority') {
+      title = 'High Priority';
+      eyebrow = 'Smart List · Priority 1';
+      description = 'Critical and high-priority tasks requiring urgent attention.';
+      filtered = activeTopTasks.filter((t) => t.priority === 1);
+    } else if (selection.filterId === 'blocked') {
+      title = 'Blocked Tasks';
+      eyebrow = 'Smart List · Waiting on blockers';
+      description = 'Tasks with unresolved dependencies that cannot be completed yet.';
+      filtered = activeTopTasks.filter((t) => activeBlockers(tasks, t).length > 0);
+    }
+
+    body = (
+      <section>
+        <PageHeader
+          eyebrow={eyebrow}
+          title={title}
+          meta={filtered.length > 0 ? `${filtered.length} task${filtered.length === 1 ? '' : 's'}` : undefined}
+          description={description}
+        />
+        {filtered.length === 0 && (
+          <EmptyState>No tasks match this filter right now.</EmptyState>
+        )}
+        <TaskList
+          tasks={filtered}
+          allTasks={tasks}
+          showDate
+          onOpen={setOpenId}
+          onTag={openTag}
+        />
+      </section>
+    );
   } else if (selection.kind === 'project') {
     const project = projects.find((p) => p.id === selection.id);
     const list = projectTreeTasks(tasks, projects, selection.id);
@@ -452,7 +590,9 @@ export default function App() {
             <input
               autoFocus
               value={projName}
+              placeholder="Project name"
               aria-label="Project name"
+              enterKeyHint="done"
               onChange={(e) => setProjName(e.target.value)}
               onKeyDown={(e) => {
                 if (e.key === 'Enter' && !e.nativeEvent.isComposing) void saveProject(project.id);
@@ -500,7 +640,7 @@ export default function App() {
 
   return (
     <div className="app">
-      <Sidebar projects={projects} selection={selection} onSelect={setSelection} counts={counts} activeByProject={activeByProject}
+      <Sidebar projects={projects} selection={selection} onSelect={setSelection} counts={counts} smartFilterCounts={smartFilterCounts} activeByProject={activeByProject}
         onCapture={quickAddFocus}
         onPalette={() => setPaletteOpen(true)}
         reminders={reminderGate(remindOn)}
@@ -508,9 +648,32 @@ export default function App() {
         onToggleJournalNudge={toggleJournalNudge}
         onToggleReminders={() => void toggleReminders()}
         onScheduleToday={(id) => void scheduleDroppedToday(id, today)}
-        onAI={() => setAiOpen(true)} onAutomation={() => setAutomationOpen(true)} onSync={() => { setSettingsChild(null); setSyncOpen(true); }} onAppearance={() => { setSettingsChild(null); setAppearanceOpen(true); }} onSettings={() => setSelection({ kind: 'settings' })} />
+        onScheduleBacklog={(id) => void scheduleDroppedBacklog(id)}
+        onMoveToProject={(id, pId) => void moveDroppedProject(id, pId)}
+        onAI={aiSettings.enabled ? () => setAiOpen(true) : undefined} onAutomation={() => setAutomationOpen(true)} onSync={() => { setSettingsChild(null); setSyncOpen(true); }} onAppearance={() => { setSettingsChild(null); setAppearanceOpen(true); }} onSettings={() => setSelection({ kind: 'settings' })}
+        tvEnabled={tvOn} />
       <main className={selection.kind === 'home' ? 'home-main' : ['week', 'calendar'].includes(selection.kind) ? 'schedule-main' : undefined}>
-        {SAMPLE_MODE && <div className="sample-banner" role="status">Sample-data sandbox · Fictional data · <a href="/">Exit to your real data</a></div>}
+        {SAMPLE_MODE && !sampleDismissed && (
+          <div className="sample-banner" role="status">
+            <div className="sample-banner-text">
+              Sample-data sandbox · Fictional data · <a href="/">Exit to your real data</a>
+            </div>
+            <button
+              type="button"
+              className="sample-banner-dismiss"
+              aria-label="Dismiss sample banner"
+              title="Dismiss"
+              onClick={() => {
+                setSampleDismissed(true);
+                try {
+                  sessionStorage.setItem('lifedash-sample-banner-dismissed', '1');
+                } catch {}
+              }}
+            >
+              <X size={14} aria-hidden="true" />
+            </button>
+          </div>
+        )}
         <SyncConflictBanner />
         {weeklyFailed && !automationOpen && <div role="alert"><p>Couldn't finish running weekly rules. Some tasks may have been created or rule history may not have been saved. Check tasks and rules before trying again.</p><button className="btn-secondary" onClick={() => setWeeklyFailed(false)}>Dismiss weekly-rule notice</button></div>}
         {rolloverFailed && !automationOpen && <div role="alert"><p>Couldn't finish moving overdue tasks to Today. Part of the change may have been saved. Check task dates before trying again. Your automation setting is unchanged.</p><button className="btn-secondary" onClick={() => setRolloverFailed(false)}>Dismiss rollover notice</button></div>}
@@ -527,6 +690,16 @@ export default function App() {
           <p role="alert">Date wasn't saved for "{error.title}". Retry to schedule it for {error.date}.</p>
           <button className="btn-secondary" onClick={() => void scheduleDroppedToday(id, error.date)}>Retry Today drop for {error.title}</button>
         </div>)}
+        {backlogPending.size > 0 && <p className="workflow-hint" role="status">Moving dropped task to Backlog…</p>}
+        {Object.entries(backlogErrors).map(([id, error]) => <div key={id} className="sub-add-feedback">
+          <p role="alert">Could not move "{error.title}" to Backlog.</p>
+          <button className="btn-secondary" onClick={() => void scheduleDroppedBacklog(id)}>Retry Backlog move for {error.title}</button>
+        </div>)}
+        {projectMovePending.size > 0 && <p className="workflow-hint" role="status">Moving dropped task to project…</p>}
+        {Object.entries(projectMoveErrors).map(([id, error]) => <div key={id} className="sub-add-feedback">
+          <p role="alert">Could not move "{error.title}" to {error.projectName}.</p>
+          <button className="btn-secondary" onClick={() => void moveDroppedProject(id, error.projectId)}>Retry move for {error.title}</button>
+        </div>)}
         {body}
       </main>
       {captureState !== null && <CaptureDialog open={captureState === 'open'} projects={projects} onClose={() => setCaptureState('closed')} />}
@@ -536,13 +709,23 @@ export default function App() {
           taskId={openId}
           onClose={() => setOpenId(null)}
           onOpenNote={(nid) => { setOpenId(null); setSelection({ kind: 'notes', openId: nid }); }}
+          onOpenFocusWorkspace={setFocusWorkspaceTaskId}
         />
       )}
       {importPreset !== false && <ImportDialog projects={projects} initialSource={importPreset} onRestoreSettled={() => { setRules(loadRules()); setUserRules(loadUserRules()); }} onClose={() => setImportPreset(false)} />}
       {automationOpen && <AutomationDialog weeklyFailed={weeklyFailed} onDismissWeekly={() => setWeeklyFailed(false)} rolloverFailed={rolloverFailed} onDismissRollover={() => setRolloverFailed(false)} rules={rules} onChange={changeRules} userRules={userRules} onUserRulesChange={changeUserRules} projects={projects} onClose={() => setAutomationOpen(false)} />}
-      {aiOpen && <AssistantDialog tasks={tasks} onClose={() => setAiOpen(false)} />}
+      {aiOpen && aiSettings.enabled && <AssistantDialog tasks={tasks} onClose={() => setAiOpen(false)} />}
+      {aiSettingsOpen && <AiSettingsDialog onClose={() => setAiSettingsOpen(false)} />}
       {syncOpen && <SyncDialog onClose={() => { setSyncOpen(false); if (loadSyncSettings()) { markOnboardingDone(); setFreshInstall(false); } }} onBack={settingsChild === 'sync' ? () => setSyncOpen(false) : undefined} />}
       {googleCalendarOpen && <GoogleCalendarDialog onClose={()=>setGoogleCalendarOpen(false)} onBack={()=>setGoogleCalendarOpen(false)}/>}
+      {webcalOpen && <WebcalDialog onClose={() => setWebcalOpen(false)} />}
+      {focusWorkspaceTaskId && (
+        <FocusWorkspace
+          taskId={focusWorkspaceTaskId}
+          onClose={() => setFocusWorkspaceTaskId(null)}
+          onOpenDetail={setOpenId}
+        />
+      )}
       {dataBackupOpen && <DataBackupDialog onClose={() => setDataBackupOpen(false)} />}
       {agentKeysOpen && <AgentKeysDialog onClose={() => setAgentKeysOpen(false)} />}
       {appearanceOpen && <AppearanceDialog onClose={() => setAppearanceOpen(false)} onBack={settingsChild === 'appearance' ? () => setAppearanceOpen(false) : undefined} />}
