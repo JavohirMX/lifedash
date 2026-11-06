@@ -9,18 +9,20 @@
   <img src="shots/home-desktop.png" alt="Lifedash Home - daily briefing with a next-action hero, habits, journal, and radar panels" width="100%">
 </p>
 
-<table>
-  <tr>
-    <td width="33.3%"><img src="shots/week-dark.png" alt="Week view in dark mode with an overdue strip and drag-to-reschedule days" width="100%"></td>
-    <td width="33.3%"><img src="shots/planner.png" alt="24-hour day planner with time blocks, recurring routines, and a task tray" width="100%"></td>
-    <td width="33.3%"><img src="shots/habits.png" alt="Habits tracking with streak counts and ISO-week history grids" width="100%"></td>
-  </tr>
-  <tr>
-    <td align="center"><sub><strong>Week view</strong> (dark mode)</sub></td>
-    <td align="center"><sub><strong>24-hour planner</strong></sub></td>
-    <td align="center"><sub><strong>Habits tracking</strong></sub></td>
-  </tr>
-</table>
+<p align="center">
+  <img src="shots/planner.png" alt="24-hour day planner with time blocks, recurring routines, and a task tray" width="100%"><br>
+  <sub><strong>24-hour planner</strong> — visual time blocking with recurring routines and optional AI-assisted planning</sub>
+</p>
+
+<p align="center">
+  <img src="shots/week-dark.png" alt="Week view in dark mode with an overdue strip and drag-to-reschedule days" width="100%"><br>
+  <sub><strong>Week view</strong> (dark mode) — overdue strip and drag-to-reschedule</sub>
+</p>
+
+<p align="center">
+  <img src="shots/habits.png" alt="Habits tracking with streak counts and ISO-week history grids" width="100%"><br>
+  <sub><strong>Habits tracking</strong> — streaks, numeric targets, and ISO-week history grids</sub>
+</p>
 
 <details>
 <summary><strong>📱 Mobile preview</strong></summary>
