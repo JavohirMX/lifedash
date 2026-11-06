@@ -271,6 +271,36 @@ def _parse_rule(rule: str):
         return None
 
 
+def _next_monthly_clamped_bounded(day: int, base: str, rr) -> str | None:
+    """Client parity: clamped sequence from DTSTART, consuming COUNT, bounded by UNTIL."""
+    dtstart = rr._dtstart
+    if dtstart is None:
+        return _next_monthly_clamped(day, base)
+    count, until = rr._count, rr._until
+    year, month = dtstart.year, dtstart.month
+    dtstart_date = dtstart.date().isoformat()
+    hh, mm, ss = dtstart.hour, dtstart.minute, dtstart.second
+    seen = 0
+    for _ in range(2400):
+        dim = 31 if month == 12 else (date(year, month + 1, 1) - timedelta(days=1)).day
+        dom = min(day, dim)
+        cand = f"{year:04d}-{month:02d}-{dom:02d}"
+        if cand >= dtstart_date:
+            seen += 1
+            if cand > base:
+                if count is not None and seen > count:
+                    return None
+                if until is not None:
+                    cand_dt = datetime(year, month, dom, hh, mm, ss, tzinfo=dtstart.tzinfo)
+                    if cand_dt > until:
+                        return None
+                return cand
+        month += 1
+        if month == 13:
+            month, year = 1, year + 1
+    return None
+
+
 def _next_monthly_clamped(day: int, base: str) -> str:
     year, month = int(base[:4]), int(base[5:7])
     for _ in range(2400):
@@ -307,6 +337,12 @@ def _next_occurrence(rule: str, due_date: str, today: str) -> str | None:
         and not rr._byweekday
         and not rr._bysetpos
     ):
+        # Imported rules can carry COUNT/UNTIL: clamped monthly dates are the
+        # occurrences the user experiences, so they consume COUNT and must not
+        # pass UNTIL. Rules without DTSTART keep the legacy unbounded clamp,
+        # matching the client (both anchor such rules to 'now').
+        if "DTSTART" in rule:
+            return _next_monthly_clamped_bounded(int(mdays[0]), base, rr)
         return _next_monthly_clamped(int(mdays[0]), base)
     y, m, d = int(base[:4]), int(base[5:7]), int(base[8:10])
     # Rules without a UTC (trailing-Z) DTSTART are naive; mixing a naive rule

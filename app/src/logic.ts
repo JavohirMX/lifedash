@@ -83,6 +83,35 @@ export function describeRecurrence(rule: string | null): string {
 // anchored at `day` fires, clamping to the month's last day when the month is
 // shorter. Without this, a monthly task on the 29th-31st silently skips
 // February (RRule omits months without the day).
+function nextMonthlyClampedBounded(day: number, base: string, rr: RRule): string | null {
+  const dtstart = rr.origOptions.dtstart as Date | undefined;
+  if (!dtstart) return nextMonthlyClamped(day, base);
+  const count = rr.origOptions.count as number | undefined;
+  const until = rr.origOptions.until as Date | undefined;
+  const pad = (n: number) => String(n).padStart(2, '0');
+  let year = dtstart.getUTCFullYear();
+  let month = dtstart.getUTCMonth() + 1;
+  const dtstartDate = `${year}-${pad(month)}-${pad(dtstart.getUTCDate())}`;
+  const h = dtstart.getUTCHours(), m = dtstart.getUTCMinutes(), s = dtstart.getUTCSeconds();
+  let seen = 0;
+  for (let i = 0; i < 2400; i++) {
+    const dim = new Date(Date.UTC(year, month, 0)).getUTCDate();
+    const dom = Math.min(day, dim);
+    const cand = `${year}-${pad(month)}-${pad(dom)}`;
+    if (cand >= dtstartDate) {
+      seen++;
+      if (cand > base) {
+        if (count != null && seen > count) return null;
+        if (until && Date.UTC(year, month - 1, dom, h, m, s) > until.getTime()) return null;
+        return cand;
+      }
+    }
+    month++;
+    if (month === 13) { month = 1; year++; }
+  }
+  return null;
+}
+
 function nextMonthlyClamped(day: number, base: string): string {
   let [year, month] = base.split('-').map(Number);
   for (let i = 0; i < 2400; i++) {
@@ -116,7 +145,11 @@ export function nextOccurrenceDate(rule: string, dueDate: string, today: string)
     mdays.length === 1 &&
     !o.byweekday && !o.bysetpos
   ) {
-    return nextMonthlyClamped(Number(mdays[0]), base);
+    // Imported rules can carry COUNT/UNTIL ("Custom repeat", honored as-is):
+    // clamped monthly dates are the series occurrences the user experiences,
+    // so they consume COUNT and must not pass UNTIL. Rules without DTSTART
+    // keep the legacy unbounded clamp (anchored to 'now' on every platform).
+    return nextMonthlyClampedBounded(Number(mdays[0]), base, rr);
   }
   const next = rr.after(utcNoon(base), false);
   return next ? fromUtcNoon(next) : null;

@@ -424,3 +424,38 @@ describe('suggestedTask tomorrow fallback (Home, approved 2026-11-03)', () => {
     expect(suggestedTask([t], '2026-10-27')).toBeNull();
   });
 });
+
+
+describe('nextOccurrenceDate monthly clamp bounds', () => {
+  it('stops a COUNT-bounded monthly series instead of spawning past its end', () => {
+    const rule = 'DTSTART:20261101T120000Z\nRRULE:FREQ=MONTHLY;BYMONTHDAY=15;COUNT=2';
+    expect(nextOccurrenceDate(rule, '2026-11-15', '2026-11-06')).toBe('2026-12-15');
+    expect(nextOccurrenceDate(rule, '2026-12-15', '2026-12-15')).toBeNull();
+  });
+
+  it('counts clamped short-month dates toward COUNT', () => {
+    const rule = 'DTSTART:20261031T120000Z\nRRULE:FREQ=MONTHLY;BYMONTHDAY=31;COUNT=3';
+    expect(nextOccurrenceDate(rule, '2026-10-31', '2026-10-31')).toBe('2026-11-30');
+    expect(nextOccurrenceDate(rule, '2026-11-30', '2026-11-30')).toBe('2026-12-31');
+    expect(nextOccurrenceDate(rule, '2026-12-31', '2026-12-31')).toBeNull();
+  });
+
+  it('treats UNTIL as inclusive at the occurrence instant', () => {
+    const inside = 'DTSTART:20261101T120000Z\nRRULE:FREQ=MONTHLY;BYMONTHDAY=15;UNTIL=20261215T120000Z';
+    expect(nextOccurrenceDate(inside, '2026-11-15', '2026-11-06')).toBe('2026-12-15');
+    expect(nextOccurrenceDate(inside, '2026-12-15', '2026-12-15')).toBeNull();
+    const outside = 'DTSTART:20261101T120000Z\nRRULE:FREQ=MONTHLY;BYMONTHDAY=15;UNTIL=20261215T115959Z';
+    expect(nextOccurrenceDate(outside, '2026-11-15', '2026-11-06')).toBeNull();
+  });
+
+  it('does not count a month whose clamped day precedes DTSTART', () => {
+    const rule = 'DTSTART:20261120T120000Z\nRRULE:FREQ=MONTHLY;BYMONTHDAY=15;COUNT=1';
+    expect(nextOccurrenceDate(rule, '2026-11-20', '2026-11-01')).toBe('2026-12-15');
+    expect(nextOccurrenceDate(rule, '2026-12-15', '2026-12-15')).toBeNull();
+  });
+
+  it('keeps the unbounded clamp for editor-style rules with no COUNT/UNTIL', () => {
+    const rule = 'DTSTART:20260131T120000Z\nRRULE:FREQ=MONTHLY;BYMONTHDAY=31';
+    expect(nextOccurrenceDate(rule, '2026-01-31', '2026-02-15')).toBe('2026-02-28');
+  });
+});

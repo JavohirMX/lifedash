@@ -1325,3 +1325,25 @@ def test_recurrence_mixed_naive_dtstart_utc_until(client):
     assert t.status_code == 201, t.text
     r = client.post(f"/api/agent/tasks/{t.json()['id']}/complete", json={"today": "2026-06-01"}, headers=h)
     assert r.json()["spawned"] is None
+
+
+def test_recurrence_monthly_clamp_honors_count_and_until(client):
+    # Paired with the client fix: clamped monthly dates consume COUNT and must
+    # not pass UNTIL; previously completing the last occurrence of a
+    # COUNT-bounded series spawned another one forever.
+    session = register(client)
+    seed_inbox(client, session)
+    key = make_key(client, session)
+    h = auth(key["token"])
+    rule = "DTSTART:20261101T120000Z\nRRULE:FREQ=MONTHLY;BYMONTHDAY=15;COUNT=2"
+    t = client.post("/api/agent/tasks", json={"title": "b", "recurrence": rule, "dueDate": "2026-12-15"}, headers=h)
+    assert t.status_code == 201, t.text
+    r = client.post(f"/api/agent/tasks/{t.json()['id']}/complete", json={"today": "2026-12-15"}, headers=h)
+    assert r.status_code == 200, r.text
+    assert r.json()["spawned"] is None
+
+    rule_until = "DTSTART:20261101T120000Z\nRRULE:FREQ=MONTHLY;BYMONTHDAY=15;UNTIL=20261215T115959Z"
+    t = client.post("/api/agent/tasks", json={"title": "u", "recurrence": rule_until, "dueDate": "2026-11-15"}, headers=h)
+    assert t.status_code == 201, t.text
+    r = client.post(f"/api/agent/tasks/{t.json()['id']}/complete", json={"today": "2026-11-06"}, headers=h)
+    assert r.json()["spawned"] is None  # Dec 15 12:00 occurrence is past UNTIL 11:59:59
