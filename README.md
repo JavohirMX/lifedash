@@ -198,7 +198,7 @@ make build         # Compile production bundle (app/dist)
 make help          # View all automation targets (Docker, smoke tests, etc.)
 ```
 
-CI runs the unit test suites, keyboard checks, and production builds on every pull request and push to `main`.
+CI runs the app, server, and MCP unit test suites and the production app build on every pull request and push to `main`.
 
 ---
 
