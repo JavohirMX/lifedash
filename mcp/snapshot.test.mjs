@@ -94,3 +94,54 @@ test('bounds search arguments', () => {
   assert.throws(() => queryDaySchedule({ tasks: [] }, { date: 'invalid-date' }));
   assert.throws(() => queryNotes({ notes: [] }, { limit: 100 }));
 });
+
+test('accepts a version 3 portable backup and never exposes attachment payloads', async () => {
+  const dir = await mkdtemp(join(tmpdir(), 'lifedash-mcp-v3-'));
+  try {
+    const file = join(dir, 'portable.json');
+    // Same Dexie row shapes as v2, plus inline attachment files the MCP must not surface.
+    const attachmentBytes = Buffer.from('ATTACHMENT-SECRET-BYTES');
+    await writeFile(file, JSON.stringify({
+      version: 3,
+      format: 'lifedash-portable',
+      exportedAt: '2026-11-07',
+      automation: { rules: { rollover: true, completeParent: false }, userRules: [] },
+      tasks: [
+        { id: 't1', title: 'Portable task', status: 'active', dueDate: '2026-11-08', priority: 2, projectId: 'p1' },
+      ],
+      projects: [{ id: 'p1', name: 'Portable Project', color: '#0f766e', archived: false }],
+      habits: [{ id: 'h1', name: 'Read', weekdays: [6], archived: false }],
+      habitLogs: [{ habitId: 'h1', date: '2026-11-07' }],
+      goals: [{ id: 'g1', title: 'Portable goal', targetDate: '2027-01-01', status: 'active' }],
+      notes: [{ id: 'n1', title: 'Portable note', note: 'portable body', pinned: false }],
+      journal: [],
+      focusSessions: [],
+      attachments: [{
+        id: 'a1', taskId: 't1', name: 'photo.jpg', mime: 'image/jpeg',
+        byteSize: attachmentBytes.length, sha256: '0'.repeat(64),
+        base64: attachmentBytes.toString('base64'),
+      }],
+    }));
+    const snapshot = await loadSnapshot(file);
+    assert.equal(JSON.stringify(snapshot).includes('ATTACHMENT-SECRET-BYTES'), false);
+    assert.equal(JSON.stringify(snapshot).includes('base64'), false);
+    assert.equal(queryTasks(snapshot, { query: 'portable' }).total, 1);
+    assert.equal(queryProjects(snapshot, {}).total, 1);
+    assert.equal(queryHabits(snapshot, {}).total, 1);
+    assert.equal(queryGoals(snapshot, {}).total, 1);
+    assert.equal(queryNotes(snapshot, { query: 'portable' }).total, 1);
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
+test('rejects a version 3 file with the wrong format marker', async () => {
+  const dir = await mkdtemp(join(tmpdir(), 'lifedash-mcp-v3bad-'));
+  try {
+    const file = join(dir, 'not-portable.json');
+    await writeFile(file, JSON.stringify({ version: 3, format: 'something-else', tasks: [] }));
+    await assert.rejects(() => loadSnapshot(file));
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+});

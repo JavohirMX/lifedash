@@ -1,22 +1,31 @@
 import { open } from 'node:fs/promises';
 
-const MAX_BYTES = 10 * 1024 * 1024;
+const MAX_BYTES_V2 = 10 * 1024 * 1024;
+// Portable backups embed attachment files as base64 (app cap: 100 MB raw).
+const MAX_BYTES_V3 = 150 * 1024 * 1024;
 
 export async function loadSnapshot(path) {
   const handle = await open(path, 'r');
   try {
     const stat = await handle.stat();
-    if (!stat.isFile() || stat.size > MAX_BYTES) {
-      throw new Error('Snapshot must be a regular JSON file under 10 MB.');
+    if (!stat.isFile() || stat.size > MAX_BYTES_V3) {
+      throw new Error('Snapshot must be a regular JSON file under 150 MB.');
     }
     const text = await handle.readFile('utf8');
-    if (Buffer.byteLength(text) > MAX_BYTES) {
-      throw new Error('Snapshot exceeds 10 MB.');
+    if (Buffer.byteLength(text) > MAX_BYTES_V3) {
+      throw new Error('Snapshot exceeds 150 MB.');
     }
     const data = JSON.parse(text);
-    if (data?.version !== 2 || !Array.isArray(data.tasks)) {
-      throw new Error('Expected a LifeDash version 2 JSON export.');
+    const isV2 = data?.version === 2;
+    const isV3 = data?.version === 3 && data?.format === 'lifedash-portable';
+    if ((!isV2 && !isV3) || !Array.isArray(data.tasks)) {
+      throw new Error('Expected a LifeDash version 2 JSON export or version 3 portable backup.');
     }
+    if (isV2 && Buffer.byteLength(text) > MAX_BYTES_V2) {
+      throw new Error('Version 2 snapshot exceeds 10 MB.');
+    }
+    // Attachment payloads (v3) are never projected below; only record
+    // collections are read, so inline files cannot leak into tool output.
 
     // Copy narrow projections. Never expose credentials, session tokens or private keys.
     const tasks = data.tasks.map((t) => {
