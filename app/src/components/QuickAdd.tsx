@@ -1,11 +1,21 @@
 import { useEffect, useId, useMemo, useRef, useState } from 'react';
-import { Plus, FileText, CheckCircle2, Check } from 'lucide-react';
+import { Plus, FileText, CheckCircle2, Check, Calendar, Clock, Flag, Folder, Tag, Repeat, X } from 'lucide-react';
 import { db } from '../db';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { addTask } from '../repo';
 import { parseQuickAdd, describeRecurrence, makeRecurrence } from '../logic';
 import { parseNatural } from '../natural';
 import { todayStr, friendlyDate, addDays } from '../dates';
+import {
+  getCaretToken,
+  getAutocompleteItems,
+  applyAutocomplete,
+  stripTokenFromText,
+  getQuickSuggestions,
+  type AutocompleteItem,
+  type CaretToken,
+} from '../quickAddSuggestions';
+import './quick-add-suggestions.css';
 import type { Project, Task } from '../types';
 
 type CaptureJob = { id: number; raw: string; input: Parameters<typeof addTask>[0] };
@@ -72,11 +82,11 @@ export default function QuickAdd(props: {
     () => (props.captureProjects ? db.tasks.toArray() : Promise.resolve([] as Task[])),
     [Boolean(props.captureProjects)],
   );
-  const availableTags = Array.from(
-    new Set(existingTasks?.flatMap((t) => t.tags ?? []) ?? []),
-  )
-    .filter((t) => t && t.trim().length > 0)
-    .slice(0, 10);
+  const availableTags = useMemo(() => {
+    return Array.from(new Set(existingTasks?.flatMap((t) => t.tags ?? []) ?? []))
+      .filter((t) => t && t.trim().length > 0)
+      .slice(0, 10);
+  }, [existingTasks]);
 
   function rememberFailed(items: CaptureJob[]) {
     failedCaptures.set(db.name, items);
@@ -167,6 +177,8 @@ export default function QuickAdd(props: {
 
     currentTitle.current = '';
     setTitle('');
+    setCaretPos(0);
+    setIsAutocompleteDismissed(false);
     currentNote.current = '';
     setNote('');
     setShowNote(false);
@@ -178,6 +190,184 @@ export default function QuickAdd(props: {
     setExtraTags([]);
     inputRef.current?.focus();
   }
+
+  const [caretPos, setCaretPos] = useState(0);
+  const [selectedSuggestionIndex, setSelectedSuggestionIndex] = useState(0);
+  const [selectedPillIndex, setSelectedPillIndex] = useState<number | null>(null);
+  const [isAutocompleteDismissed, setIsAutocompleteDismissed] = useState(false);
+  const [prevTokenKey, setPrevTokenKey] = useState('');
+  const listRef = useRef<HTMLUListElement>(null);
+
+  const activeToken = useMemo(() => {
+    if (isAutocompleteDismissed) return null;
+    return getCaretToken(title, caretPos);
+  }, [title, caretPos, isAutocompleteDismissed]);
+
+  const tokenKey = activeToken ? `${activeToken.kind}:${activeToken.query}` : '';
+  if (tokenKey !== prevTokenKey) {
+    setPrevTokenKey(tokenKey);
+    setSelectedSuggestionIndex(0);
+  }
+
+  const autocompleteItems = useMemo(() => {
+    if (!activeToken) return [];
+    return getAutocompleteItems(activeToken, allProjects, availableTags);
+  }, [activeToken, allProjects, availableTags]);
+
+  const isAutocompleteOpen = autocompleteItems.length > 0;
+
+  useEffect(() => {
+    if (isAutocompleteOpen && listRef.current) {
+      const selectedEl = listRef.current.querySelector<HTMLElement>('.quick-add-autocomplete-item.selected');
+      if (selectedEl) {
+        selectedEl.scrollIntoView({ block: 'nearest' });
+      }
+    }
+  }, [selectedSuggestionIndex, isAutocompleteOpen]);
+
+  useEffect(() => {
+    setSelectedPillIndex(null);
+  }, [title]);
+
+  const applySuggestion = (item: AutocompleteItem, token: CaretToken) => {
+    const res = applyAutocomplete(title, [token.start, token.end], item.insertText);
+    currentTitle.current = res.text;
+    setTitle(res.text);
+    setCaretPos(res.newCursor);
+    setIsAutocompleteDismissed(false);
+    setTimeout(() => {
+      inputRef.current?.setSelectionRange(res.newCursor, res.newCursor);
+      inputRef.current?.focus();
+    }, 0);
+  };
+
+  const handleAppendSuggestion = (insertText: string) => {
+    const trimmed = title.trim();
+    const nextTitle = (trimmed ? `${trimmed} ` : '') + `${insertText} `;
+    currentTitle.current = nextTitle;
+    setTitle(nextTitle);
+    setCaretPos(nextTitle.length);
+    setIsAutocompleteDismissed(false);
+    setTimeout(() => {
+      inputRef.current?.setSelectionRange(nextTitle.length, nextTitle.length);
+      inputRef.current?.focus();
+    }, 0);
+  };
+
+  const handleRemoveDetected = (
+    kind: 'project' | 'date' | 'time' | 'priority' | 'tag' | 'recurrence',
+    value?: string,
+  ) => {
+    const stripped = stripTokenFromText(title, kind, value, allProjects);
+    currentTitle.current = stripped;
+    setTitle(stripped);
+    setCaretPos(stripped.length);
+    if (kind === 'project') setChosenProject(undefined);
+    if (kind === 'date') setChosenDate(undefined);
+    if (kind === 'time') setChosenTime(undefined);
+    if (kind === 'priority') setChosenPriority(undefined);
+    if (kind === 'recurrence') setChosenRecurrence(undefined);
+    if (kind === 'tag' && value) {
+      setExtraTags((prev) => prev.filter((t) => t !== value));
+    }
+    inputRef.current?.focus();
+  };
+
+  const handleInputKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.nativeEvent.isComposing) {
+      if (e.key === 'Enter') e.preventDefault();
+      return;
+    }
+
+    if (isAutocompleteOpen) {
+      if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        setSelectedSuggestionIndex((i) => (i + 1) % autocompleteItems.length);
+        return;
+      }
+      if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        setSelectedSuggestionIndex((i) => (i - 1 + autocompleteItems.length) % autocompleteItems.length);
+        return;
+      }
+      if (e.key === 'Enter' || e.key === 'Tab') {
+        e.preventDefault();
+        const chosen = autocompleteItems[selectedSuggestionIndex];
+        if (chosen && activeToken) {
+          applySuggestion(chosen, activeToken);
+        }
+        return;
+      }
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        setIsAutocompleteDismissed(true);
+        return;
+      }
+    } else if (quickSuggestions.length > 0) {
+      if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        setSelectedPillIndex((prev) => (prev === null ? 0 : (prev + 1) % quickSuggestions.length));
+        return;
+      }
+      if (e.key === 'ArrowUp') {
+        if (selectedPillIndex !== null) {
+          e.preventDefault();
+          if (selectedPillIndex === 0) {
+            setSelectedPillIndex(null);
+          } else {
+            setSelectedPillIndex((prev) => (prev! - 1 + quickSuggestions.length) % quickSuggestions.length);
+          }
+          return;
+        }
+      }
+      if (selectedPillIndex !== null) {
+        if (e.key === 'ArrowRight') {
+          e.preventDefault();
+          setSelectedPillIndex((prev) => (prev! + 1) % quickSuggestions.length);
+          return;
+        }
+        if (e.key === 'ArrowLeft') {
+          e.preventDefault();
+          setSelectedPillIndex((prev) => (prev! - 1 + quickSuggestions.length) % quickSuggestions.length);
+          return;
+        }
+        if (e.key === 'Enter' || e.key === 'Tab') {
+          e.preventDefault();
+          const chosen = quickSuggestions[selectedPillIndex];
+          if (chosen) {
+            handleAppendSuggestion(chosen.insertText);
+            setSelectedPillIndex(null);
+          }
+          return;
+        }
+        if (e.key === 'Escape') {
+          e.preventDefault();
+          setSelectedPillIndex(null);
+          return;
+        }
+      }
+    }
+
+    if (e.key === 'Escape') {
+      (e.target as HTMLInputElement).blur();
+    }
+  };
+
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    currentTitle.current = e.target.value;
+    setTitle(e.target.value);
+    setCaretPos(e.target.selectionStart ?? e.target.value.length);
+    setIsAutocompleteDismissed(false);
+    setError('');
+    setStatus('');
+  };
+
+  const updateCaret = (e: React.SyntheticEvent<HTMLInputElement>) => {
+    const target = e.currentTarget;
+    if (target.selectionStart !== null) {
+      setCaretPos(target.selectionStart);
+    }
+  };
 
   const parsed = parseQuickAdd(title, allProjects);
   const natural = parseNatural(parsed.title);
@@ -200,6 +390,96 @@ export default function QuickAdd(props: {
       : natural.recurrence ?? null;
   const finalTags = Array.from(new Set([...parsed.tags, ...extraTags]));
 
+  const quickSuggestions = useMemo(() => {
+    const currentProject = allProjects.find((p) => p.id === effectiveProjectId) ?? null;
+    return getQuickSuggestions(
+      {
+        project: currentProject,
+        dueDate: finalDate,
+        dueTime: finalTime,
+        priority: finalPriority,
+        recurrence: finalRecurrence,
+        tags: finalTags,
+      },
+      allProjects,
+      availableTags,
+    );
+  }, [allProjects, effectiveProjectId, finalDate, finalTime, finalPriority, finalRecurrence, finalTags, availableTags]);
+
+  const detectedChips = useMemo(() => {
+    const list: Array<{
+      id: string;
+      kind: 'project' | 'date' | 'time' | 'priority' | 'tag' | 'recurrence';
+      label: string;
+      value?: string;
+      color?: string;
+      icon: React.ReactNode;
+    }> = [];
+
+    const proj = allProjects.find((p) => p.id === effectiveProjectId);
+    if (proj && proj.id !== 'inbox') {
+      list.push({
+        id: 'chip-proj',
+        kind: 'project',
+        label: proj.name,
+        value: proj.id,
+        color: proj.color,
+        icon: <Folder size={12} aria-hidden="true" />,
+      });
+    }
+
+    if (finalDate) {
+      list.push({
+        id: 'chip-date',
+        kind: 'date',
+        label: friendlyDate(finalDate, todayStr()),
+        value: finalDate,
+        icon: <Calendar size={12} aria-hidden="true" />,
+      });
+    }
+
+    if (finalTime) {
+      list.push({
+        id: 'chip-time',
+        kind: 'time',
+        label: finalTime,
+        value: finalTime,
+        icon: <Clock size={12} aria-hidden="true" />,
+      });
+    }
+
+    if (finalPriority > 0) {
+      list.push({
+        id: 'chip-priority',
+        kind: 'priority',
+        label: `P${finalPriority}`,
+        color: finalPriority === 1 ? '#ef4444' : finalPriority === 2 ? '#f59e0b' : '#3b82f6',
+        icon: <Flag size={12} aria-hidden="true" />,
+      });
+    }
+
+    if (finalRecurrence) {
+      list.push({
+        id: 'chip-rec',
+        kind: 'recurrence',
+        label: describeRecurrence(finalRecurrence),
+        icon: <Repeat size={12} aria-hidden="true" />,
+      });
+    }
+
+    for (const tag of finalTags) {
+      list.push({
+        id: `chip-tag-${tag}`,
+        kind: 'tag',
+        label: `#${tag}`,
+        value: tag,
+        icon: <Tag size={12} aria-hidden="true" />,
+      });
+    }
+
+    return list;
+  }, [allProjects, effectiveProjectId, finalDate, finalTime, finalPriority, finalRecurrence, finalTags]);
+
   const hint = (() => {
     if (!title.trim()) return null;
     const nat = natural;
@@ -216,6 +496,94 @@ export default function QuickAdd(props: {
 
   const toggleExtraTag = (tag: string) => {
     setExtraTags((prev) => (prev.includes(tag) ? prev.filter((t) => t !== tag) : [...prev, tag]));
+  };
+
+  const renderAutocompletePopover = () => {
+    if (!isAutocompleteOpen) return null;
+    return (
+      <ul
+        ref={listRef}
+        className="quick-add-autocomplete-popover"
+        role="listbox"
+        aria-label="Suggestions"
+      >
+        {autocompleteItems.map((item, idx) => (
+          <li
+            key={item.id}
+            role="option"
+            aria-selected={idx === selectedSuggestionIndex}
+            className={`quick-add-autocomplete-item${idx === selectedSuggestionIndex ? ' selected' : ''}`}
+            onMouseDown={(e) => {
+              e.preventDefault();
+              if (activeToken) applySuggestion(item, activeToken);
+            }}
+          >
+            <span className="quick-add-autocomplete-main">
+              {item.color && (
+                <span
+                  className="quick-add-autocomplete-dot"
+                  style={{ backgroundColor: item.color }}
+                  aria-hidden="true"
+                />
+              )}
+              <span className="quick-add-autocomplete-label">{item.label}</span>
+            </span>
+            {item.detail && (
+              <span className="quick-add-autocomplete-detail">{item.detail}</span>
+            )}
+          </li>
+        ))}
+      </ul>
+    );
+  };
+
+  const renderLiveBar = () => {
+    if (detectedChips.length === 0 && quickSuggestions.length === 0) return null;
+    return (
+      <div className="quick-add-live-bar" aria-label="Detected task attributes and suggestions">
+        {detectedChips.length > 0 && (
+          <div className="quick-add-detected-chips" role="group" aria-label="Detected attributes">
+            {detectedChips.map((chip) => (
+              <span key={chip.id} className="qa-detected-pill">
+                {chip.icon}
+                <span>{chip.label}</span>
+                <button
+                  type="button"
+                  className="qa-remove-btn"
+                  onClick={() => handleRemoveDetected(chip.kind, chip.value)}
+                  aria-label={`Remove ${chip.label}`}
+                  title={`Remove ${chip.label}`}
+                >
+                  <X size={11} strokeWidth={2.4} aria-hidden="true" />
+                </button>
+              </span>
+            ))}
+          </div>
+        )}
+
+        {quickSuggestions.length > 0 && (
+          <div className="quick-add-suggestion-pills" role="group" aria-label="Suggested additions">
+            <span className="qa-suggest-label">Suggest:</span>
+            {quickSuggestions.map((sug, idx) => (
+              <button
+                key={sug.id}
+                type="button"
+                className={`qa-suggest-pill${idx === selectedPillIndex ? ' selected' : ''}`}
+                aria-selected={idx === selectedPillIndex}
+                onClick={() => {
+                  handleAppendSuggestion(sug.insertText);
+                  setSelectedPillIndex(null);
+                }}
+                title={`Add ${sug.label} to task`}
+              >
+                <Plus size={11} strokeWidth={2.2} aria-hidden="true" />
+                <span>{sug.label}</span>
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+    );
   };
 
   // Inline QuickAdd (used in Today, Home, Backlog, Projects)
@@ -241,18 +609,13 @@ export default function QuickAdd(props: {
               placeholder={props.placeholder ?? 'Add a task'}
               aria-describedby={`${fieldId}-hint${error ? ` ${fieldId}-error` : ''}`}
               aria-invalid={error ? true : undefined}
-              onChange={(e) => {
-                currentTitle.current = e.target.value;
-                setTitle(e.target.value);
-                setError('');
-                setStatus('');
-              }}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter' && e.nativeEvent.isComposing) e.preventDefault();
-                if (e.key === 'Escape' && !e.nativeEvent.isComposing)
-                  (e.target as HTMLInputElement).blur();
-              }}
+              onChange={handleInputChange}
+              onSelect={updateCaret}
+              onClick={updateCaret}
+              onKeyUp={updateCaret}
+              onKeyDown={handleInputKeyDown}
             />
+            {renderAutocompletePopover()}
           </div>
           <button
             type="submit"
@@ -262,6 +625,7 @@ export default function QuickAdd(props: {
             Add
           </button>
         </form>
+        {renderLiveBar()}
         <div id={`${fieldId}-hint`} className={`quick-add-hint${!hint ? ' default-hint' : ''}`} aria-live="polite">
           {hint ?? 'Dates, times, #tags, and +project supported'}
         </div>
@@ -316,23 +680,18 @@ export default function QuickAdd(props: {
               ref={inputRef}
               className="capture-title-input"
               value={title}
-              placeholder={props.placeholder ?? 'Add a task (e.g. Call dentist tomorrow 2pm #health p1)'}
+              placeholder={props.placeholder ?? 'e.g. Review budget tomorrow 6pm +work #home p1'}
               aria-describedby={`${fieldId}-preview${error ? ` ${fieldId}-error` : ''}`}
               aria-invalid={error ? true : undefined}
-              onChange={(e) => {
-                currentTitle.current = e.target.value;
-                setTitle(e.target.value);
-                setError('');
-                setStatus('');
-              }}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter' && e.nativeEvent.isComposing) e.preventDefault();
-                if (e.key === 'Escape' && !e.nativeEvent.isComposing) {
-                  (e.target as HTMLInputElement).blur();
-                }
-              }}
+              onChange={handleInputChange}
+              onSelect={updateCaret}
+              onClick={updateCaret}
+              onKeyUp={updateCaret}
+              onKeyDown={handleInputKeyDown}
             />
+            {renderAutocompletePopover()}
           </div>
+          {renderLiveBar()}
 
           {!showNote && !note && (
             <button
