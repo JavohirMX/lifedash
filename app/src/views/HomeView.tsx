@@ -11,7 +11,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { ArrowRight, BookOpen, Calendar, CalendarCheck, CalendarPlus, Check, Clock, ListTodo, Maximize2, PenLine, RotateCcw, SkipForward, SlidersHorizontal, Target, X } from 'lucide-react';
 import QuickAdd from '../components/QuickAdd';
 import { db } from '../db';
-import { saveWidgetVisibility } from '../widgetPreferences';
+import { saveWidgetVisibility, DEFAULT_HIDDEN_WIDGETS } from '../widgetPreferences';
 import HomeHabitCheck from '../components/HomeHabitCheck';
 import HomeFocusStop from '../components/HomeFocusStop';
 import { runningSession, sessionSeconds, focusTotals, formatClock, formatDuration } from '../focus';
@@ -39,7 +39,7 @@ export default function HomeView(props: {
   const projects = useLiveQuery(() => db.projects.toArray(), []);
   const projectMap = useMemo(() => new Map((projects ?? []).map((p) => [p.id, p])), [projects]);
   const widgetPref = useLiveQuery(() => db.syncmeta.get('home.widgets'), []);
-  const hidden: string[] = (widgetPref?.value as string[] | undefined) ?? [];
+  const hidden: string[] = Array.isArray(widgetPref?.value) ? widgetPref.value : [...DEFAULT_HIDDEN_WIDGETS];
   const [editingPlan, setEditingPlan] = useState<string | null>(null);
   const [reviewOpen, setReviewOpen] = useState(false);
   const [customizing, setCustomizing] = useState(false);
@@ -267,13 +267,13 @@ export default function HomeView(props: {
           <div className="widget-settings-grid">
             {[
               ['focus', 'Focus'],
-              ['upnext', 'On your radar'],
-              ['today', 'Next commitment'],
+              ['today', "Today's schedule"],
               ['habits', 'Habits'],
+              ['upnext', 'Needs attention'],
+              ['upcoming', 'Upcoming'],
               ['journal', 'Journal'],
               ['week', 'This week'],
               ['goals', 'Goals'],
-              ['upcoming', 'Upcoming'],
             ].map(([id, label]) => (
               <label key={id} className="widget-toggle">
                 <input type="checkbox" checked={!hidden.includes(id)} disabled={widgetSaving} onChange={() => void toggleWidget(id)} />
@@ -440,12 +440,12 @@ export default function HomeView(props: {
           )}
 
           {!hidden.includes('today') && (
-            <section className="home-commitment" aria-label="Next commitment">
+            <section className="home-commitment" aria-label="Today's schedule">
               <div className="home-section-head">
                 <div>
                   <p className="eyebrow">Today</p>
-                  <h2>Next commitment</h2>
-                  <p className="home-section-subtitle">Your next scheduled work session or commitment due today</p>
+                  <h2>Today's schedule</h2>
+                  <p className="home-section-subtitle">Your next scheduled work session or deadline due today</p>
                 </div>
                 <button className="widget-link" onClick={() => props.onSelect('planner')}>Day <ArrowRight size={13} aria-hidden="true" /></button>
               </div>
@@ -815,12 +815,11 @@ export default function HomeView(props: {
             </section>
           )}
 
-          {!hidden.includes('upnext') && (
-            <section className="home-signals widget">
+          {!hidden.includes('upnext') && (sugRows.length > 0 || noNextAction > 0) && (
+            <section className="home-signals widget" aria-label="Needs attention">
               <div className="widget-head">
-                <h2>On your radar</h2>
+                <h2>Needs attention</h2>
               </div>
-              {sugRows.length === 0 && <p className="widget-empty">No overdue, due-soon or stale-task signals.</p>}
               <ul className="widget-list">
                 {sugRows.map((r) => (
                   <li key={r.id}>
@@ -832,7 +831,9 @@ export default function HomeView(props: {
                   </li>
                 ))}
               </ul>
-              <p className="widget-meta">{noNextAction} active goal{noNextAction === 1 ? '' : 's'} without a next task.</p>
+              {noNextAction > 0 && (
+                <p className="widget-meta">{noNextAction} active goal{noNextAction === 1 ? '' : 's'} without a next task.</p>
+              )}
               <button className="btn-secondary" onClick={() => setReviewOpen(true)}>
                 <CalendarCheck size={14} strokeWidth={2} aria-hidden="true" />
                 Review this week
