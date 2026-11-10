@@ -54,6 +54,7 @@ export const AI_PRESETS: AiProviderPreset[] = [
 
 export interface AiSettings {
   enabled: boolean;
+  mode: 'provider' | 'local';
   preset: string;
   baseUrl: string;
   model: string;
@@ -77,6 +78,7 @@ export function setSessionApiKey(key: string): void {
 export function defaultAiSettings(): AiSettings {
   return {
     enabled: true,
+    mode: 'provider',
     preset: 'ollama',
     baseUrl: 'http://localhost:11434/v1',
     model: 'llama3.2',
@@ -102,6 +104,7 @@ export function loadAiSettings(): AiSettings {
     const apiKey = saveApiKey && typeof parsed.apiKey === 'string' ? parsed.apiKey : sessionApiKey;
     return {
       enabled: typeof parsed.enabled === 'boolean' ? parsed.enabled : defaults.enabled,
+      mode: parsed.mode === 'local' ? 'local' : 'provider',
       preset: typeof parsed.preset === 'string' ? parsed.preset : defaults.preset,
       baseUrl: typeof parsed.baseUrl === 'string' && parsed.baseUrl.trim() ? parsed.baseUrl : defaults.baseUrl,
       model: typeof parsed.model === 'string' ? parsed.model : defaults.model,
@@ -135,6 +138,7 @@ export function saveAiSettings(patch: Partial<AiSettings>): AiSettings {
   const current = loadAiSettings();
   const next: AiSettings = {
     enabled: patch.enabled !== undefined ? Boolean(patch.enabled) : current.enabled,
+    mode: patch.mode !== undefined ? (patch.mode === 'local' ? 'local' : 'provider') : current.mode,
     preset: patch.preset !== undefined ? patch.preset : current.preset,
     baseUrl: patch.baseUrl !== undefined ? patch.baseUrl.trim() : current.baseUrl,
     model: patch.model !== undefined ? patch.model.trim() : current.model,
@@ -150,6 +154,7 @@ export function saveAiSettings(patch: Partial<AiSettings>): AiSettings {
   try {
     const toStore: Record<string, unknown> = {
       enabled: next.enabled,
+      mode: next.mode,
       preset: next.preset,
       baseUrl: next.baseUrl,
       model: next.model,

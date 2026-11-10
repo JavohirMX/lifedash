@@ -39,6 +39,19 @@ describe('AiSettingsDialog', () => {
     expect(html).toContain('role="switch"');
     expect(html).toContain('aria-checked="true"');
     expect(html).toContain('Enable AI features');
+    expect(html).toContain('Planner engine');
+    expect(html).toContain('Model provider (Ollama, LM Studio, Cloud APIs)');
+    expect(html).toContain('On-device rule-based (No model, 100% offline)');
+  });
+
+  it('renders on-device explanation and hides model fields when mode is local', () => {
+    saveAiSettings({ ...defaultAiSettings(), mode: 'local' });
+    const html = renderToStaticMarkup(<AiSettingsDialog onClose={vi.fn()} />);
+
+    expect(html).toContain('Planner engine');
+    expect(html).toContain('Deterministic task ranking by due date and priority directly on this device');
+    expect(html).not.toContain('Provider preset');
+    expect(html).not.toContain('API base URL');
   });
 
   it('renders disabled state and notice when enabled is false', () => {

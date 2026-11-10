@@ -30,6 +30,7 @@ describe('aiSettings', () => {
   it('provides sensible defaults with Ollama preset', () => {
     const defaults = defaultAiSettings();
     expect(defaults.preset).toBe('ollama');
+    expect(defaults.mode).toBe('provider');
     expect(defaults.baseUrl).toBe('http://localhost:11434/v1');
     expect(defaults.model).toBe('llama3.2');
     expect(defaults.saveApiKey).toBe(false);
@@ -111,5 +112,18 @@ describe('aiSettings', () => {
 
     saveAiSettings({ enabled: true });
     expect(isAiEnabled()).toBe(true);
+  });
+
+  it('persists and loads planner mode (provider vs local on-device)', () => {
+    expect(defaultAiSettings().mode).toBe('provider');
+    expect(loadAiSettings().mode).toBe('provider');
+
+    saveAiSettings({ mode: 'local' });
+    expect(loadAiSettings().mode).toBe('local');
+    const stored = JSON.parse(localStorage.getItem('lifedash_ai_settings_v1') ?? '{}');
+    expect(stored.mode).toBe('local');
+
+    saveAiSettings({ mode: 'provider' });
+    expect(loadAiSettings().mode).toBe('provider');
   });
 });

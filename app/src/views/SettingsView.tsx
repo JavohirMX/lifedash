@@ -453,7 +453,13 @@ export default function SettingsView(props: {
                 </div>
                 <span className="settings-row-main">
                   <strong>AI features</strong>
-                  <small>{aiSettings.enabled ? `${aiPreset?.name || 'Custom'} · ${aiSettings.model || 'Configured'}` : 'Turned off for this device'}</small>
+                  <small>
+                    {!aiSettings.enabled
+                      ? 'Turned off for this device'
+                      : aiSettings.mode === 'local'
+                      ? 'On-device (Rule-based)'
+                      : `${aiPreset?.name || 'Custom'} · ${aiSettings.model || 'Configured'}`}
+                  </small>
                 </span>
                 <span className="settings-row-action" aria-hidden="true">
                   <span className="settings-state" data-active={aiSettings.enabled}>{aiSettings.enabled ? 'On' : 'Off'}</span>

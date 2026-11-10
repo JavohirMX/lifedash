@@ -1,7 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { Sparkles, Check, Calendar, ListPlus, CheckSquare } from 'lucide-react';
-import { radioKeyIndex } from '../radioKeys';
 import type { Task } from '../types';
 import { db, INBOX_ID } from '../db';
 import { addTask, updateTask } from '../repo';
@@ -27,7 +26,7 @@ export default function AssistantDialog({ tasks, onClose }: { tasks: Task[]; onC
   const abort = useRef<AbortController>();
 
   const settings = useAiSettings();
-  const [mode, setMode] = useState<'local' | 'provider'>('local');
+  const mode = settings.mode;
   const [prompt, setPrompt] = useState('Help me choose a realistic order for these tasks. Explain tradeoffs and do not change anything.');
   const [selected, setSelected] = useState<string[]>([]);
   const [includeGoals, setIncludeGoals] = useState(false);
@@ -265,36 +264,6 @@ export default function AssistantDialog({ tasks, onClose }: { tasks: Task[]; onC
         </button>
       </header>
       <p>Get a second opinion, not an autopilot. Suggestions never change your tasks without your review.</p>
-
-      <div className="mode-seg" role="radiogroup" aria-label="Planner source">
-        {(
-          [
-            ['local', 'On-device'],
-            ['provider', 'Model provider'],
-          ] as const
-        ).map(([id, label], index) => (
-          <button
-            key={id}
-            role="radio"
-            aria-checked={mode === id}
-            tabIndex={mode === id ? 0 : -1}
-            onKeyDown={(e) => {
-              const next = radioKeyIndex(e.key, index, 2);
-              if (next === null) return;
-              e.preventDefault();
-              setMode(next === 0 ? 'local' : 'provider');
-              e.currentTarget
-                .closest('[role=radiogroup]')
-                ?.querySelectorAll<HTMLButtonElement>('[role=radio]')
-                [next]?.focus();
-            }}
-            className={mode === id ? 'active' : ''}
-            onClick={() => setMode(id)}
-          >
-            {label}
-          </button>
-        ))}
-      </div>
 
       {mode === 'local' ? (
         <p className="ai-hint">
