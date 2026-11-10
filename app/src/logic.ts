@@ -378,10 +378,63 @@ export function normalizeTag(raw: string): string {
   return raw.trim().replace(/^#+/, '').toLowerCase().replace(/\s+/g, '-');
 }
 
-/** Pull "#tag" tokens out of quick-add text; returns the cleaned title and tags. */
-export function parseQuickAdd(raw: string): { title: string; tags: string[] } {
+export function normalizeProjectKey(s: string): string {
+  return s.trim().toLowerCase().replace(/[\s\-_]+/g, '');
+}
+
+/** Match a project token (name, slug, or ID) against active projects. */
+export function matchProject(key: string, projects: Project[]): Project | undefined {
+  const cleanKey = key.trim();
+  if (!cleanKey) return undefined;
+  const lk = cleanKey.toLowerCase();
+  const nk = normalizeProjectKey(cleanKey);
+
+  const active = projects.filter((p) => !p.archived);
+
+  // 1. Exact name match (case-insensitive)
+  const exact = active.find((p) => p.name.trim().toLowerCase() === lk);
+  if (exact) return exact;
+
+  // 2. Exact ID match (e.g. "inbox")
+  const idMatch = active.find((p) => p.id.toLowerCase() === lk);
+  if (idMatch) return idMatch;
+
+  // 3. Normalized slug match (e.g. "life-admin" or "lifeadmin" matches "Life Admin")
+  const slugMatch = active.find((p) => normalizeProjectKey(p.name) === nk);
+  if (slugMatch) return slugMatch;
+
+  return undefined;
+}
+
+/** Pull "#tag" and project tokens ("+project", "@project") out of quick-add text. */
+export function parseQuickAdd(
+  raw: string,
+  projects: Project[] = []
+): { title: string; tags: string[]; project?: Project } {
+  let text = raw.trim();
+  let matchedProject: Project | undefined;
+
+  if (projects.length > 0) {
+    // Look for project tokens: +name, +"multi word", @name, @"multi word"
+    const projRegex = /(?:^|\s)([\+@](?:"([^"]+)"|'([^']+)'|([^\s#]+)))/g;
+    let match: RegExpExecArray | null;
+    while ((match = projRegex.exec(text)) !== null) {
+      const fullToken = match[1];
+      const candidateName = match[2] ?? match[3] ?? match[4];
+      if (candidateName) {
+        const found = matchProject(candidateName, projects);
+        if (found) {
+          matchedProject = found;
+          const tokenStart = match.index + (match[0].length - fullToken.length);
+          text = `${text.slice(0, tokenStart)} ${text.slice(tokenStart + fullToken.length)}`;
+          break;
+        }
+      }
+    }
+  }
+
   const tags: string[] = [];
-  const words = raw.trim().split(/\s+/).filter(Boolean);
+  const words = text.trim().split(/\s+/).filter(Boolean);
   const kept = words.filter((w) => {
     if (w.startsWith('#') && w.length > 1) {
       tags.push(normalizeTag(w));
@@ -389,7 +442,12 @@ export function parseQuickAdd(raw: string): { title: string; tags: string[] } {
     }
     return true;
   });
-  return { title: kept.join(' '), tags };
+
+  return {
+    title: kept.join(' '),
+    tags,
+    ...(matchedProject ? { project: matchedProject } : {}),
+  };
 }
 
 // Tokens: "#tag" filters by tag, other tokens substring-match title/note.
@@ -458,28 +516,57 @@ export function searchGoals(goals: Goal[], query: string): Goal[] {
 // The one task most worth doing right now: overdue first, then priority,
 // then anything due today with a time, then earliest due. Blocked and
 // subtasks don't qualify.
-export function suggestedTask(tasks: Task[], today: string, opts?: { tomorrowFallback?: boolean }): { task: Task; reason: string } | null {
-  const unblocked = (t: Task) => t.status === 'active' && t.parentId === null && activeBlockers(tasks, t).length === 0 && t.dueDate !== null;
-  const candidates = tasks.filter((t) => unblocked(t) && t.dueDate! <= today);
-  // Home only (approved 2026-11-03): when nothing is due today, suggest
-  // tomorrow's task so a near deadline is never invisible. Other callers
+export function suggestedTask(
+  tasks: Task[],
+  today: string,
+  opts?: { tomorrowFallback?: boolean; backlogFallback?: boolean }
+): { task: Task; reason: string } | null {
+  const isUnblocked = (t: Task) => t.status === 'active' && t.parentId === null && activeBlockers(tasks, t).length === 0;
+  const candidates = tasks.filter((t) => isUnblocked(t) && t.dueDate !== null && t.dueDate <= today);
+  // Home only: when nothing is due today, suggest backlog tasks or
+  // tomorrow's task so actionable work is never invisible. Other callers
   // keep today-only behavior by default.
   const tomorrow = addDays(today, 1);
-  const pool =
-    candidates.length > 0
-      ? (candidates.some((t) => t.dueDate! < today) ? candidates.filter((t) => t.dueDate! < today) : candidates)
-      : opts?.tomorrowFallback
-        ? tasks.filter((t) => unblocked(t) && t.dueDate! === tomorrow)
-        : [];
+
+  let pool: Task[] = [];
+  let isBacklog = false;
+  let isTomorrow = false;
+
+  if (candidates.length > 0) {
+    pool = candidates.some((t) => t.dueDate! < today) ? candidates.filter((t) => t.dueDate! < today) : candidates;
+  } else if (opts?.backlogFallback) {
+    const backlog = tasks.filter((t) => isUnblocked(t) && t.dueDate === null);
+    if (backlog.length > 0) {
+      pool = backlog;
+      isBacklog = true;
+    } else if (opts?.tomorrowFallback) {
+      pool = tasks.filter((t) => isUnblocked(t) && t.dueDate === tomorrow);
+      isTomorrow = true;
+    }
+  } else if (opts?.tomorrowFallback) {
+    pool = tasks.filter((t) => isUnblocked(t) && t.dueDate === tomorrow);
+    isTomorrow = true;
+  }
+
   if (pool.length === 0) return null;
   pool.sort((a, b) => {
     if (a.priority !== b.priority) return (a.priority || 4) - (b.priority || 4);
     if ((a.dueTime ?? '99') !== (b.dueTime ?? '99')) return (a.dueTime ?? '99').localeCompare(b.dueTime ?? '99');
+    if (isBacklog) {
+      const bTime = (b.updatedAt || b.createdAt) ?? 0;
+      const aTime = (a.updatedAt || a.createdAt) ?? 0;
+      if (bTime !== aTime) return bTime - aTime;
+    }
     return a.createdAt - b.createdAt;
   });
   const top = pool[0];
-  const reason =
-    candidates.length === 0
+  const reason = isBacklog
+    ? top.priority === 1
+      ? 'From Backlog · Top priority'
+      : top.priority === 2
+        ? 'From Backlog · Medium priority'
+        : 'From Backlog'
+    : candidates.length === 0
       ? 'Due tomorrow'
       : candidates.some((t) => t.dueDate! < today)
         ? 'Overdue'

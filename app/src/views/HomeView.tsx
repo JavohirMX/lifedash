@@ -8,17 +8,17 @@ import { goalsWithoutNextAction } from '../review';
 import CompletionButton from '../components/CompletionButton';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { ArrowRight, BookOpen, Calendar, CalendarCheck, Check, Clock, ListTodo, Maximize2, PenLine, RotateCcw, SkipForward, SlidersHorizontal, Target, X } from 'lucide-react';
+import { ArrowRight, BookOpen, Calendar, CalendarCheck, CalendarPlus, Check, Clock, ListTodo, Maximize2, PenLine, RotateCcw, SkipForward, SlidersHorizontal, Target, X } from 'lucide-react';
 import QuickAdd from '../components/QuickAdd';
 import { db } from '../db';
-import { saveWidgetVisibility } from '../widgetPreferences';
+import { saveWidgetVisibility, DEFAULT_HIDDEN_WIDGETS } from '../widgetPreferences';
 import HomeHabitCheck from '../components/HomeHabitCheck';
 import HomeFocusStop from '../components/HomeFocusStop';
 import { runningSession, sessionSeconds, focusTotals, formatClock, formatDuration } from '../focus';
 import { todayTasks, upcomingTasks, suggestedTask, upNextGroups, sortTasks, activeBlockers } from '../logic';
 import { currentStreak, isScheduledOn, logsByDate, isHabitDone } from '../habits';
 import { todayStr, addDays, friendlyDate, weekdayLabel } from '../dates';
-import { getOrCreateJournalEntry, updateJournalEntry } from '../repo';
+import { getOrCreateJournalEntry, updateJournalEntry, updateTask } from '../repo';
 import type { Task } from '../types';
 
 function greeting(hour: number): string {
@@ -39,12 +39,13 @@ export default function HomeView(props: {
   const projects = useLiveQuery(() => db.projects.toArray(), []);
   const projectMap = useMemo(() => new Map((projects ?? []).map((p) => [p.id, p])), [projects]);
   const widgetPref = useLiveQuery(() => db.syncmeta.get('home.widgets'), []);
-  const hidden: string[] = (widgetPref?.value as string[] | undefined) ?? [];
+  const hidden: string[] = Array.isArray(widgetPref?.value) ? widgetPref.value : [...DEFAULT_HIDDEN_WIDGETS];
   const [editingPlan, setEditingPlan] = useState<string | null>(null);
   const [reviewOpen, setReviewOpen] = useState(false);
   const [customizing, setCustomizing] = useState(false);
   const [drillDate, setDrillDate] = useState<string | null>(null);
   const [skippedIds, setSkippedIds] = useState<string[]>([]);
+  const [scheduleError, setScheduleError] = useState<string | null>(null);
   const [editingJournal, setEditingJournal] = useState(false);
   const [journalDraft, setJournalDraft] = useState('');
   const [journalSaving, setJournalSaving] = useState(false);
@@ -65,6 +66,15 @@ export default function HomeView(props: {
   const today = todayStr();
   const journalEntry = useLiveQuery(() => db.journal.get(today), [today]);
 
+  const handleScheduleToday = async (id: string) => {
+    setScheduleError(null);
+    try {
+      await updateTask(id, { dueDate: today });
+    } catch {
+      setScheduleError("Couldn't schedule task for today. Try again.");
+    }
+  };
+
   const [clock, setClock] = useState(() => Date.now());
   useEffect(() => { const timer = setInterval(() => setClock(Date.now()), 30_000); return () => clearInterval(timer); }, []);
   const now = new Date(clock);
@@ -79,6 +89,15 @@ export default function HomeView(props: {
   }, [running?.id]);
   const focusedToday = focusSessions ? focusTotals(focusSessions, today, focusNow).todayTotal : 0;
 
+  // Backlog pool sorted by priority, then recency
+  const unblockedBacklog = useMemo(() => {
+    const list = props.tasks.filter((t) => t.status === 'active' && t.parentId === null && activeBlockers(props.tasks, t).length === 0 && t.dueDate === null);
+    return list.sort((a, b) => {
+      if (a.priority !== b.priority) return (a.priority || 4) - (b.priority || 4);
+      return ((b.updatedAt || b.createdAt) ?? 0) - ((a.updatedAt || a.createdAt) ?? 0);
+    });
+  }, [props.tasks]);
+
   // Candidate pool for Next Action cycling
   const unblocked = (t: Task) => t.status === 'active' && t.parentId === null && activeBlockers(props.tasks, t).length === 0 && t.dueDate !== null;
   const candidates = props.tasks.filter((t) => unblocked(t) && t.dueDate! <= today);
@@ -86,9 +105,11 @@ export default function HomeView(props: {
   const pool =
     candidates.length > 0
       ? candidates
-      : props.tasks.filter((t) => unblocked(t) && t.dueDate! === tomorrow);
+      : unblockedBacklog.length > 0
+        ? unblockedBacklog
+        : props.tasks.filter((t) => unblocked(t) && t.dueDate! === tomorrow);
   const candidateTasks = props.tasks.filter((t) => !skippedIds.includes(t.id));
-  const suggestion = suggestedTask(candidateTasks, today, { tomorrowFallback: true }) ?? suggestedTask(props.tasks, today, { tomorrowFallback: true });
+  const suggestion = suggestedTask(candidateTasks, today, { tomorrowFallback: true, backlogFallback: true }) ?? suggestedTask(props.tasks, today, { tomorrowFallback: true, backlogFallback: true });
   const canCycle = pool.length > 1;
   const skipSuggestion = (id: string) => {
     const next = [...skippedIds, id];
@@ -164,7 +185,9 @@ export default function HomeView(props: {
   const orientation = allDoneToday
     ? 'All clear for today. Every scheduled task and habit is done. Enjoy the quiet.'
     : openToday.length === 0
-      ? 'Nothing is due today. Leave room for what matters, or pull one thing forward.'
+      ? (unblockedBacklog.length > 0
+          ? `${unblockedBacklog.length} task${unblockedBacklog.length === 1 ? '' : 's'} in backlog ready to pull forward, or enjoy the quiet.`
+          : 'Nothing is due today. Leave room for what matters, or pull one thing forward.')
       : openToday.length === 1
         ? 'One open task is due. Give it your full attention, then stop.'
         : `${openToday.length} open tasks are due. Pick one, finish it, then look up.`;
@@ -244,13 +267,13 @@ export default function HomeView(props: {
           <div className="widget-settings-grid">
             {[
               ['focus', 'Focus'],
-              ['upnext', 'On your radar'],
-              ['today', 'Next commitment'],
+              ['today', "Today's schedule"],
               ['habits', 'Habits'],
+              ['upnext', 'Needs attention'],
+              ['upcoming', 'Upcoming'],
               ['journal', 'Journal'],
               ['week', 'This week'],
               ['goals', 'Goals'],
-              ['upcoming', 'Upcoming'],
             ].map(([id, label]) => (
               <label key={id} className="widget-toggle">
                 <input type="checkbox" checked={!hidden.includes(id)} disabled={widgetSaving} onChange={() => void toggleWidget(id)} />
@@ -387,6 +410,18 @@ export default function HomeView(props: {
                   </div>
                 </div>
                 <div className="home-focus-actions">
+                  {suggestion.task.dueDate === null && (
+                    <button
+                      type="button"
+                      className="home-do-today-btn"
+                      onClick={() => void handleScheduleToday(suggestion.task.id)}
+                      title="Schedule this backlog task for today"
+                      aria-label={`Schedule ${suggestion.task.title} for today`}
+                    >
+                      <CalendarPlus size={14} strokeWidth={2} aria-hidden="true" />
+                      <span>Do today</span>
+                    </button>
+                  )}
                   <HomeFocusStart taskId={suggestion.task.id} />
                 </div>
               </div>
@@ -395,22 +430,22 @@ export default function HomeView(props: {
           {!hidden.includes('focus') && !running && !suggestion && (
             <section className="home-focus home-focus-empty" aria-labelledby="home-focus-heading">
               <p className="eyebrow" id="home-focus-heading">Next action</p>
-              <h2>No unblocked tasks due now.</h2>
-              <p className="home-empty-copy">Choose something from Backlog, or enjoy the quiet.</p>
+              <h2>All clear for now.</h2>
+              <p className="home-empty-copy">No tasks due or waiting in your backlog. Capture an idea or enjoy the quiet.</p>
               <button className="btn-secondary" onClick={() => props.onSelect('backlog')}>
                 <ListTodo size={14} strokeWidth={2} aria-hidden="true" />
-                Choose a task
+                Open Backlog
               </button>
             </section>
           )}
 
           {!hidden.includes('today') && (
-            <section className="home-commitment" aria-label="Next commitment">
+            <section className="home-commitment" aria-label="Today's schedule">
               <div className="home-section-head">
                 <div>
                   <p className="eyebrow">Today</p>
-                  <h2>Next commitment</h2>
-                  <p className="home-section-subtitle">Your next scheduled work session or commitment due today</p>
+                  <h2>Today's schedule</h2>
+                  <p className="home-section-subtitle">Your next scheduled work session or deadline due today</p>
                 </div>
                 <button className="widget-link" onClick={() => props.onSelect('planner')}>Day <ArrowRight size={13} aria-hidden="true" /></button>
               </div>
@@ -524,32 +559,125 @@ export default function HomeView(props: {
                   <span>Open tasks</span>
                   <span className="num">{doneToday} of {dueTodayAll.length} done</span>
                 </div>
+                {scheduleError && <p className="sub-add-feedback" role="alert">{scheduleError}</p>}
                 {openToday.length === 0 ? (
-                  <p className="home-empty-copy">Nothing due today.</p>
+                  <div className="home-backlog-picker-section">
+                    <p className="home-empty-copy">Nothing scheduled for today.</p>
+                    {unblockedBacklog.length > 0 ? (
+                      <div className="home-backlog-tray">
+                        <div className="home-backlog-tray-head">
+                          <span className="eyebrow">Ready from Backlog</span>
+                          <span className="num">{unblockedBacklog.length} parked</span>
+                        </div>
+                        <ul className="briefing-list">
+                          {unblockedBacklog
+                            .filter(t => t.id !== suggestion?.task.id)
+                            .slice(0, 4)
+                            .map((t) => {
+                              const proj = projectMap.get(t.projectId);
+                              return (
+                                <li key={t.id} className="briefing-task home-backlog-task-row">
+                                  <CompletionButton task={t} className="checkbox home-check" label={`Mark ${t.title} done`} />
+                                  <button className="briefing-task-title" onClick={() => props.onOpen(t.id)}>
+                                    {proj && proj.id !== 'inbox' && (
+                                      <span className="dot briefing-dot" style={{ background: proj.color }} title={proj.name} />
+                                    )}
+                                    {t.title}
+                                  </button>
+                                  <div className="home-backlog-actions">
+                                    {t.durationMinutes && (
+                                      <span className="home-meta-pill duration num">{t.durationMinutes}m</span>
+                                    )}
+                                    <button
+                                      type="button"
+                                      className="btn-quiet mini home-schedule-pill"
+                                      onClick={() => void handleScheduleToday(t.id)}
+                                      title="Schedule for today"
+                                      aria-label={`Schedule ${t.title} for today`}
+                                    >
+                                      <CalendarPlus size={12} strokeWidth={2} aria-hidden="true" />
+                                      <span>+ Today</span>
+                                    </button>
+                                  </div>
+                                </li>
+                              );
+                            })}
+                        </ul>
+                        <button className="home-more-tasks" onClick={() => props.onSelect('backlog')}>
+                          View all {unblockedBacklog.length} backlog tasks <ArrowRight size={14} aria-hidden="true" />
+                        </button>
+                      </div>
+                    ) : (
+                      <button className="home-more-tasks" onClick={() => props.onSelect('backlog')}>
+                        Open Backlog <ArrowRight size={14} aria-hidden="true" />
+                      </button>
+                    )}
+                  </div>
                 ) : (
-                  <ul className="briefing-list">
-                    {openToday.filter(t => t.id !== suggestion?.task.id && t.id !== commitment?.task.id).slice(0, 4).map((t) => {
-                      const proj = projectMap.get(t.projectId);
-                      return (
-                        <li key={t.id} className="briefing-task">
-                          <CompletionButton task={t} className="checkbox home-check" label={`Mark ${t.title} done`} />
-                          <button className={`briefing-task-title${t.status === 'done' ? ' done' : ''}`} onClick={() => props.onOpen(t.id)}>
-                            {proj && proj.id !== 'inbox' && (
-                              <span className="dot briefing-dot" style={{ background: proj.color }} title={proj.name} />
-                            )}
-                            {t.title}
-                          </button>
-                          <span className={`briefing-task-when num${t.dueDate && t.dueDate < today ? ' overdue' : ''}`}>
-                            {t.dueDate ? friendlyDate(t.dueDate, today) : ''}
-                          </span>
-                        </li>
-                      );
-                    })}
-                  </ul>
+                  <>
+                    <ul className="briefing-list">
+                      {openToday.filter(t => t.id !== suggestion?.task.id && t.id !== commitment?.task.id).slice(0, 4).map((t) => {
+                        const proj = projectMap.get(t.projectId);
+                        return (
+                          <li key={t.id} className="briefing-task">
+                            <CompletionButton task={t} className="checkbox home-check" label={`Mark ${t.title} done`} />
+                            <button className={`briefing-task-title${t.status === 'done' ? ' done' : ''}`} onClick={() => props.onOpen(t.id)}>
+                              {proj && proj.id !== 'inbox' && (
+                                <span className="dot briefing-dot" style={{ background: proj.color }} title={proj.name} />
+                              )}
+                              {t.title}
+                            </button>
+                            <span className={`briefing-task-when num${t.dueDate && t.dueDate < today ? ' overdue' : ''}`}>
+                              {t.dueDate ? friendlyDate(t.dueDate, today) : ''}
+                            </span>
+                          </li>
+                        );
+                      })}
+                    </ul>
+                    <button className="home-more-tasks" onClick={() => props.onSelect('today')}>
+                      View all {openToday.length} open tasks <ArrowRight size={14} aria-hidden="true" />
+                    </button>
+                    {unblockedBacklog.length > 0 && (
+                      <details className="home-backlog-accordion">
+                        <summary>
+                          <span>Pull from Backlog</span>
+                          <span className="num">{unblockedBacklog.length} ready</span>
+                        </summary>
+                        <ul className="briefing-list">
+                          {unblockedBacklog.slice(0, 3).map((t) => {
+                            const proj = projectMap.get(t.projectId);
+                            return (
+                              <li key={t.id} className="briefing-task home-backlog-task-row">
+                                <CompletionButton task={t} className="checkbox home-check" label={`Mark ${t.title} done`} />
+                                <button className="briefing-task-title" onClick={() => props.onOpen(t.id)}>
+                                  {proj && proj.id !== 'inbox' && (
+                                    <span className="dot briefing-dot" style={{ background: proj.color }} title={proj.name} />
+                                  )}
+                                  {t.title}
+                                </button>
+                                <div className="home-backlog-actions">
+                                  <button
+                                    type="button"
+                                    className="btn-quiet mini home-schedule-pill"
+                                    onClick={() => void handleScheduleToday(t.id)}
+                                    title="Schedule for today"
+                                    aria-label={`Schedule ${t.title} for today`}
+                                  >
+                                    <CalendarPlus size={12} strokeWidth={2} aria-hidden="true" />
+                                    <span>+ Today</span>
+                                  </button>
+                                </div>
+                              </li>
+                            );
+                          })}
+                        </ul>
+                        <button className="home-more-tasks" onClick={() => props.onSelect('backlog')}>
+                          View all {unblockedBacklog.length} backlog tasks <ArrowRight size={14} aria-hidden="true" />
+                        </button>
+                      </details>
+                    )}
+                  </>
                 )}
-                <button className="home-more-tasks" onClick={() => props.onSelect('today')}>
-                  View all {openToday.length} open tasks <ArrowRight size={14} aria-hidden="true" />
-                </button>
                 {completedTodayTasks.length > 0 && (
                   <details className="home-completed-today">
                     <summary>
@@ -687,12 +815,11 @@ export default function HomeView(props: {
             </section>
           )}
 
-          {!hidden.includes('upnext') && (
-            <section className="home-signals widget">
+          {!hidden.includes('upnext') && (sugRows.length > 0 || noNextAction > 0) && (
+            <section className="home-signals widget" aria-label="Needs attention">
               <div className="widget-head">
-                <h2>On your radar</h2>
+                <h2>Needs attention</h2>
               </div>
-              {sugRows.length === 0 && <p className="widget-empty">No overdue, due-soon or stale-task signals.</p>}
               <ul className="widget-list">
                 {sugRows.map((r) => (
                   <li key={r.id}>
@@ -704,7 +831,9 @@ export default function HomeView(props: {
                   </li>
                 ))}
               </ul>
-              <p className="widget-meta">{noNextAction} active goal{noNextAction === 1 ? '' : 's'} without a next task.</p>
+              {noNextAction > 0 && (
+                <p className="widget-meta">{noNextAction} active goal{noNextAction === 1 ? '' : 's'} without a next task.</p>
+              )}
               <button className="btn-secondary" onClick={() => setReviewOpen(true)}>
                 <CalendarCheck size={14} strokeWidth={2} aria-hidden="true" />
                 Review this week

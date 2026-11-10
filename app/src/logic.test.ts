@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { upcomingTasks, suggestedTask, parseQuickAdd, groupCompletedByDay, renamedTags, completeTask, skipOccurrence, searchJournal, blockerCandidates, extractChecklistItems, filterNewChecklistItems, describeRecurrence, recurrenceChoice, isRecurrenceValid, nextOccurrenceDate, makeRecurrence, upNextGroups } from './logic';
-import type { Task } from './types';
+import { upcomingTasks, suggestedTask, parseQuickAdd, matchProject, groupCompletedByDay, renamedTags, completeTask, skipOccurrence, searchJournal, blockerCandidates, extractChecklistItems, filterNewChecklistItems, describeRecurrence, recurrenceChoice, isRecurrenceValid, nextOccurrenceDate, makeRecurrence, upNextGroups } from './logic';
+import type { Task, Project } from './types';
 
 describe('parseQuickAdd', () => {
   it('extracts tags and cleans the title', () => {
@@ -11,6 +11,51 @@ describe('parseQuickAdd', () => {
   });
   it('ignores a bare # and mid-word hashes', () => {
     expect(parseQuickAdd('C# notes # dev')).toEqual({ title: 'C# notes # dev', tags: [] });
+  });
+
+  const proj = (id: string, name: string, archived = false): Project => ({
+    id, name, color: '#000', order: 0, archived,
+  });
+
+  it('extracts +project and matches case-insensitively', () => {
+    const projects = [proj('p1', 'Work'), proj('p2', 'Personal')];
+    const res = parseQuickAdd('Submit quarterly report +work #finance', projects);
+    expect(res.title).toBe('Submit quarterly report');
+    expect(res.tags).toEqual(['finance']);
+    expect(res.project).toEqual(projects[0]);
+  });
+
+  it('extracts @project syntax', () => {
+    const projects = [proj('p1', 'Home')];
+    const res = parseQuickAdd('Fix the leaky faucet @home', projects);
+    expect(res.title).toBe('Fix the leaky faucet');
+    expect(res.project).toEqual(projects[0]);
+  });
+
+  it('matches multi-word projects via slug or quotes', () => {
+    const projects = [proj('p1', 'Life Admin'), proj('p2', 'CS 101')];
+    const res1 = parseQuickAdd('Call insurance +life-admin', projects);
+    expect(res1.title).toBe('Call insurance');
+    expect(res1.project).toEqual(projects[0]);
+
+    const res2 = parseQuickAdd('Pay bill +"Life Admin"', projects);
+    expect(res2.title).toBe('Pay bill');
+    expect(res2.project).toEqual(projects[0]);
+
+    const res3 = parseQuickAdd('Finish homework +cs-101', projects);
+    expect(res3.title).toBe('Finish homework');
+    expect(res3.project).toEqual(projects[1]);
+  });
+
+  it('leaves unmatched project tokens in title and ignores archived projects', () => {
+    const projects = [proj('arch', 'Old Work', true)];
+    const res1 = parseQuickAdd('Archived chore +old-work', projects);
+    expect(res1.title).toBe('Archived chore +old-work');
+    expect(res1.project).toBeUndefined();
+
+    const res2 = parseQuickAdd('Solve 1 + 2 = 3 +unknown', [proj('p1', 'Work')]);
+    expect(res2.title).toBe('Solve 1 + 2 = 3 +unknown');
+    expect(res2.project).toBeUndefined();
   });
 });
 
@@ -457,5 +502,59 @@ describe('nextOccurrenceDate monthly clamp bounds', () => {
   it('keeps the unbounded clamp for editor-style rules with no COUNT/UNTIL', () => {
     const rule = 'DTSTART:20260131T120000Z\nRRULE:FREQ=MONTHLY;BYMONTHDAY=31';
     expect(nextOccurrenceDate(rule, '2026-01-31', '2026-02-15')).toBe('2026-02-28');
+  });
+});
+
+describe('suggestedTask backlog fallback', () => {
+  const task = (id: string, dueDate: string | null, extra: Partial<Task> = {}) =>
+    ({ id, title: id, status: 'active', parentId: null, dueDate, priority: 0, pinned: false, order: 0, blockedBy: [], createdAt: 1000, updatedAt: 1000, ...extra } as Task);
+
+  it('suggests top unblocked backlog task when nothing is due today', () => {
+    const backlog = task('b1', null, { title: 'Do research' });
+    expect(suggestedTask([backlog], '2026-10-27', { backlogFallback: true })).toMatchObject({
+      task: { id: 'b1' },
+      reason: 'From Backlog',
+    });
+  });
+
+  it('still prefers a due-today task over backlog', () => {
+    const today = task('tdy', '2026-10-27');
+    const backlog = task('b1', null);
+    expect(suggestedTask([backlog, today], '2026-10-27', { backlogFallback: true })?.task.id).toBe('tdy');
+  });
+
+  it('labels priority on backlog tasks honestly', () => {
+    const p1 = task('p1', null, { priority: 1 });
+    const p2 = task('p2', null, { priority: 2 });
+    const p3 = task('p3', null, { priority: 3 });
+    expect(suggestedTask([p1], '2026-10-27', { backlogFallback: true })?.reason).toBe('From Backlog · Top priority');
+    expect(suggestedTask([p2], '2026-10-27', { backlogFallback: true })?.reason).toBe('From Backlog · Medium priority');
+    expect(suggestedTask([p3], '2026-10-27', { backlogFallback: true })?.reason).toBe('From Backlog');
+  });
+
+  it('sorts backlog tasks by priority, then recency', () => {
+    const olderP1 = task('older-p1', null, { priority: 1, updatedAt: 1000 });
+    const newerP1 = task('newer-p1', null, { priority: 1, updatedAt: 2000 });
+    const lowPriority = task('low', null, { priority: 3, updatedAt: 3000 });
+
+    expect(suggestedTask([olderP1, newerP1, lowPriority], '2026-10-27', { backlogFallback: true })?.task.id).toBe('newer-p1');
+    expect(suggestedTask([olderP1, lowPriority], '2026-10-27', { backlogFallback: true })?.task.id).toBe('older-p1');
+  });
+
+  it('excludes blocked backlog tasks and subtasks', () => {
+    const blocker = task('blocker', '2026-11-01'); // scheduled in future, so not in backlog
+    const blocked = task('blocked', null, { blockedBy: ['blocker'] });
+    const child = task('child', null, { parentId: 'blocker' });
+    expect(suggestedTask([blocker, blocked, child], '2026-10-27', { backlogFallback: true })).toBeNull();
+  });
+
+  it('without the opt-in, backlog stays invisible (baseline pinned)', () => {
+    const backlog = task('b1', null);
+    expect(suggestedTask([backlog], '2026-10-27')).toBeNull();
+  });
+
+  it('falls back to tomorrow if backlog is empty and tomorrowFallback is also enabled', () => {
+    const tmr = task('tmr', '2026-10-28');
+    expect(suggestedTask([tmr], '2026-10-27', { backlogFallback: true, tomorrowFallback: true })?.task.id).toBe('tmr');
   });
 });

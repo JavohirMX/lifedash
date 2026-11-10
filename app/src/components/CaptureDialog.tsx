@@ -26,7 +26,7 @@ export default function CaptureDialog({ open, projects, onClose }: { open: boole
             </span>
             <div>
               <h2>Capture task</h2>
-              <span className="capture-head-hint">Add tasks with natural language dates, times, and #tags</span>
+              <span className="capture-head-hint">Add tasks with natural language dates, times, #tags, and +project</span>
             </div>
           </div>
           <button type="button" className="icon-btn capture-close-btn" aria-label="Close capture" onClick={onClose}>
@@ -36,7 +36,7 @@ export default function CaptureDialog({ open, projects, onClose }: { open: boole
         <QuickAdd
           projectId={INBOX_ID}
           captureProjects={projects}
-          placeholder="e.g. Review budget tomorrow 6pm #home p1"
+          placeholder="e.g. Review budget tomorrow 6pm +work #home p1"
           onClose={onClose}
         />
       </div>

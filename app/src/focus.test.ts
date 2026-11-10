@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { sessionSeconds, focusTotals, formatClock, formatDuration, runningSession, reconcileRunningSessions } from './focus';
+import { sessionSeconds, focusTotals, formatClock, formatDuration, runningSession, reconcileRunningSessions, calculateRemaining, getNextStage, formatRounds } from './focus';
 import type { FocusSession } from './types';
 
 const mk = (id: string, over: Partial<FocusSession> = {}): FocusSession => ({
@@ -89,5 +89,28 @@ describe('local day boundary', () => {
     const crossing = mk('cross', { startedAt: end - 1800000, endedAt: end + 1800000, seconds: 3600 });
     expect(focusTotals([next], day, end + 3600000).todayTotal).toBe(0);
     expect(focusTotals([crossing], day, end + 1800000).todayTotal).toBe(1800);
+  });
+});
+
+describe('pomodoro helpers', () => {
+  it('calculates remaining seconds clamped to 0', () => {
+    expect(calculateRemaining(1500, 300)).toBe(1200);
+    expect(calculateRemaining(1500, 1500)).toBe(0);
+    expect(calculateRemaining(1500, 1600)).toBe(0);
+  });
+
+  it('determines next stage correctly', () => {
+    expect(getNextStage('work', 1, 4)).toBe('short-break');
+    expect(getNextStage('work', 2, 4)).toBe('short-break');
+    expect(getNextStage('work', 3, 4)).toBe('short-break');
+    expect(getNextStage('work', 4, 4)).toBe('long-break');
+    expect(getNextStage('short-break', 1, 4)).toBe('work');
+    expect(getNextStage('long-break', 4, 4)).toBe('work');
+  });
+
+  it('formats rounds cleanly', () => {
+    expect(formatRounds(1, 4)).toBe('Round 1 of 4');
+    expect(formatRounds(4, 4)).toBe('Round 4 of 4');
+    expect(formatRounds(5, 4)).toBe('Round 1 of 4');
   });
 });

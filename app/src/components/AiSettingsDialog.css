@@ -67,7 +67,7 @@
   padding: 8px 10px;
   border: 1px solid var(--border, #cad1d7);
   border-radius: var(--radius-control, 6px);
-  background: var(--surface, #fff);
+  background-color: var(--surface, #fff);
   color: var(--text, #17202a);
   font: inherit;
   font-size: 13px;

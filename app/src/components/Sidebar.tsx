@@ -4,13 +4,14 @@ import { Settings, CalendarClock,
   Sun, CalendarDays, Archive, Clock, CalendarRange, Repeat, CheckCircle2,
   Search, Plus, Menu, X, Palette, Zap, House, Target, StickyNote, BookOpen, Monitor,
   PanelLeftClose, PanelLeft, Sparkles, ChevronDown, ChevronRight, Flag, AlertCircle,
+  Timer, Wind, Wrench,
 } from 'lucide-react';
 import { projectTree } from '../projects';
 import type { Project } from '../types';
 import { addProject } from '../repo';
 
 export type Selection =
-  | { kind: 'home' | 'today' | 'upcoming' | 'backlog' | 'completed' | 'habits' | 'planner' | 'week' | 'goals' | 'calendar' | 'settings' }
+  | { kind: 'home' | 'today' | 'upcoming' | 'backlog' | 'completed' | 'habits' | 'planner' | 'week' | 'goals' | 'calendar' | 'settings' | 'tools' | 'timer' | 'breathing' | 'ai-planner' | 'automation' }
   | { kind: 'notes'; openId?: string }
   | { kind: 'journal'; date?: string }
   | { kind: 'project'; id: string }
@@ -29,10 +30,12 @@ function Mark() {
 }
 
 export interface NavItemConfig {
-  kind: Selection['kind'];
+  kind?: Selection['kind'];
   filterId?: 'quick-wins' | 'high-priority' | 'blocked';
   label: string;
   Icon: any;
+  action?: 'focus' | 'breathing' | 'ai' | 'automation' | 'tv';
+  shortcut?: string;
 }
 
 export interface NavGroupConfig {
@@ -40,33 +43,43 @@ export interface NavGroupConfig {
   items: NavItemConfig[];
 }
 
-const NAV_GROUPS: NavGroupConfig[] = [
-  { label: 'Start', items: [
-    { kind: 'home', label: 'Home', Icon: House },
-  ] },
-  { label: 'Planning views', items: [
-    { kind: 'today', label: 'Today', Icon: Sun },
-    { kind: 'upcoming', label: 'Upcoming', Icon: CalendarClock },
-    { kind: 'planner', label: 'Planner', Icon: Clock },
-    { kind: 'week', label: 'Week', Icon: CalendarRange },
-    { kind: 'calendar', label: 'Calendar', Icon: CalendarDays },
-    { kind: 'backlog', label: 'Backlog', Icon: Archive },
-  ] },
-  { label: 'Smart filters', items: [
-    { kind: 'filter', filterId: 'quick-wins', label: 'Quick Wins', Icon: Zap },
-    { kind: 'filter', filterId: 'high-priority', label: 'High Priority', Icon: Flag },
-    { kind: 'filter', filterId: 'blocked', label: 'Blocked', Icon: AlertCircle },
-  ] },
-  { label: 'History', items: [
-    { kind: 'completed', label: 'Completed', Icon: CheckCircle2 },
-  ] },
-  { label: 'Track', items: [
-    { kind: 'habits', label: 'Habits', Icon: Repeat },
-    { kind: 'goals', label: 'Goals', Icon: Target },
-    { kind: 'journal', label: 'Journal', Icon: BookOpen },
-    { kind: 'notes', label: 'Notes', Icon: StickyNote },
-  ] },
-];
+function getNavGroups(props: { onAI?: () => void; tvEnabled?: boolean }): NavGroupConfig[] {
+  return [
+    { label: 'Start', items: [
+      { kind: 'home', label: 'Home', Icon: House },
+    ] },
+    { label: 'Planning views', items: [
+      { kind: 'today', label: 'Today', Icon: Sun, shortcut: 't' },
+      { kind: 'upcoming', label: 'Upcoming', Icon: CalendarClock },
+      { kind: 'planner', label: 'Planner', Icon: Clock },
+      { kind: 'week', label: 'Week', Icon: CalendarRange },
+      { kind: 'calendar', label: 'Calendar', Icon: CalendarDays },
+      { kind: 'backlog', label: 'Backlog', Icon: Archive },
+    ] },
+    { label: 'Smart filters', items: [
+      { kind: 'filter', filterId: 'quick-wins', label: 'Quick Wins', Icon: Zap },
+      { kind: 'filter', filterId: 'high-priority', label: 'High Priority', Icon: Flag },
+      { kind: 'filter', filterId: 'blocked', label: 'Blocked', Icon: AlertCircle },
+    ] },
+    { label: 'Track', items: [
+      { kind: 'habits', label: 'Habits', Icon: Repeat },
+      { kind: 'goals', label: 'Goals', Icon: Target },
+      { kind: 'journal', label: 'Journal', Icon: BookOpen },
+      { kind: 'notes', label: 'Notes', Icon: StickyNote },
+    ] },
+    { label: 'Tools', items: [
+      { kind: 'tools', label: 'All Tools', Icon: Wrench },
+      { kind: 'timer', label: 'Focus & Timer', Icon: Timer, shortcut: 'Shift+F' },
+      { kind: 'breathing', label: 'Breathing Reset', Icon: Wind },
+      ...(props.onAI ? [{ kind: 'ai-planner' as const, label: 'Plan with AI', Icon: Sparkles }] : []),
+      { kind: 'automation' as const, label: 'Automation', Icon: Zap },
+      ...(props.tvEnabled ? [{ label: 'TV dashboard', Icon: Monitor, action: 'tv' as const }] : []),
+    ] },
+    { label: 'History', items: [
+      { kind: 'completed', label: 'Completed', Icon: CheckCircle2 },
+    ] },
+  ];
+}
 
 const DOCK_ITEMS = [
   { kind: 'home', label: 'Home', Icon: House },
@@ -97,6 +110,8 @@ export default function Sidebar(props: {
   onPalette?: () => void;
   onCapture?: () => void;
   tvEnabled?: boolean;
+  onFocusTimer?: () => void;
+  onBreathing?: () => void;
 }) {
   const [collapsed, setCollapsed] = useState(() => {
     try {
@@ -309,20 +324,21 @@ export default function Sidebar(props: {
     kind === 'today' ? props.counts.today : kind === 'backlog' ? props.counts.backlog : 0;
 
   const item = (
-    kind: Selection['kind'],
-    label: string,
-    Icon: any,
-    after?: () => void,
-    shortcut?: string,
-    filterId?: 'quick-wins' | 'high-priority' | 'blocked'
+    navItem: NavItemConfig,
+    after?: () => void
   ) => {
+    const { kind, label, Icon, action, shortcut, filterId } = navItem;
     const isSelected = filterId
       ? props.selection.kind === 'filter' && props.selection.filterId === filterId
-      : props.selection.kind === kind;
+      : kind
+      ? props.selection.kind === kind
+      : false;
     const count = filterId
       ? (props.smartFilterCounts?.[filterId] ?? 0)
-      : countFor(kind);
-    const isDropTarget = !filterId && dragOverTarget === kind;
+      : kind
+      ? countFor(kind)
+      : 0;
+    const isDropTarget = !filterId && kind && dragOverTarget === kind;
 
     const handleDragOver = (e: React.DragEvent) => {
       if ((kind === 'today' && props.onScheduleToday) || (kind === 'backlog' && props.onScheduleBacklog)) {
@@ -350,21 +366,29 @@ export default function Sidebar(props: {
       }
     };
 
+    const handleClick = () => {
+      if (action) {
+        if (action === 'focus') openTool(() => props.onFocusTimer?.());
+        else if (action === 'breathing') openTool(() => props.onBreathing?.());
+        else if (action === 'ai') openTool(() => props.onAI?.());
+        else if (action === 'automation') openTool(props.onAutomation);
+        else if (action === 'tv') openTool(() => { window.location.hash = '/tv'; });
+      } else if (filterId) {
+        props.onSelect({ kind: 'filter', filterId });
+      } else if (kind) {
+        props.onSelect({ kind } as Selection);
+      }
+      after?.();
+    };
+
     return (
       <button
-        key={filterId ? `filter-${filterId}` : kind}
+        key={filterId ? `filter-${filterId}` : action ? `action-${action}` : kind}
         className={`nav ${isSelected ? 'active' : ''} ${isDropTarget ? 'drop-target-active' : ''}`}
         title={label}
         aria-label={label}
         aria-current={isSelected ? 'page' : undefined}
-        onClick={() => {
-          if (filterId) {
-            props.onSelect({ kind: 'filter', filterId });
-          } else {
-            props.onSelect({ kind } as Selection);
-          }
-          after?.();
-        }}
+        onClick={handleClick}
         onMouseEnter={(e) => showTooltip(e, label, shortcut, count)}
         onMouseLeave={hideTooltip}
         onFocus={(e) => showTooltip(e, label, shortcut, count)}
@@ -643,54 +667,8 @@ export default function Sidebar(props: {
     </>
   );
 
-  const tvBtn = (
-    <button
-      className="nav foot-action"
-      title="TV dashboard"
-      aria-label="TV dashboard"
-      onClick={() => { window.location.hash = '/tv'; }}
-      onMouseEnter={(e) => showTooltip(e, 'TV dashboard')}
-      onMouseLeave={hideTooltip}
-      onFocus={(e) => showTooltip(e, 'TV dashboard')}
-      onBlur={hideTooltip}
-    >
-      <Monitor size={16} strokeWidth={1.75} aria-hidden="true" />
-      <span>TV dashboard</span>
-    </button>
-  );
-
   const footer = (
-    <div className="sidebar-foot" role="group" aria-label="Tools">
-      <div className="nav-section"><span>Tools</span></div>
-      {props.onAI && (
-        <button
-          className="nav foot-action"
-          title="Plan with AI"
-          aria-label="Plan with AI"
-          onClick={() => { openTool(() => props.onAI?.()); }}
-          onMouseEnter={(e) => showTooltip(e, 'Plan with AI')}
-          onMouseLeave={hideTooltip}
-          onFocus={(e) => showTooltip(e, 'Plan with AI')}
-          onBlur={hideTooltip}
-        >
-          <Sparkles size={16} strokeWidth={1.75} aria-hidden="true" />
-          <span>Plan with AI</span>
-        </button>
-      )}
-      <button
-        className="nav foot-action"
-        title="Automation"
-        aria-label="Automation"
-        onClick={() => { openTool(props.onAutomation); }}
-        onMouseEnter={(e) => showTooltip(e, 'Automation')}
-        onMouseLeave={hideTooltip}
-        onFocus={(e) => showTooltip(e, 'Automation')}
-        onBlur={hideTooltip}
-      >
-        <Zap size={16} aria-hidden="true" />
-        <span>Automation</span>
-      </button>
-      {props.tvEnabled && tvBtn}
+    <div className="sidebar-foot" role="group" aria-label="Settings">
       <button
         className="nav foot-action"
         title="Settings"
@@ -709,7 +687,7 @@ export default function Sidebar(props: {
   );
 
   const navigation = (after?: () => void) =>
-    NAV_GROUPS.map((group) => {
+    getNavGroups(props).map((group) => {
       const isCollapsible = group.label !== 'Start';
       const isCollapsed = isCollapsible && collapsedSections.has(group.label);
 
@@ -735,10 +713,7 @@ export default function Sidebar(props: {
             )}
           </div>
           {!isCollapsed &&
-            group.items.map(({ kind, filterId, label, Icon }) => {
-              const shortcut = kind === 'today' ? 't' : undefined;
-              return item(kind, label, Icon, after, shortcut, filterId);
-            })}
+            group.items.map((navItem) => item(navItem, after))}
         </div>
       );
     });

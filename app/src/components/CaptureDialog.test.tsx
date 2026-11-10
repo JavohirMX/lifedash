@@ -38,7 +38,7 @@ describe('CaptureDialog Component', () => {
 
     // Title input
     expect(markup).toContain('id="');
-    expect(markup).toContain('placeholder="e.g. Review budget tomorrow 6pm #home p1"');
+    expect(markup).toContain('placeholder="e.g. Review budget tomorrow 6pm +work #home p1"');
 
     // Project select & chips
     expect(markup).toContain('aria-label="Capture project"');
@@ -69,5 +69,9 @@ describe('CaptureDialog Component', () => {
     expect(markup).toContain('Done');
     expect(markup).toContain('class="btn-primary quick-add-submit"');
     expect(markup).toContain('Add');
+
+    // Autocomplete disabled and no suggestion pills row
+    expect(markup).toContain('autoComplete="off"');
+    expect(markup).not.toContain('class="qa-suggest-pill"');
   });
 });

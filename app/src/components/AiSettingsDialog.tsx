@@ -141,7 +141,32 @@ export default function AiSettingsDialog(props: { onClose: () => void; onBack?: 
         )}
 
         <div className={`ai-settings-body ${settings.enabled ? '' : 'disabled'}`}>
-          <div className="ai-settings-grid">
+          <div className="ai-settings-field">
+            <label htmlFor="ai-engine-select">Planner engine</label>
+            <select
+              id="ai-engine-select"
+              value={settings.mode}
+              onChange={(e) => updateField('mode', e.target.value as 'provider' | 'local')}
+            >
+              <option value="provider">Model provider (Ollama, LM Studio, Cloud APIs)</option>
+              <option value="local">On-device rule-based (No model, 100% offline)</option>
+            </select>
+          </div>
+
+          {settings.mode === 'local' ? (
+            <>
+              <p className="settings-help" style={{ marginTop: -4, marginBottom: 16 }}>
+                Deterministic task ranking by due date and priority directly on this device. No model inference, API keys, or network requests are used.
+              </p>
+              <div className="ai-settings-actions">
+                <button type="button" className="mini" onClick={handleReset}>
+                  Reset to defaults
+                </button>
+              </div>
+            </>
+          ) : (
+            <>
+              <div className="ai-settings-grid">
           <div className="ai-settings-field">
             <label htmlFor="ai-preset-select">Provider preset</label>
             <select
@@ -256,6 +281,8 @@ export default function AiSettingsDialog(props: { onClose: () => void; onBack?: 
             Reset to defaults
           </button>
         </div>
+        </>
+      )}
         </div>
       </div>
     </div>

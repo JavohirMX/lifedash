@@ -75,3 +75,52 @@ export function reconcileRunningSessions(sessions: FocusSession[]): FocusSession
   }
   return sessions.map((s) => finalized.get(s.id) ?? s);
 }
+
+/* ==========================================================================
+   Pomodoro & Timer Helpers
+   ========================================================================== */
+
+export type PomodoroStage = 'work' | 'short-break' | 'long-break';
+
+export interface PomodoroSettings {
+  workSec: number;
+  shortBreakSec: number;
+  longBreakSec: number;
+  roundsBeforeLongBreak: number;
+}
+
+export const DEFAULT_POMODORO_SETTINGS: PomodoroSettings = {
+  workSec: 25 * 60,
+  shortBreakSec: 5 * 60,
+  longBreakSec: 15 * 60,
+  roundsBeforeLongBreak: 4,
+};
+
+export const DEEP_POMODORO_SETTINGS: PomodoroSettings = {
+  workSec: 50 * 60,
+  shortBreakSec: 10 * 60,
+  longBreakSec: 20 * 60,
+  roundsBeforeLongBreak: 3,
+};
+
+export function calculateRemaining(targetSec: number, elapsedSec: number): number {
+  return Math.max(0, targetSec - elapsedSec);
+}
+
+export function getNextStage(
+  currentStage: PomodoroStage,
+  completedWorkRounds: number,
+  roundsBeforeLongBreak = 4,
+): PomodoroStage {
+  if (currentStage === 'work') {
+    return completedWorkRounds > 0 && completedWorkRounds % roundsBeforeLongBreak === 0
+      ? 'long-break'
+      : 'short-break';
+  }
+  return 'work';
+}
+
+export function formatRounds(currentRound: number, totalRounds = 4): string {
+  const clamped = ((currentRound - 1) % totalRounds) + 1;
+  return `Round ${clamped} of ${totalRounds}`;
+}

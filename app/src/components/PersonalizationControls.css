@@ -1,7 +1,7 @@
 .personalization-section { border-top: 1px solid var(--border); padding-top: 16px; display: flex; flex-direction: column; gap: 12px; min-width: 0; }
 .personalization-section h3 { margin: 0; font-size: var(--fs-section); }
 .personalization-section .rule-note { margin: 0; line-height: 1.5; }
-.personalization-section select { width: 100%; min-height: 44px; padding: 8px; border: 1px solid var(--control); border-radius: var(--radius-control); background: var(--surface); }
+.personalization-section select { width: 100%; min-height: 44px; padding: 8px 32px 8px 8px; border: 1px solid var(--control); border-radius: var(--radius-control); background-color: var(--surface); }
 .font-specimen { padding: 14px; border: 1px solid var(--border); border-radius: var(--radius-card); background: var(--surface-2); display: flex; flex-direction: column; gap: 6px; }
 .font-specimen strong { font-size: 18px; }.font-specimen small { color: var(--muted); }
 .wallpaper-choices { display: grid; grid-template-columns: repeat(4,minmax(0,1fr)); gap: 8px; }

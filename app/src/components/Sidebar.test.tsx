@@ -237,4 +237,71 @@ describe('Sidebar UI/UX Improvements', () => {
     // Smart filter count is rendered
     expect(markup).toContain('4');
   });
+
+  it('renders Tools navigation group with All Tools, Focus & Timer, Breathing Reset, and clean footer', () => {
+    const markup = renderToStaticMarkup(
+      <Sidebar
+        projects={sampleProjects}
+        selection={{ kind: 'tools' }}
+        onSelect={vi.fn()}
+        counts={{ today: 0, backlog: 0 }}
+        onAutomation={vi.fn()}
+        journalNudge={false}
+        onToggleJournalNudge={vi.fn()}
+        onSync={vi.fn()}
+        reminders="off"
+        onToggleReminders={vi.fn()}
+        onAppearance={vi.fn()}
+        onSettings={vi.fn()}
+        onAI={vi.fn()}
+      />
+    );
+
+    // Tools group rendered in navigation
+    expect(markup).toContain('<span>Tools</span>');
+    expect(markup).toContain('All Tools');
+    expect(markup).toContain('Focus &amp; Timer');
+    expect(markup).toContain('Breathing Reset');
+    expect(markup).toContain('Plan with AI');
+    expect(markup).toContain('Automation');
+
+    // All Tools is active
+    expect(markup).toContain('aria-label="All Tools" aria-current="page"');
+
+    // Footer contains only Settings
+    expect(markup).toContain('aria-label="Settings"');
+  });
+
+  it('highlights Plan with AI and Automation when their pages are selected', () => {
+    const baseProps = {
+      projects: sampleProjects,
+      onSelect: vi.fn(),
+      counts: { today: 0, backlog: 0 },
+      onAutomation: vi.fn(),
+      journalNudge: false,
+      onToggleJournalNudge: vi.fn(),
+      onSync: vi.fn(),
+      reminders: 'off' as const,
+      onToggleReminders: vi.fn(),
+      onAppearance: vi.fn(),
+      onSettings: vi.fn(),
+      onAI: vi.fn(),
+    };
+
+    const aiMarkup = renderToStaticMarkup(
+      <Sidebar
+        {...baseProps}
+        selection={{ kind: 'ai-planner' }}
+      />
+    );
+    expect(aiMarkup).toContain('aria-label="Plan with AI" aria-current="page"');
+
+    const automationMarkup = renderToStaticMarkup(
+      <Sidebar
+        {...baseProps}
+        selection={{ kind: 'automation' }}
+      />
+    );
+    expect(automationMarkup).toContain('aria-label="Automation" aria-current="page"');
+  });
 });

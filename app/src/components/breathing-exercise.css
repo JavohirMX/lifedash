@@ -1,0 +1,141 @@
+/* Breathing Exercise Modal - 100% solid semantic tokens */
+.breathing-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1050;
+  background: var(--ground);
+  color: var(--text);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  animation: breathingFadeIn 0.25s ease-out;
+}
+
+@keyframes breathingFadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.breathing-close-btn {
+  position: absolute;
+  top: 24px;
+  right: 24px;
+}
+
+.breathing-card {
+  max-width: 520px;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-card, 12px);
+  padding: 40px 28px;
+  box-shadow: var(--shadow-float, 0 16px 40px rgba(0, 0, 0, 0.08));
+}
+
+.breathing-eyebrow {
+  font-size: 0.8rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--accent);
+  margin-bottom: 8px;
+}
+
+.breathing-title {
+  font-size: 1.8rem;
+  font-weight: 700;
+  margin: 0 0 10px;
+  color: var(--text);
+}
+
+.breathing-sub {
+  font-size: 0.95rem;
+  color: var(--muted);
+  margin: 0 0 32px;
+  max-width: 380px;
+}
+
+.breathing-circle-wrap {
+  position: relative;
+  width: 240px;
+  height: 240px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 32px;
+}
+
+.breathing-circle-outer {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  border: 2px dashed var(--border);
+  opacity: 0.6;
+}
+
+.breathing-circle-inner {
+  border-radius: 50%;
+  background: var(--accent);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  color: #ffffff;
+  box-shadow: 0 8px 32px rgba(15, 118, 110, 0.25);
+  transition: transform 4s ease-in-out, opacity 4s ease-in-out;
+}
+
+.breathing-circle-inner.idle {
+  transform: scale(0.9);
+  opacity: 0.8;
+}
+
+.breathing-circle-inner.inhale {
+  transform: scale(1.15);
+  opacity: 0.95;
+}
+
+.breathing-circle-inner.hold-in {
+  transform: scale(1.15);
+  opacity: 0.95;
+}
+
+.breathing-circle-inner.exhale {
+  transform: scale(0.65);
+  opacity: 0.6;
+}
+
+.breathing-circle-inner.hold-out {
+  transform: scale(0.65);
+  opacity: 0.5;
+}
+
+.breathing-phase-text {
+  font-size: 1.35rem;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  margin-bottom: 4px;
+}
+
+.breathing-timer-count {
+  font-size: 1.8rem;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  opacity: 0.9;
+}
+
+.breathing-controls {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}

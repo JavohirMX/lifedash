@@ -121,15 +121,15 @@ accent, everything else muted. Titles wrap on Home and truncate in dense lists.
    orientation, customize action.
 2. **Next action**: a single soft accent panel with reason, title, complete,
    start focus, and open. This is the visual anchor.
-3. **Today**: next commitment followed by open tasks in one continuous flow,
+3. **Today**: schedule followed by open tasks in one continuous flow,
    with a link to the full list.
-4. **Supporting rail**: habits, radar signals, goals, week load, upcoming.
+4. **Supporting rail**: habits, needs attention signals, goals, week load, upcoming.
 5. **More insights**: week chart, goals, and upcoming folded into a disclosure
    so the daily surface stays calm.
 
 The hero remains `.home-primary .home-focus`; the commitment remains
-`.home-commitment` with the accessible name "Next commitment"; signals remain
-`.home-signals`.
+`.home-commitment` with the accessible name "Today's schedule"; signals remain
+`.home-signals` with the accessible name "Needs attention".
 
 ### Buttons
 

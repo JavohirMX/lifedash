@@ -1,10 +1,10 @@
-/* Focus Workspace Overlay */
+/* Focus Workspace Overlay - 100% solid semantic tokens */
 .focus-workspace-overlay {
   position: fixed;
   inset: 0;
   z-index: 1000;
-  background: var(--bg);
-  color: var(--ink);
+  background: var(--ground);
+  color: var(--text);
   display: flex;
   flex-direction: column;
   overflow-y: auto;
@@ -27,7 +27,8 @@
   align-items: center;
   justify-content: space-between;
   padding: 16px 24px;
-  border-bottom: 1px solid var(--line);
+  border-bottom: 1px solid var(--border);
+  background: var(--surface);
 }
 
 .focus-workspace-tag {
@@ -50,15 +51,16 @@
 .focus-workspace-actions {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 10px;
+  flex-wrap: wrap;
 }
 
 .focus-mode-toggle {
   display: inline-flex;
-  border-radius: var(--radius, 6px);
-  background: var(--control, rgba(0, 0, 0, 0.05));
+  border-radius: var(--radius-control, 6px);
+  background: var(--surface-2);
   padding: 2px;
-  border: 1px solid var(--line);
+  border: 1px solid var(--border);
 }
 
 .focus-mode-btn {
@@ -68,14 +70,14 @@
   font-weight: 500;
   color: var(--muted);
   padding: 4px 10px;
-  border-radius: calc(var(--radius, 6px) - 2px);
+  border-radius: calc(var(--radius-control, 6px) - 2px);
   cursor: pointer;
   transition: all 0.15s ease;
 }
 
 .focus-mode-btn.active {
-  background: var(--card, #fff);
-  color: var(--ink);
+  background: var(--surface);
+  color: var(--text);
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
 }
 
@@ -83,14 +85,56 @@
   max-width: 840px;
   width: 100%;
   margin: 0 auto;
-  padding: 40px 24px 60px;
+  padding: 32px 24px 60px;
   display: flex;
   flex-direction: column;
-  gap: 40px;
+  gap: 36px;
 }
 
 .focus-timer-section {
   text-align: center;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-card, 10px);
+  padding: 36px 24px;
+}
+
+.focus-intervals-bar {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 16px;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+.focus-interval-btn {
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  color: var(--muted);
+  font-size: 0.8rem;
+  padding: 4px 12px;
+  border-radius: 14px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.focus-interval-btn:hover {
+  color: var(--text);
+  border-color: var(--muted);
+}
+
+.focus-interval-btn.active {
+  background: var(--accent);
+  color: var(--accent-contrast, #ffffff);
+  border-color: var(--accent);
+  font-weight: 600;
+}
+
+.focus-interval-btn.break-btn.active {
+  background: #059669;
+  border-color: #059669;
+  color: #ffffff;
 }
 
 .focus-clock-display {
@@ -98,14 +142,66 @@
   font-weight: 800;
   line-height: 1;
   letter-spacing: -0.04em;
-  color: var(--teal, #0f766e);
-  margin-bottom: 8px;
+  color: var(--accent);
+  margin-bottom: 4px;
+  font-variant-numeric: tabular-nums;
+  transition: color 0.2s ease;
+}
+
+.focus-clock-display.break-mode {
+  color: #059669;
+}
+
+.focus-rounds-indicator {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin: 4px 0 12px;
+  font-size: 0.85rem;
+  color: var(--muted);
+}
+
+.focus-round-dots {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.focus-round-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--border);
+  transition: all 0.2s ease;
+}
+
+.focus-round-dot.completed {
+  background: var(--accent);
+}
+
+.focus-round-dot.current {
+  background: var(--accent);
+  box-shadow: 0 0 0 2px var(--surface), 0 0 0 3px var(--accent);
 }
 
 .focus-timer-sub {
   font-size: 0.95rem;
   color: var(--muted);
-  margin: 0 0 20px;
+  margin: 0 0 16px;
+}
+
+.focus-break-notice {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background: rgba(16, 185, 129, 0.12);
+  color: #065f46;
+  border: 1px solid rgba(16, 185, 129, 0.25);
+  padding: 6px 14px;
+  border-radius: 20px;
+  font-size: 0.85rem;
+  font-weight: 500;
+  margin-bottom: 16px;
 }
 
 .focus-task-headline {
@@ -113,7 +209,26 @@
   font-weight: 700;
   line-height: 1.25;
   margin: 0;
-  color: var(--ink);
+  color: var(--text);
+}
+
+.focus-task-picker {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 12px auto 0;
+  max-width: 380px;
+  width: 100%;
+}
+
+.focus-task-select {
+  flex: 1;
+  padding: 6px 10px;
+  border-radius: var(--radius-control, 6px);
+  border: 1px solid var(--border);
+  background: var(--surface-2);
+  color: var(--text);
+  font-size: 0.85rem;
 }
 
 .focus-grid-panels {
@@ -123,9 +238,9 @@
 }
 
 .focus-panel {
-  background: var(--card, rgba(0, 0, 0, 0.02));
-  border: 1px solid var(--line);
-  border-radius: var(--radius, 8px);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-card, 8px);
   padding: 20px;
   display: flex;
   flex-direction: column;
@@ -135,6 +250,7 @@
   font-size: 1rem;
   font-weight: 600;
   margin: 0 0 6px;
+  color: var(--text);
 }
 
 .focus-panel-desc {
@@ -157,15 +273,15 @@
   align-items: center;
   gap: 10px;
   padding: 8px 10px;
-  border-radius: 4px;
-  border: 1px solid var(--line);
-  background: var(--bg);
+  border-radius: var(--radius-control, 4px);
+  border: 1px solid var(--border);
+  background: var(--surface-2);
   cursor: pointer;
   transition: background 0.15s ease;
 }
 
 .focus-subtask-item:hover {
-  background: var(--card);
+  background: var(--active);
 }
 
 .focus-subtask-item.done {
@@ -179,6 +295,7 @@
 .focus-subtask-text {
   font-size: 0.9rem;
   flex: 1;
+  color: var(--text);
 }
 
 .focus-subtask-form {
@@ -190,18 +307,18 @@
 .focus-subtask-form input {
   flex: 1;
   padding: 6px 10px;
-  border-radius: var(--radius, 4px);
-  border: 1px solid var(--line);
-  background: var(--bg);
-  color: var(--ink);
+  border-radius: var(--radius-control, 4px);
+  border: 1px solid var(--border);
+  background: var(--surface-2);
+  color: var(--text);
 }
 
 .focus-scratchpad-input {
   width: 100%;
-  border-radius: var(--radius, 4px);
-  border: 1px solid var(--line);
-  background: var(--bg);
-  color: var(--ink);
+  border-radius: var(--radius-control, 4px);
+  border: 1px solid var(--border);
+  background: var(--surface-2);
+  color: var(--text);
   padding: 10px;
   font-family: inherit;
   font-size: 0.9rem;
@@ -210,5 +327,5 @@
 
 .focus-scratchpad-input:focus {
   outline: none;
-  border-color: var(--teal, #0f766e);
+  border-color: var(--accent);
 }

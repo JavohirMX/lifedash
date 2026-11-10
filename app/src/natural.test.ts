@@ -25,6 +25,31 @@ describe('parseNatural - dates', () => {
     expect(parse('Standup monday').dueDate).toBe('2026-10-26'); // next Mon
     expect(parse('Standup next monday').dueDate).toBe('2026-11-02');
     expect(parse('Lunch on friday').dueDate).toBe('2026-10-23');
+    expect(parse('Lunch this friday').dueDate).toBe('2026-10-23');
+  });
+  it('weekends: weekend, this weekend, next weekend, on the weekend', () => {
+    // NOW is Tuesday 2026-10-20; coming Saturday is 2026-10-24, next Saturday is 2026-10-31
+    expect(parse('Party weekend')).toMatchObject({ title: 'Party', dueDate: '2026-10-24' });
+    expect(parse('Party this weekend')).toMatchObject({ title: 'Party', dueDate: '2026-10-24' });
+    expect(parse('Hike next weekend')).toMatchObject({ title: 'Hike', dueDate: '2026-10-31' });
+    expect(parse('Relax on the weekend')).toMatchObject({ title: 'Relax', dueDate: '2026-10-24' });
+    expect(parse('Finish chores by the weekend')).toMatchObject({ title: 'Finish chores', dueDate: '2026-10-24' });
+  });
+  it('prepositions: by, due, on, before cleanly consumed without leaving dangling words', () => {
+    expect(parse('Submit report by next friday')).toMatchObject({ title: 'Submit report', dueDate: '2026-10-30' });
+    expect(parse('Submit report by friday')).toMatchObject({ title: 'Submit report', dueDate: '2026-10-23' });
+    expect(parse('Submit report by tomorrow')).toMatchObject({ title: 'Submit report', dueDate: '2026-10-21' });
+    expect(parse('Submit report by 5pm')).toMatchObject({ title: 'Submit report', dueTime: '17:00' });
+    expect(parse('Taxes due next friday')).toMatchObject({ title: 'Taxes', dueDate: '2026-10-30' });
+    expect(parse('Review on this friday')).toMatchObject({ title: 'Review', dueDate: '2026-10-23' });
+    expect(parse('Call before noon')).toMatchObject({ title: 'Call', dueTime: '12:00' });
+  });
+  it('day after tomorrow / eow / eom', () => {
+    expect(parse('Dentist day after tomorrow')).toMatchObject({ title: 'Dentist', dueDate: '2026-10-22' });
+    expect(parse('Submit deliverables end of week')).toMatchObject({ title: 'Submit deliverables', dueDate: '2026-10-23', dueTime: '17:00' });
+    expect(parse('Submit deliverables eow')).toMatchObject({ title: 'Submit deliverables', dueDate: '2026-10-23', dueTime: '17:00' });
+    expect(parse('Close books end of month')).toMatchObject({ title: 'Close books', dueDate: '2026-10-31', dueTime: '17:00' });
+    expect(parse('Close books eom')).toMatchObject({ title: 'Close books', dueDate: '2026-10-31', dueTime: '17:00' });
   });
   it('ISO dates and month names', () => {
     expect(parse('Renew passport 2026-11-05').dueDate).toBe('2026-11-05');
@@ -39,9 +64,20 @@ describe('parseNatural - dates', () => {
 describe('parseNatural - times', () => {
   it('parses 12h and 24h times', () => {
     expect(parse('Dentist at 3pm').dueTime).toBe('15:00');
+    expect(parse('Dentist at 3p').dueTime).toBe('15:00');
+    expect(parse('Call at 9a').dueTime).toBe('09:00');
     expect(parse('Dentist 15:30').dueTime).toBe('15:30');
+    expect(parse('Meeting 14.30').dueTime).toBe('14:30');
     expect(parse('Call at 12am').dueTime).toBe('00:00');
     expect(parse('Lunch noon').dueTime).toBe('12:00');
+    expect(parse('Lunch midday').dueTime).toBe('12:00');
+    expect(parse('Sleep midnight').dueTime).toBe('00:00');
+  });
+  it('relative hours and minutes: in 2 hours / in 30 mins', () => {
+    // NOW is 12:00
+    expect(parse('Quick check in 2 hours')).toMatchObject({ dueDate: '2026-10-20', dueTime: '14:00', title: 'Quick check' });
+    expect(parse('Quick check in 30 mins')).toMatchObject({ dueDate: '2026-10-20', dueTime: '12:30', title: 'Quick check' });
+    expect(parse('Break in an hour')).toMatchObject({ dueDate: '2026-10-20', dueTime: '13:00', title: 'Break' });
   });
   it('time-of-day words apply only once a date exists', () => {
     const r = parse('Presentation tomorrow morning');

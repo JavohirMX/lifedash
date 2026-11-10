@@ -1,11 +1,20 @@
-import { useEffect, useId, useRef, useState } from 'react';
-import { Plus, FileText, CheckCircle2, Check } from 'lucide-react';
+import { useEffect, useId, useMemo, useRef, useState } from 'react';
+import { Plus, FileText, CheckCircle2, Check, Calendar, Clock, Flag, Folder, Tag, Repeat, X } from 'lucide-react';
 import { db } from '../db';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { addTask } from '../repo';
 import { parseQuickAdd, describeRecurrence, makeRecurrence } from '../logic';
 import { parseNatural } from '../natural';
 import { todayStr, friendlyDate, addDays } from '../dates';
+import {
+  getCaretToken,
+  getAutocompleteItems,
+  applyAutocomplete,
+  stripTokenFromText,
+  type AutocompleteItem,
+  type CaretToken,
+} from '../quickAddSuggestions';
+import './quick-add-suggestions.css';
 import type { Project, Task } from '../types';
 
 type CaptureJob = { id: number; raw: string; input: Parameters<typeof addTask>[0] };
@@ -32,7 +41,7 @@ export default function QuickAdd(props: {
   const [title, setTitle] = useState('');
   const [note, setNote] = useState('');
   const [showNote, setShowNote] = useState(false);
-  const [chosenProject, setChosenProject] = useState(props.projectId);
+  const [chosenProject, setChosenProject] = useState<string | undefined>(undefined);
   // undefined means use natural-language parsing; null explicitly means no date.
   const [chosenDate, setChosenDate] = useState<string | null | undefined>(undefined);
   const [chosenTime, setChosenTime] = useState<string | null | undefined>(undefined);
@@ -40,7 +49,10 @@ export default function QuickAdd(props: {
   const [chosenRecurrence, setChosenRecurrence] = useState<string | null | undefined>(undefined);
   const [extraTags, setExtraTags] = useState<string[]>([]);
 
-  const projectId = props.captureProjects ? chosenProject : props.projectId;
+  const dbProjects = useLiveQuery(() => db.projects.toArray(), []) ?? [];
+  const allProjects = useMemo(() => {
+    return props.captureProjects ?? dbProjects;
+  }, [props.captureProjects, dbProjects]);
 
   useEffect(() => {
     if (!props.captureProjects) return;
@@ -69,11 +81,11 @@ export default function QuickAdd(props: {
     () => (props.captureProjects ? db.tasks.toArray() : Promise.resolve([] as Task[])),
     [Boolean(props.captureProjects)],
   );
-  const availableTags = Array.from(
-    new Set(existingTasks?.flatMap((t) => t.tags ?? []) ?? []),
-  )
-    .filter((t) => t && t.trim().length > 0)
-    .slice(0, 10);
+  const availableTags = useMemo(() => {
+    return Array.from(new Set(existingTasks?.flatMap((t) => t.tags ?? []) ?? []))
+      .filter((t) => t && t.trim().length > 0)
+      .slice(0, 10);
+  }, [existingTasks]);
 
   function rememberFailed(items: CaptureJob[]) {
     failedCaptures.set(db.name, items);
@@ -114,17 +126,21 @@ export default function QuickAdd(props: {
   function submit() {
     const raw = currentTitle.current.trim();
     if (!raw) return;
-    if (props.captureProjects && !props.captureProjects.some((project) => project.id === projectId)) {
-      setError('Choose an available project. Your text is still here.');
-      return;
-    }
-    const parsed = parseQuickAdd(raw);
+    const parsed = parseQuickAdd(raw, allProjects);
     const nat = parseNatural(parsed.title);
     if (!nat.title) {
       setError('Add a task name as well as dates or tags. Your text is still here.');
       return;
     }
     setError('');
+
+    const targetProjectId =
+      chosenProject !== undefined ? chosenProject : (parsed.project?.id ?? props.projectId);
+
+    if (props.captureProjects && !props.captureProjects.some((project) => project.id === targetProjectId)) {
+      setError('Choose an available project. Your text is still here.');
+      return;
+    }
 
     const curDate =
       props.captureProjects && chosenDate !== undefined
@@ -149,7 +165,7 @@ export default function QuickAdd(props: {
       input: {
         title: nat.title,
         tags: curTags,
-        projectId,
+        projectId: targetProjectId,
         dueDate: curDate,
         dueTime: curTime,
         recurrence: curRecurrence,
@@ -160,15 +176,142 @@ export default function QuickAdd(props: {
 
     currentTitle.current = '';
     setTitle('');
+    setCaretPos(0);
+    setIsAutocompleteDismissed(false);
     currentNote.current = '';
     setNote('');
     setShowNote(false);
+    setChosenProject(undefined);
+    setChosenDate(undefined);
+    setChosenTime(undefined);
+    setChosenPriority(undefined);
+    setChosenRecurrence(undefined);
     setExtraTags([]);
     inputRef.current?.focus();
   }
 
-  const parsed = parseQuickAdd(title);
+  const [caretPos, setCaretPos] = useState(0);
+  const [selectedSuggestionIndex, setSelectedSuggestionIndex] = useState(0);
+  const [isAutocompleteDismissed, setIsAutocompleteDismissed] = useState(false);
+  const [prevTokenKey, setPrevTokenKey] = useState('');
+  const listRef = useRef<HTMLUListElement>(null);
+
+  const activeToken = useMemo(() => {
+    if (isAutocompleteDismissed) return null;
+    return getCaretToken(title, caretPos);
+  }, [title, caretPos, isAutocompleteDismissed]);
+
+  const tokenKey = activeToken ? `${activeToken.kind}:${activeToken.query}` : '';
+  if (tokenKey !== prevTokenKey) {
+    setPrevTokenKey(tokenKey);
+    setSelectedSuggestionIndex(0);
+  }
+
+  const autocompleteItems = useMemo(() => {
+    if (!activeToken) return [];
+    return getAutocompleteItems(activeToken, allProjects, availableTags);
+  }, [activeToken, allProjects, availableTags]);
+
+  const isAutocompleteOpen = autocompleteItems.length > 0;
+
+  useEffect(() => {
+    if (isAutocompleteOpen && listRef.current) {
+      const selectedEl = listRef.current.querySelector<HTMLElement>('.quick-add-autocomplete-item.selected');
+      if (selectedEl) {
+        selectedEl.scrollIntoView({ block: 'nearest' });
+      }
+    }
+  }, [selectedSuggestionIndex, isAutocompleteOpen]);
+
+  const applySuggestion = (item: AutocompleteItem, token: CaretToken) => {
+    const res = applyAutocomplete(title, [token.start, token.end], item.insertText);
+    currentTitle.current = res.text;
+    setTitle(res.text);
+    setCaretPos(res.newCursor);
+    setIsAutocompleteDismissed(false);
+    setTimeout(() => {
+      inputRef.current?.setSelectionRange(res.newCursor, res.newCursor);
+      inputRef.current?.focus();
+    }, 0);
+  };
+
+  const handleRemoveDetected = (
+    kind: 'project' | 'date' | 'time' | 'priority' | 'tag' | 'recurrence',
+    value?: string,
+  ) => {
+    const stripped = stripTokenFromText(title, kind, value, allProjects);
+    currentTitle.current = stripped;
+    setTitle(stripped);
+    setCaretPos(stripped.length);
+    if (kind === 'project') setChosenProject(undefined);
+    if (kind === 'date') setChosenDate(undefined);
+    if (kind === 'time') setChosenTime(undefined);
+    if (kind === 'priority') setChosenPriority(undefined);
+    if (kind === 'recurrence') setChosenRecurrence(undefined);
+    if (kind === 'tag' && value) {
+      setExtraTags((prev) => prev.filter((t) => t !== value));
+    }
+    inputRef.current?.focus();
+  };
+
+  const handleInputKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.nativeEvent.isComposing) {
+      if (e.key === 'Enter') e.preventDefault();
+      return;
+    }
+
+    if (isAutocompleteOpen) {
+      if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        setSelectedSuggestionIndex((i) => (i + 1) % autocompleteItems.length);
+        return;
+      }
+      if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        setSelectedSuggestionIndex((i) => (i - 1 + autocompleteItems.length) % autocompleteItems.length);
+        return;
+      }
+      if (e.key === 'Enter' || e.key === 'Tab') {
+        e.preventDefault();
+        const chosen = autocompleteItems[selectedSuggestionIndex];
+        if (chosen && activeToken) {
+          applySuggestion(chosen, activeToken);
+        }
+        return;
+      }
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        setIsAutocompleteDismissed(true);
+        return;
+      }
+    }
+
+    if (e.key === 'Escape') {
+      (e.target as HTMLInputElement).blur();
+    }
+  };
+
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    currentTitle.current = e.target.value;
+    setTitle(e.target.value);
+    setCaretPos(e.target.selectionStart ?? e.target.value.length);
+    setIsAutocompleteDismissed(false);
+    setError('');
+    setStatus('');
+  };
+
+  const updateCaret = (e: React.SyntheticEvent<HTMLInputElement>) => {
+    const target = e.currentTarget;
+    if (target.selectionStart !== null) {
+      setCaretPos(target.selectionStart);
+    }
+  };
+
+  const parsed = parseQuickAdd(title, allProjects);
   const natural = parseNatural(parsed.title);
+  const detectedProject = parsed.project;
+  const effectiveProjectId =
+    chosenProject !== undefined ? chosenProject : (detectedProject?.id ?? props.projectId);
   const finalDate =
     props.captureProjects && chosenDate !== undefined
       ? chosenDate
@@ -185,19 +328,160 @@ export default function QuickAdd(props: {
       : natural.recurrence ?? null;
   const finalTags = Array.from(new Set([...parsed.tags, ...extraTags]));
 
+  const detectedChips = useMemo(() => {
+    const list: Array<{
+      id: string;
+      kind: 'project' | 'date' | 'time' | 'priority' | 'tag' | 'recurrence';
+      label: string;
+      value?: string;
+      color?: string;
+      icon: React.ReactNode;
+    }> = [];
+
+    const proj = allProjects.find((p) => p.id === effectiveProjectId);
+    if (proj && proj.id !== 'inbox') {
+      list.push({
+        id: 'chip-proj',
+        kind: 'project',
+        label: proj.name,
+        value: proj.id,
+        color: proj.color,
+        icon: <Folder size={12} aria-hidden="true" />,
+      });
+    }
+
+    if (finalDate) {
+      list.push({
+        id: 'chip-date',
+        kind: 'date',
+        label: friendlyDate(finalDate, todayStr()),
+        value: finalDate,
+        icon: <Calendar size={12} aria-hidden="true" />,
+      });
+    }
+
+    if (finalTime) {
+      list.push({
+        id: 'chip-time',
+        kind: 'time',
+        label: finalTime,
+        value: finalTime,
+        icon: <Clock size={12} aria-hidden="true" />,
+      });
+    }
+
+    if (finalPriority > 0) {
+      list.push({
+        id: 'chip-priority',
+        kind: 'priority',
+        label: `P${finalPriority}`,
+        color: finalPriority === 1 ? '#ef4444' : finalPriority === 2 ? '#f59e0b' : '#3b82f6',
+        icon: <Flag size={12} aria-hidden="true" />,
+      });
+    }
+
+    if (finalRecurrence) {
+      list.push({
+        id: 'chip-rec',
+        kind: 'recurrence',
+        label: describeRecurrence(finalRecurrence),
+        icon: <Repeat size={12} aria-hidden="true" />,
+      });
+    }
+
+    for (const tag of finalTags) {
+      list.push({
+        id: `chip-tag-${tag}`,
+        kind: 'tag',
+        label: `#${tag}`,
+        value: tag,
+        icon: <Tag size={12} aria-hidden="true" />,
+      });
+    }
+
+    return list;
+  }, [allProjects, effectiveProjectId, finalDate, finalTime, finalPriority, finalRecurrence, finalTags]);
+
   const hint = (() => {
     if (!title.trim()) return null;
     const nat = natural;
     const bits: string[] = [];
+    const projName = allProjects.find((p) => p.id === effectiveProjectId)?.name;
+    if (projName && effectiveProjectId !== 'inbox') bits.push(projName);
     if (nat.dueDate) bits.push(friendlyDate(nat.dueDate, todayStr()));
     if (nat.dueTime) bits.push(nat.dueTime);
     if (nat.recurrence) bits.push(describeRecurrence(nat.recurrence));
     if (nat.priority) bits.push(`P${nat.priority}`);
+    if (parsed.tags.length) bits.push(parsed.tags.map((t) => `#${t}`).join(' '));
     return bits.length ? bits.join(' · ') : null;
   })();
 
   const toggleExtraTag = (tag: string) => {
     setExtraTags((prev) => (prev.includes(tag) ? prev.filter((t) => t !== tag) : [...prev, tag]));
+  };
+
+  const renderAutocompletePopover = () => {
+    if (!isAutocompleteOpen) return null;
+    return (
+      <ul
+        ref={listRef}
+        className="quick-add-autocomplete-popover"
+        role="listbox"
+        aria-label="Suggestions"
+      >
+        {autocompleteItems.map((item, idx) => (
+          <li
+            key={item.id}
+            role="option"
+            aria-selected={idx === selectedSuggestionIndex}
+            className={`quick-add-autocomplete-item${idx === selectedSuggestionIndex ? ' selected' : ''}`}
+            onMouseDown={(e) => {
+              e.preventDefault();
+              if (activeToken) applySuggestion(item, activeToken);
+            }}
+          >
+            <span className="quick-add-autocomplete-main">
+              {item.color && (
+                <span
+                  className="quick-add-autocomplete-dot"
+                  style={{ backgroundColor: item.color }}
+                  aria-hidden="true"
+                />
+              )}
+              <span className="quick-add-autocomplete-label">{item.label}</span>
+            </span>
+            {item.detail && (
+              <span className="quick-add-autocomplete-detail">{item.detail}</span>
+            )}
+          </li>
+        ))}
+      </ul>
+    );
+  };
+
+  const renderLiveBar = () => {
+    if (detectedChips.length === 0) return null;
+    return (
+      <div className="quick-add-live-bar" aria-label="Detected task attributes">
+        <div className="quick-add-detected-chips" role="group" aria-label="Detected attributes">
+          {detectedChips.map((chip) => (
+            <span key={chip.id} className="qa-detected-pill">
+              {chip.icon}
+              <span>{chip.label}</span>
+              <button
+                type="button"
+                className="qa-remove-btn"
+                onClick={() => handleRemoveDetected(chip.kind, chip.value)}
+                aria-label={`Remove ${chip.label}`}
+                title={`Remove ${chip.label}`}
+              >
+                <X size={11} strokeWidth={2.4} aria-hidden="true" />
+              </button>
+            </span>
+          ))}
+        </div>
+      </div>
+    );
   };
 
   // Inline QuickAdd (used in Today, Home, Backlog, Projects)
@@ -206,6 +490,7 @@ export default function QuickAdd(props: {
       <div className="quick-add">
         <form
           className="quick-add-row"
+          autoComplete="off"
           onSubmit={(e) => {
             e.preventDefault();
             submit();
@@ -218,23 +503,23 @@ export default function QuickAdd(props: {
             </label>
             <input
               id={fieldId}
+              name="task-title"
               ref={inputRef}
               value={title}
               placeholder={props.placeholder ?? 'Add a task'}
               aria-describedby={`${fieldId}-hint${error ? ` ${fieldId}-error` : ''}`}
               aria-invalid={error ? true : undefined}
-              onChange={(e) => {
-                currentTitle.current = e.target.value;
-                setTitle(e.target.value);
-                setError('');
-                setStatus('');
-              }}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter' && e.nativeEvent.isComposing) e.preventDefault();
-                if (e.key === 'Escape' && !e.nativeEvent.isComposing)
-                  (e.target as HTMLInputElement).blur();
-              }}
+              autoComplete="off"
+              autoCorrect="off"
+              autoCapitalize="off"
+              spellCheck={false}
+              onChange={handleInputChange}
+              onSelect={updateCaret}
+              onClick={updateCaret}
+              onKeyUp={updateCaret}
+              onKeyDown={handleInputKeyDown}
             />
+            {renderAutocompletePopover()}
           </div>
           <button
             type="submit"
@@ -244,8 +529,9 @@ export default function QuickAdd(props: {
             Add
           </button>
         </form>
+        {renderLiveBar()}
         <div id={`${fieldId}-hint`} className={`quick-add-hint${!hint ? ' default-hint' : ''}`} aria-live="polite">
-          {hint ?? 'Dates, times and #tags supported'}
+          {hint ?? 'Dates, times, #tags, and +project supported'}
         </div>
         {error && (
           <p id={`${fieldId}-error`} className="quick-add-error" role="alert">
@@ -282,6 +568,7 @@ export default function QuickAdd(props: {
     <div className="quick-add capture-modal-content">
       <form
         className="capture-form"
+        autoComplete="off"
         onSubmit={(e) => {
           e.preventDefault();
           submit();
@@ -295,26 +582,26 @@ export default function QuickAdd(props: {
             </label>
             <input
               id={fieldId}
+              name="capture-task-title"
               ref={inputRef}
               className="capture-title-input"
               value={title}
-              placeholder={props.placeholder ?? 'Add a task (e.g. Call dentist tomorrow 2pm #health p1)'}
+              placeholder={props.placeholder ?? 'e.g. Review budget tomorrow 6pm +work #home p1'}
               aria-describedby={`${fieldId}-preview${error ? ` ${fieldId}-error` : ''}`}
               aria-invalid={error ? true : undefined}
-              onChange={(e) => {
-                currentTitle.current = e.target.value;
-                setTitle(e.target.value);
-                setError('');
-                setStatus('');
-              }}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter' && e.nativeEvent.isComposing) e.preventDefault();
-                if (e.key === 'Escape' && !e.nativeEvent.isComposing) {
-                  (e.target as HTMLInputElement).blur();
-                }
-              }}
+              autoComplete="off"
+              autoCorrect="off"
+              autoCapitalize="off"
+              spellCheck={false}
+              onChange={handleInputChange}
+              onSelect={updateCaret}
+              onClick={updateCaret}
+              onKeyUp={updateCaret}
+              onKeyDown={handleInputKeyDown}
             />
+            {renderAutocompletePopover()}
           </div>
+          {renderLiveBar()}
 
           {!showNote && !note && (
             <button
@@ -355,7 +642,7 @@ export default function QuickAdd(props: {
               Project
               <select
                 aria-label="Capture project"
-                value={chosenProject}
+                value={effectiveProjectId}
                 onChange={(e) => setChosenProject(e.target.value)}
               >
                 {props.captureProjects.map((project) => (
@@ -418,13 +705,23 @@ export default function QuickAdd(props: {
                 key={project.id}
                 type="button"
                 className="mini"
-                aria-pressed={chosenProject === project.id}
+                aria-pressed={effectiveProjectId === project.id}
                 onClick={() => setChosenProject(project.id)}
               >
                 <span className="dot" style={{ background: project.color }} />
                 {project.name}
               </button>
             ))}
+            {chosenProject !== undefined && (
+              <button
+                type="button"
+                className="mini"
+                aria-pressed={chosenProject === undefined}
+                onClick={() => setChosenProject(undefined)}
+              >
+                Use parsed project
+              </button>
+            )}
           </div>
 
           <div className="capture-extra-options">
@@ -563,7 +860,7 @@ export default function QuickAdd(props: {
           <strong>Will add</strong>
           <p>{title.trim() ? natural.title || 'Add a task name' : 'Your task name'}</p>
           <p>
-            {props.captureProjects.find((project) => project.id === projectId)?.name ?? 'Choose a project'} ·{' '}
+            {props.captureProjects.find((project) => project.id === effectiveProjectId)?.name ?? 'Choose a project'} ·{' '}
             {finalDate ? friendlyDate(finalDate, todayStr()) : 'No due date'}
             {finalTime ? ` · ${finalTime}` : ''}
           </p>
@@ -571,6 +868,9 @@ export default function QuickAdd(props: {
           {finalPriority > 0 && <p>Priority {finalPriority}</p>}
           {finalTags.length > 0 && <p>{finalTags.map((tag) => `#${tag}`).join(' ')}</p>}
           {note.trim() && <p className="capture-preview-note">Note: {note.trim()}</p>}
+          {chosenProject !== undefined && detectedProject && chosenProject !== detectedProject.id && (
+            <p>Selected project replaces the parsed project ({detectedProject.name}).</p>
+          )}
           {chosenDate !== undefined && natural.dueDate && (
             <p>Selected date replaces the parsed date ({friendlyDate(natural.dueDate, todayStr())}).</p>
           )}

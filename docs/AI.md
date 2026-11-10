@@ -6,6 +6,7 @@ Lifedash provides an optional, privacy-preserving AI suite built strictly on loc
 
 AI features can be configured and completely disabled from **Settings → Connection & display → AI features**:
 - **Master Switch:** Users can toggle AI features on or off for the current device at any time.
+- **Planner Engine Selection:** Users choose between **Model provider (LLM)** and **On-device (Rule-based)** in Settings. "Plan with AI" executes this choice directly without any in-dialog mode switcher or configuration controls.
 - **Complete Deactivation:** When turned off:
   - "Plan with AI" is removed from the sidebar and navigation.
   - All contextual AI buttons ("Suggest subtasks" in Task Detail, "AI Plan" in Day Planner, "Extract tasks with AI" in Notes, and "Draft with AI" in Weekly Review) are completely hidden.
@@ -17,9 +18,9 @@ AI features can be configured and completely disabled from **Settings → Connec
 
 Open **Plan with AI** from the sidebar (or mobile navigation / command palette).
 
-### Modes
-- **On-device:** Fast rule-based task ranking by due date and priority. 100% offline, zero network requests, no model required.
-- **Model provider:** Connect to local or cloud OpenAI-compatible endpoints with streaming advice and interactive proposal reviews.
+### Modes (Configured in Settings)
+- **Model provider:** Connect to local (Ollama, LM Studio) or cloud (OpenRouter, OpenAI) endpoints with streaming advice and interactive proposal reviews.
+- **On-device:** Fast rule-based task ranking by due date and priority. 100% offline, zero network requests, no model required. Configured via the Planner Engine setting in Settings.
 
 ### Supported Providers & Presets (Configured in Settings)
 Provider connections, presets, API keys, and streaming options are managed exclusively in **Settings → Connection & display → AI features**.

@@ -39,6 +39,13 @@ import { useAiSettings } from './ai/aiSettings';
 import GoogleCalendarDialog from './components/GoogleCalendarDialog';
 import WebcalDialog from './components/WebcalDialog';
 import FocusWorkspace from './components/FocusWorkspace';
+import BreathingExercise from './components/BreathingExercise';
+import ToolsView from './views/ToolsView';
+import TimerView from './views/TimerView';
+import BreathingView from './views/BreathingView';
+import AiPlannerView from './views/AiPlannerView';
+import AutomationView from './views/AutomationView';
+import FloatingPiPWidget from './components/FloatingPiPWidget';
 import SettingsView from './views/SettingsView';
 import Onboarding from './components/Onboarding';
 import { isFreshInstallPending, markFreshInstall, markOnboardingDone } from './onboarding';
@@ -160,6 +167,12 @@ export default function App() {
   const [googleCalendarOpen,setGoogleCalendarOpen]=useState(false);
   const [webcalOpen, setWebcalOpen] = useState(false);
   const [focusWorkspaceTaskId, setFocusWorkspaceTaskId] = useState<string | null>(null);
+  const [focusWorkspaceOpen, setFocusWorkspaceOpen] = useState(false);
+  const [breathingOpen, setBreathingOpen] = useState(false);
+  const openFocusWorkspace = (taskId?: string | null) => {
+    setFocusWorkspaceTaskId(taskId ?? null);
+    setSelection({ kind: 'timer' });
+  };
   const [agentKeysOpen, setAgentKeysOpen] = useState(false);
   const [dataBackupOpen, setDataBackupOpen] = useState(false);
   const [settingsChild, setSettingsChild] = useState<'appearance' | 'sync' | null>(null);
@@ -220,6 +233,7 @@ export default function App() {
     onNewTask: quickAddFocus,
     onSelect: setSelection,
     onHelp: () => setShortcutsOpen((o) => !o),
+    onFocusTimer: () => setSelection({ kind: 'timer' }),
   });
 
   useEffect(() => {
@@ -378,7 +392,7 @@ export default function App() {
         onWebcal={() => setWebcalOpen(true)}
         onAgentKeys={() => setAgentKeysOpen(true)}
         onShortcuts={() => setShortcutsOpen(true)}
-        onAutomation={() => setAutomationOpen(true)}
+        onAutomation={() => setSelection({ kind: 'automation' })}
         onImport={() => setImportPreset(null)}
         onRestore={() => setImportPreset('lifedash-json')}
         reminders={reminderGate(remindOn)}
@@ -399,7 +413,7 @@ export default function App() {
         onNavigate={setSelection}
         onSelect={(kind) => setSelection({ kind } as Selection)}
         onOpen={setOpenId}
-        onOpenFocusWorkspace={setFocusWorkspaceTaskId}
+        onOpenFocusWorkspace={openFocusWorkspace}
       />
     );
   } else if (selection.kind === 'today') {
@@ -501,6 +515,57 @@ export default function App() {
     body = <PlannerView tasks={tasks} onOpen={setOpenId} onTag={openTag} />;
   } else if (selection.kind === 'week') {
     body = <WeekView tasks={tasks} onOpen={setOpenId} />;
+  } else if (selection.kind === 'tools') {
+    body = (
+      <ToolsView
+        onSelectView={setSelection}
+        onOpenTimer={() => setSelection({ kind: 'timer' })}
+        onOpenBreathing={() => setSelection({ kind: 'breathing' })}
+        onAI={aiSettings.enabled ? () => setSelection({ kind: 'ai-planner' }) : undefined}
+        onAutomation={() => setSelection({ kind: 'automation' })}
+        onAppearance={() => { setSettingsChild(null); setAppearanceOpen(true); }}
+        onDataBackup={() => setDataBackupOpen(true)}
+        aiEnabled={aiSettings.enabled}
+        tvEnabled={tvOn}
+      />
+    );
+  } else if (selection.kind === 'timer') {
+    body = (
+      <TimerView
+        taskId={focusWorkspaceTaskId}
+        onSelectTask={(id) => setFocusWorkspaceTaskId(id)}
+        onNavigate={setSelection}
+      />
+    );
+  } else if (selection.kind === 'breathing') {
+    body = (
+      <BreathingView
+        onNavigate={setSelection}
+      />
+    );
+  } else if (selection.kind === 'ai-planner') {
+    body = (
+      <AiPlannerView
+        tasks={tasks}
+        onNavigate={setSelection}
+        onOpenAiSettings={() => setAiSettingsOpen(true)}
+      />
+    );
+  } else if (selection.kind === 'automation') {
+    body = (
+      <AutomationView
+        weeklyFailed={weeklyFailed}
+        onDismissWeekly={() => setWeeklyFailed(false)}
+        rolloverFailed={rolloverFailed}
+        onDismissRollover={() => setRolloverFailed(false)}
+        rules={rules}
+        onChange={changeRules}
+        userRules={userRules}
+        onUserRulesChange={changeUserRules}
+        projects={projects}
+        onNavigate={setSelection}
+      />
+    );
   } else if (selection.kind === 'search') {
     body = (
       <SearchView
@@ -650,7 +715,9 @@ export default function App() {
         onScheduleToday={(id) => void scheduleDroppedToday(id, today)}
         onScheduleBacklog={(id) => void scheduleDroppedBacklog(id)}
         onMoveToProject={(id, pId) => void moveDroppedProject(id, pId)}
-        onAI={aiSettings.enabled ? () => setAiOpen(true) : undefined} onAutomation={() => setAutomationOpen(true)} onSync={() => { setSettingsChild(null); setSyncOpen(true); }} onAppearance={() => { setSettingsChild(null); setAppearanceOpen(true); }} onSettings={() => setSelection({ kind: 'settings' })}
+        onAI={aiSettings.enabled ? () => setSelection({ kind: 'ai-planner' }) : undefined} onAutomation={() => setSelection({ kind: 'automation' })} onSync={() => { setSettingsChild(null); setSyncOpen(true); }} onAppearance={() => { setSettingsChild(null); setAppearanceOpen(true); }} onSettings={() => setSelection({ kind: 'settings' })}
+        onFocusTimer={() => setSelection({ kind: 'timer' })}
+        onBreathing={() => setSelection({ kind: 'breathing' })}
         tvEnabled={tvOn} />
       <main className={selection.kind === 'home' ? 'home-main' : ['week', 'calendar'].includes(selection.kind) ? 'schedule-main' : undefined}>
         {SAMPLE_MODE && !sampleDismissed && (
@@ -675,8 +742,8 @@ export default function App() {
           </div>
         )}
         <SyncConflictBanner />
-        {weeklyFailed && !automationOpen && <div role="alert"><p>Couldn't finish running weekly rules. Some tasks may have been created or rule history may not have been saved. Check tasks and rules before trying again.</p><button className="btn-secondary" onClick={() => setWeeklyFailed(false)}>Dismiss weekly-rule notice</button></div>}
-        {rolloverFailed && !automationOpen && <div role="alert"><p>Couldn't finish moving overdue tasks to Today. Part of the change may have been saved. Check task dates before trying again. Your automation setting is unchanged.</p><button className="btn-secondary" onClick={() => setRolloverFailed(false)}>Dismiss rollover notice</button></div>}
+        {weeklyFailed && !automationOpen && selection.kind !== 'automation' && <div role="alert"><p>Couldn't finish running weekly rules. Some tasks may have been created or rule history may not have been saved. Check tasks and rules before trying again.</p><button className="btn-secondary" onClick={() => setWeeklyFailed(false)}>Dismiss weekly-rule notice</button></div>}
+        {rolloverFailed && !automationOpen && selection.kind !== 'automation' && <div role="alert"><p>Couldn't finish moving overdue tasks to Today. Part of the change may have been saved. Check task dates before trying again. Your automation setting is unchanged.</p><button className="btn-secondary" onClick={() => setRolloverFailed(false)}>Dismiss rollover notice</button></div>}
         <CompletionFailureNotice />
         {notificationError && selection.kind !== 'settings' && <p className="form-save-error" role="alert">{notificationError}</p>}
         {showQuickAdd && (
@@ -709,7 +776,7 @@ export default function App() {
           taskId={openId}
           onClose={() => setOpenId(null)}
           onOpenNote={(nid) => { setOpenId(null); setSelection({ kind: 'notes', openId: nid }); }}
-          onOpenFocusWorkspace={setFocusWorkspaceTaskId}
+          onOpenFocusWorkspace={openFocusWorkspace}
         />
       )}
       {importPreset !== false && <ImportDialog projects={projects} initialSource={importPreset} onRestoreSettled={() => { setRules(loadRules()); setUserRules(loadUserRules()); }} onClose={() => setImportPreset(false)} />}
@@ -719,12 +786,15 @@ export default function App() {
       {syncOpen && <SyncDialog onClose={() => { setSyncOpen(false); if (loadSyncSettings()) { markOnboardingDone(); setFreshInstall(false); } }} onBack={settingsChild === 'sync' ? () => setSyncOpen(false) : undefined} />}
       {googleCalendarOpen && <GoogleCalendarDialog onClose={()=>setGoogleCalendarOpen(false)} onBack={()=>setGoogleCalendarOpen(false)}/>}
       {webcalOpen && <WebcalDialog onClose={() => setWebcalOpen(false)} />}
-      {focusWorkspaceTaskId && (
+      {focusWorkspaceOpen && (
         <FocusWorkspace
           taskId={focusWorkspaceTaskId}
-          onClose={() => setFocusWorkspaceTaskId(null)}
+          onClose={() => { setFocusWorkspaceOpen(false); setFocusWorkspaceTaskId(null); }}
           onOpenDetail={setOpenId}
         />
+      )}
+      {breathingOpen && (
+        <BreathingExercise onClose={() => setBreathingOpen(false)} />
       )}
       {dataBackupOpen && <DataBackupDialog onClose={() => setDataBackupOpen(false)} />}
       {agentKeysOpen && <AgentKeysDialog onClose={() => setAgentKeysOpen(false)} />}
@@ -751,7 +821,10 @@ export default function App() {
         onToggleTheme={() => { cycleTheme(); publishLocalSettings(); }}
         onAppearance={() => { setSettingsChild(null); setAppearanceOpen(true); }}
         onShortcuts={() => setShortcutsOpen(true)}
+        onFocusTimer={() => setSelection({ kind: 'timer' })}
+        onBreathing={() => setSelection({ kind: 'breathing' })}
       />
+      <FloatingPiPWidget currentSelection={selection} onNavigate={setSelection} />
     </div>
   );
 }
