@@ -143,10 +143,10 @@
 .planner-summary-controls select {
   font-family: var(--font-mono);
   font-size: 12px;
-  padding: 3px 6px;
+  padding: 3px 24px 3px 6px;
   border: 1px solid var(--border);
   border-radius: var(--radius-control);
-  background: var(--surface);
+  background-color: var(--surface);
   color: var(--text);
 }
 
@@ -238,7 +238,7 @@
   padding: 6px 12px;
   border: 1px solid var(--border);
   border-radius: var(--radius-control);
-  background: var(--ground);
+  background-color: var(--ground);
   color: var(--text);
   margin-bottom: 10px;
 }
@@ -430,7 +430,7 @@
   border: 1px solid var(--border);
   border-radius: var(--radius-card);
   overflow: hidden;
-  background: var(--ground);
+  background-color: var(--ground);
 }
 
 .planner-week-day-head {
@@ -715,7 +715,7 @@
 }
 
 .planner-agenda-row:hover {
-  background: var(--ground);
+  background-color: var(--ground);
 }
 
 .planner-agenda-row.done {
@@ -827,7 +827,7 @@
   padding: 8px 12px;
   border: 1px solid var(--border);
   border-radius: var(--radius-control);
-  background: var(--ground);
+  background-color: var(--ground);
   color: var(--text);
   font-size: var(--fs-small);
 }

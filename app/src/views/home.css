@@ -331,6 +331,25 @@
   min-height: 38px;
   white-space: nowrap;
 }
+.home .home-do-today-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 0 12px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-control);
+  color: var(--accent);
+  font-size: 12.5px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 140ms ease-out;
+}
+.home .home-do-today-btn:hover {
+  background: var(--surface-2);
+  border-color: var(--accent);
+  color: var(--accent-strong);
+}
 
 @media (max-width: 480px) {
   .home .home-focus-body {
@@ -739,6 +758,98 @@
   transition: color 140ms ease-out;
 }
 .home .home-more-tasks:hover { color: var(--accent-strong); }
+
+.home .home-backlog-picker-section {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.home .home-backlog-tray {
+  margin-top: 6px;
+  padding: 12px 14px;
+  background: color-mix(in srgb, var(--surface-2) 40%, var(--surface));
+  border: 1px solid var(--border);
+  border-radius: var(--radius-card);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.home .home-backlog-tray-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding-bottom: 4px;
+}
+.home .home-backlog-tray-head .eyebrow {
+  margin: 0;
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.home .home-backlog-tray-head .num {
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  color: var(--muted);
+}
+.home .home-backlog-task-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.home .home-backlog-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+.home .home-schedule-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-height: 26px;
+  padding: 2px 8px;
+  font-size: 11px;
+  font-weight: 550;
+  border-radius: var(--radius-control);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  color: var(--accent);
+  cursor: pointer;
+  transition: all 140ms ease-out;
+}
+.home .home-schedule-pill:hover {
+  background: var(--surface-2);
+  border-color: var(--accent);
+  color: var(--accent-strong);
+}
+
+.home .home-backlog-accordion {
+  margin-top: 10px;
+  padding-top: 6px;
+  border-top: 1px solid var(--border);
+}
+.home .home-backlog-accordion > summary {
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 32px;
+  padding: 2px 0;
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  font-weight: 550;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: var(--muted);
+  transition: color 140ms ease-out;
+}
+.home .home-backlog-accordion > summary:hover {
+  color: var(--text);
+}
 
 /* Supporting rail: quiet cards, one tone step, no shadow. */
 .home .home-support .widget {

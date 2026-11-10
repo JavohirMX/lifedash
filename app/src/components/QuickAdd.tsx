@@ -1,4 +1,4 @@
-import { useEffect, useId, useRef, useState } from 'react';
+import { useEffect, useId, useMemo, useRef, useState } from 'react';
 import { Plus, FileText, CheckCircle2, Check } from 'lucide-react';
 import { db } from '../db';
 import { useLiveQuery } from 'dexie-react-hooks';
@@ -32,7 +32,7 @@ export default function QuickAdd(props: {
   const [title, setTitle] = useState('');
   const [note, setNote] = useState('');
   const [showNote, setShowNote] = useState(false);
-  const [chosenProject, setChosenProject] = useState(props.projectId);
+  const [chosenProject, setChosenProject] = useState<string | undefined>(undefined);
   // undefined means use natural-language parsing; null explicitly means no date.
   const [chosenDate, setChosenDate] = useState<string | null | undefined>(undefined);
   const [chosenTime, setChosenTime] = useState<string | null | undefined>(undefined);
@@ -40,7 +40,10 @@ export default function QuickAdd(props: {
   const [chosenRecurrence, setChosenRecurrence] = useState<string | null | undefined>(undefined);
   const [extraTags, setExtraTags] = useState<string[]>([]);
 
-  const projectId = props.captureProjects ? chosenProject : props.projectId;
+  const dbProjects = useLiveQuery(() => db.projects.toArray(), []) ?? [];
+  const allProjects = useMemo(() => {
+    return props.captureProjects ?? dbProjects;
+  }, [props.captureProjects, dbProjects]);
 
   useEffect(() => {
     if (!props.captureProjects) return;
@@ -114,17 +117,21 @@ export default function QuickAdd(props: {
   function submit() {
     const raw = currentTitle.current.trim();
     if (!raw) return;
-    if (props.captureProjects && !props.captureProjects.some((project) => project.id === projectId)) {
-      setError('Choose an available project. Your text is still here.');
-      return;
-    }
-    const parsed = parseQuickAdd(raw);
+    const parsed = parseQuickAdd(raw, allProjects);
     const nat = parseNatural(parsed.title);
     if (!nat.title) {
       setError('Add a task name as well as dates or tags. Your text is still here.');
       return;
     }
     setError('');
+
+    const targetProjectId =
+      chosenProject !== undefined ? chosenProject : (parsed.project?.id ?? props.projectId);
+
+    if (props.captureProjects && !props.captureProjects.some((project) => project.id === targetProjectId)) {
+      setError('Choose an available project. Your text is still here.');
+      return;
+    }
 
     const curDate =
       props.captureProjects && chosenDate !== undefined
@@ -149,7 +156,7 @@ export default function QuickAdd(props: {
       input: {
         title: nat.title,
         tags: curTags,
-        projectId,
+        projectId: targetProjectId,
         dueDate: curDate,
         dueTime: curTime,
         recurrence: curRecurrence,
@@ -163,12 +170,20 @@ export default function QuickAdd(props: {
     currentNote.current = '';
     setNote('');
     setShowNote(false);
+    setChosenProject(undefined);
+    setChosenDate(undefined);
+    setChosenTime(undefined);
+    setChosenPriority(undefined);
+    setChosenRecurrence(undefined);
     setExtraTags([]);
     inputRef.current?.focus();
   }
 
-  const parsed = parseQuickAdd(title);
+  const parsed = parseQuickAdd(title, allProjects);
   const natural = parseNatural(parsed.title);
+  const detectedProject = parsed.project;
+  const effectiveProjectId =
+    chosenProject !== undefined ? chosenProject : (detectedProject?.id ?? props.projectId);
   const finalDate =
     props.captureProjects && chosenDate !== undefined
       ? chosenDate
@@ -189,10 +204,13 @@ export default function QuickAdd(props: {
     if (!title.trim()) return null;
     const nat = natural;
     const bits: string[] = [];
+    const projName = allProjects.find((p) => p.id === effectiveProjectId)?.name;
+    if (projName && effectiveProjectId !== 'inbox') bits.push(projName);
     if (nat.dueDate) bits.push(friendlyDate(nat.dueDate, todayStr()));
     if (nat.dueTime) bits.push(nat.dueTime);
     if (nat.recurrence) bits.push(describeRecurrence(nat.recurrence));
     if (nat.priority) bits.push(`P${nat.priority}`);
+    if (parsed.tags.length) bits.push(parsed.tags.map((t) => `#${t}`).join(' '));
     return bits.length ? bits.join(' · ') : null;
   })();
 
@@ -245,7 +263,7 @@ export default function QuickAdd(props: {
           </button>
         </form>
         <div id={`${fieldId}-hint`} className={`quick-add-hint${!hint ? ' default-hint' : ''}`} aria-live="polite">
-          {hint ?? 'Dates, times and #tags supported'}
+          {hint ?? 'Dates, times, #tags, and +project supported'}
         </div>
         {error && (
           <p id={`${fieldId}-error`} className="quick-add-error" role="alert">
@@ -355,7 +373,7 @@ export default function QuickAdd(props: {
               Project
               <select
                 aria-label="Capture project"
-                value={chosenProject}
+                value={effectiveProjectId}
                 onChange={(e) => setChosenProject(e.target.value)}
               >
                 {props.captureProjects.map((project) => (
@@ -418,13 +436,23 @@ export default function QuickAdd(props: {
                 key={project.id}
                 type="button"
                 className="mini"
-                aria-pressed={chosenProject === project.id}
+                aria-pressed={effectiveProjectId === project.id}
                 onClick={() => setChosenProject(project.id)}
               >
                 <span className="dot" style={{ background: project.color }} />
                 {project.name}
               </button>
             ))}
+            {chosenProject !== undefined && (
+              <button
+                type="button"
+                className="mini"
+                aria-pressed={chosenProject === undefined}
+                onClick={() => setChosenProject(undefined)}
+              >
+                Use parsed project
+              </button>
+            )}
           </div>
 
           <div className="capture-extra-options">
@@ -563,7 +591,7 @@ export default function QuickAdd(props: {
           <strong>Will add</strong>
           <p>{title.trim() ? natural.title || 'Add a task name' : 'Your task name'}</p>
           <p>
-            {props.captureProjects.find((project) => project.id === projectId)?.name ?? 'Choose a project'} ·{' '}
+            {props.captureProjects.find((project) => project.id === effectiveProjectId)?.name ?? 'Choose a project'} ·{' '}
             {finalDate ? friendlyDate(finalDate, todayStr()) : 'No due date'}
             {finalTime ? ` · ${finalTime}` : ''}
           </p>
@@ -571,6 +599,9 @@ export default function QuickAdd(props: {
           {finalPriority > 0 && <p>Priority {finalPriority}</p>}
           {finalTags.length > 0 && <p>{finalTags.map((tag) => `#${tag}`).join(' ')}</p>}
           {note.trim() && <p className="capture-preview-note">Note: {note.trim()}</p>}
+          {chosenProject !== undefined && detectedProject && chosenProject !== detectedProject.id && (
+            <p>Selected project replaces the parsed project ({detectedProject.name}).</p>
+          )}
           {chosenDate !== undefined && natural.dueDate && (
             <p>Selected date replaces the parsed date ({friendlyDate(natural.dueDate, todayStr())}).</p>
           )}

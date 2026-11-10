@@ -1691,7 +1691,7 @@ h2 { font-family: var(--font-display); font-size: var(--fs-section); font-weight
 .switch.on .knob { transform: translateX(14px); background: var(--accent-ink); }
 .rule-user-list { display: flex; flex-direction: column; gap: 2px; margin: 4px 0; }
 .rule-form { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
-.rule-form select, .rule-form input { min-height: var(--control-height); padding: 8px 12px; border: 1px solid var(--control); border-radius: var(--radius-control); background: var(--surface); color: var(--text); font: inherit; }
+.rule-form select, .rule-form input { min-height: var(--control-height); padding: 8px 12px; border: 1px solid var(--control); border-radius: var(--radius-control); background-color: var(--surface); color: var(--text); font: inherit; }
 .rule-form select { min-width: 10rem; }
 .rule-form input { flex: 1; min-width: 8rem; }
 .rule-form .rule-check { display: flex; align-items: center; gap: 6px; font-size: var(--fs-small); color: var(--muted); }
@@ -3137,11 +3137,11 @@ main.schedule-main { max-width: var(--page-planning); width: 100%; min-width: 0;
 :root[data-style='retro'][data-theme='dark'] .chip.tag { color: #fff9c4; background: #5c5800; }
 /* White inset reading wells; the edge treatment reverses. */
 :root[data-style='retro'] input:not([type='checkbox']):not([type='radio']):not([type='range']), :root[data-style='retro'] textarea, :root[data-style='retro'] select {
-  background: #ffffff; color: #000000; border: none; border-radius: 0;
+  background-color: #ffffff; color: #000000; border: none; border-radius: 0;
   box-shadow: inset 1px 1px 0 #808080, inset -1px -1px 0 #dfdfdf;
 }
 :root[data-style='retro'][data-theme='dark'] input:not([type='checkbox']):not([type='radio']):not([type='range']), :root[data-style='retro'][data-theme='dark'] textarea, :root[data-style='retro'][data-theme='dark'] select {
-  background: #1c1c1c; color: #f0f0f0;
+  background-color: #1c1c1c; color: #f0f0f0;
   box-shadow: inset 1px 1px 0 #000000, inset -1px -1px 0 #5a5a5a;
 }
 /* Error wells keep the inset bevel and add the shared negative border (the

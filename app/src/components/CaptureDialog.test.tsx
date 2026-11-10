@@ -38,7 +38,7 @@ describe('CaptureDialog Component', () => {
 
     // Title input
     expect(markup).toContain('id="');
-    expect(markup).toContain('placeholder="e.g. Review budget tomorrow 6pm #home p1"');
+    expect(markup).toContain('placeholder="e.g. Review budget tomorrow 6pm +work #home p1"');
 
     // Project select & chips
     expect(markup).toContain('aria-label="Capture project"');
