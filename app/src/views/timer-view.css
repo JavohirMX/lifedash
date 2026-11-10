@@ -1,0 +1,335 @@
+/* Timer View Styling - 100% solid semantic tokens, zero transparency */
+.timer-view-wrap {
+  width: 100%;
+  max-width: 920px;
+  margin: 0 auto;
+  padding: 0 0 60px;
+}
+
+.timer-card-hero {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-card, 10px);
+  padding: 36px 28px;
+  text-align: center;
+  margin-bottom: 28px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.02);
+}
+
+.timer-top-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 20px;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.timer-mode-toggle {
+  display: inline-flex;
+  border-radius: var(--radius-control, 7px);
+  background: var(--surface-2);
+  padding: 3px;
+  border: 1px solid var(--border);
+}
+
+.timer-mode-btn {
+  background: none;
+  border: none;
+  font-size: 0.85rem;
+  font-weight: 500;
+  color: var(--muted);
+  padding: 5px 14px;
+  border-radius: calc(var(--radius-control, 7px) - 2px);
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.timer-mode-btn.active {
+  background: var(--surface);
+  color: var(--text);
+  font-weight: 600;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+}
+
+.timer-top-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.timer-top-actions button {
+  height: 32px;
+  margin: 0 !important;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+}
+
+.timer-top-pip-btn {
+  padding: 0 12px;
+  font-size: 0.82rem;
+  font-weight: 550;
+  gap: 6px;
+}
+
+.timer-presets-bar {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 20px;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+.timer-preset-chip {
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  color: var(--muted);
+  font-size: 0.82rem;
+  padding: 5px 13px;
+  border-radius: 16px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.timer-preset-chip:hover {
+  color: var(--text);
+  border-color: var(--muted);
+}
+
+.timer-preset-chip.active {
+  background: var(--accent);
+  color: var(--accent-contrast, #ffffff);
+  border-color: var(--accent);
+  font-weight: 600;
+}
+
+.timer-preset-chip.break-chip.active {
+  background: #059669;
+  border-color: #059669;
+  color: #ffffff;
+}
+
+.timer-rounds-indicator {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin: 6px 0 16px;
+  font-size: 0.85rem;
+  color: var(--muted);
+}
+
+.timer-round-dots {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.timer-round-dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--border);
+  transition: all 0.2s ease;
+}
+
+.timer-round-dot.completed {
+  background: var(--accent);
+}
+
+.timer-round-dot.current {
+  background: var(--accent);
+  box-shadow: 0 0 0 2px var(--surface), 0 0 0 4px var(--accent);
+}
+
+.timer-clock-display {
+  font-size: clamp(4.5rem, 13vw, 7.5rem);
+  font-weight: 800;
+  line-height: 1;
+  letter-spacing: -0.04em;
+  color: var(--accent);
+  margin: 8px 0 12px;
+  font-variant-numeric: tabular-nums;
+  transition: color 0.2s ease;
+}
+
+.timer-clock-display.break-mode {
+  color: #059669;
+}
+
+.timer-clock-status {
+  font-size: 0.95rem;
+  color: var(--muted);
+  margin: 0 0 24px;
+}
+
+.timer-controls-row {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  margin: 20px 0;
+  flex-wrap: nowrap;
+}
+
+.timer-controls-row button {
+  height: 40px;
+  min-height: 40px;
+  margin: 0 !important;
+  padding: 0 22px;
+  font-size: 0.95rem;
+  font-weight: 550;
+  border-radius: var(--radius-control, 7px);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  box-sizing: border-box;
+  vertical-align: middle;
+  line-height: 1;
+}
+
+.timer-btn-danger {
+  color: var(--negative, #ef4444) !important;
+  border-color: color-mix(in srgb, var(--negative, #ef4444) 30%, var(--border)) !important;
+}
+
+.timer-btn-danger:hover {
+  background: var(--negative, #ef4444) !important;
+  color: #ffffff !important;
+  border-color: var(--negative, #ef4444) !important;
+}
+
+.timer-task-section {
+  margin-top: 24px;
+  padding-top: 20px;
+  border-top: 1px solid var(--border);
+}
+
+.timer-attached-task {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+}
+
+.timer-task-title {
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: var(--text);
+  margin: 0;
+}
+
+.timer-task-select {
+  padding: 7px 12px;
+  border-radius: var(--radius-control, 7px);
+  border: 1px solid var(--border);
+  background: var(--surface-2);
+  color: var(--text);
+  font-size: 0.9rem;
+  max-width: 380px;
+  width: 100%;
+}
+
+.timer-panels-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  gap: 20px;
+}
+
+.timer-panel {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-card, 10px);
+  padding: 22px;
+  display: flex;
+  flex-direction: column;
+}
+
+.timer-panel-title {
+  font-size: 1rem;
+  font-weight: 600;
+  margin: 0 0 6px;
+  color: var(--text);
+}
+
+.timer-panel-desc {
+  font-size: 0.82rem;
+  color: var(--muted);
+  margin: 0 0 14px;
+}
+
+.timer-subtasks-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 16px;
+  max-height: 220px;
+  overflow-y: auto;
+}
+
+.timer-subtask-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px;
+  border-radius: var(--radius-control, 6px);
+  border: 1px solid var(--border);
+  background: var(--surface-2);
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+.timer-subtask-item:hover {
+  background: var(--active);
+}
+
+.timer-subtask-item.done {
+  opacity: 0.6;
+}
+
+.timer-subtask-item.done .timer-subtask-text {
+  text-decoration: line-through;
+}
+
+.timer-subtask-text {
+  font-size: 0.9rem;
+  flex: 1;
+  color: var(--text);
+}
+
+.timer-subtask-form {
+  display: flex;
+  gap: 8px;
+  margin-top: auto;
+}
+
+.timer-subtask-form input {
+  flex: 1;
+  padding: 7px 12px;
+  border-radius: var(--radius-control, 6px);
+  border: 1px solid var(--border);
+  background: var(--surface-2);
+  color: var(--text);
+}
+
+.timer-scratchpad-input {
+  width: 100%;
+  border-radius: var(--radius-control, 6px);
+  border: 1px solid var(--border);
+  background: var(--surface-2);
+  color: var(--text);
+  padding: 12px;
+  font-family: inherit;
+  font-size: 0.9rem;
+  resize: vertical;
+  box-sizing: border-box;
+}
+
+.timer-scratchpad-input:focus {
+  outline: none;
+  border-color: var(--accent);
+}

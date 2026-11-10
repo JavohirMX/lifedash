@@ -1,0 +1,203 @@
+/* Picture-in-Picture UI System (Floating in-app widget & Document PiP window) */
+
+/* Document PiP Frame - Fills 100% of native OS window with Lifedash styles */
+.pip-window-frame {
+  width: 100vw;
+  height: 100vh;
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+  background: var(--surface);
+  color: var(--text);
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  overflow: hidden;
+  user-select: none;
+  font-family: var(--font, ui-sans-serif, system-ui, sans-serif);
+}
+
+/* Floating in-app corner widget */
+.pip-floating-widget {
+  position: fixed;
+  bottom: 24px;
+  right: 24px;
+  z-index: 950;
+  width: 330px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-card, 10px);
+  box-shadow: var(--shadow-float, 0 16px 40px rgba(0, 0, 0, 0.16));
+  color: var(--text);
+  overflow: hidden;
+  animation: pipSlideIn 0.22s ease-out;
+  user-select: none;
+  font-family: var(--font, ui-sans-serif, system-ui, sans-serif);
+}
+
+@keyframes pipSlideIn {
+  from {
+    opacity: 0;
+    transform: translateY(16px) scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.pip-card-content {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  width: 100%;
+  height: 100%;
+  min-height: 140px;
+  box-sizing: border-box;
+}
+
+.pip-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface-2);
+  min-height: 38px;
+  box-sizing: border-box;
+}
+
+.pip-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.76rem;
+  font-weight: 600;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  max-width: 175px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.pip-header-right {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.pip-badge {
+  display: inline-flex;
+  align-items: center;
+  font-size: 0.72rem;
+  font-weight: 600;
+  padding: 2px 7px;
+  border-radius: var(--radius-control, 5px);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  color: var(--muted);
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.pip-header-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+}
+
+.pip-header-actions .icon-btn {
+  width: 28px;
+  height: 28px;
+  min-width: 28px;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-control, 6px);
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.pip-header-actions .icon-btn:hover {
+  background: var(--surface);
+  color: var(--text);
+  border-color: var(--border);
+}
+
+.pip-body {
+  padding: 10px 14px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  gap: 3px;
+  flex: 1;
+}
+
+.pip-clock-text {
+  font-size: 2.15rem;
+  font-weight: 800;
+  line-height: 1.1;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.02em;
+  color: var(--accent);
+}
+
+.pip-clock-text.break-mode {
+  color: #059669;
+}
+
+.pip-subtext {
+  font-size: 0.8rem;
+  font-weight: 500;
+  color: var(--muted);
+}
+
+.pip-controls-row {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  flex-wrap: nowrap;
+  padding: 0 12px 10px;
+  margin: 0 !important;
+}
+
+.pip-btn {
+  height: 34px !important;
+  min-height: 34px !important;
+  margin: 0 !important;
+  padding: 0 14px;
+  font-size: 0.84rem;
+  font-weight: 600;
+  border-radius: var(--radius-control, 6px);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  box-sizing: border-box;
+  vertical-align: middle;
+  cursor: pointer;
+  text-decoration: none;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.pip-btn-danger {
+  color: var(--negative, #ef4444) !important;
+  border-color: color-mix(in srgb, var(--negative, #ef4444) 30%, var(--border)) !important;
+}
+
+.pip-btn-danger:hover {
+  background: var(--negative, #ef4444) !important;
+  color: #ffffff !important;
+  border-color: var(--negative, #ef4444) !important;
+}

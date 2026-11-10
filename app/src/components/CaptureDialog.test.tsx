@@ -70,8 +70,8 @@ describe('CaptureDialog Component', () => {
     expect(markup).toContain('class="btn-primary quick-add-submit"');
     expect(markup).toContain('Add');
 
-    // Live contextual suggestions
-    expect(markup).toContain('Suggest:');
-    expect(markup).toContain('class="qa-suggest-pill"');
+    // Autocomplete disabled and no suggestion pills row
+    expect(markup).toContain('autoComplete="off"');
+    expect(markup).not.toContain('class="qa-suggest-pill"');
   });
 });

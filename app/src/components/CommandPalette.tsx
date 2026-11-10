@@ -3,7 +3,7 @@ import { useDialogFocus } from '../hooks/useDialogFocus';
 import {
   Sun, CalendarDays, Archive, Clock, CalendarRange, Repeat, CheckCircle2,
   Search, Plus, Moon, Check, Pin, Home, Target, StickyNote, BookOpen, Calendar,
-  Zap, Flag, AlertCircle,
+  Zap, Flag, AlertCircle, Timer, Wind, Wrench, Sparkles,
 } from 'lucide-react';
 import type { JournalEntry, Note, Task } from '../types';
 import type { Selection } from './Sidebar';
@@ -28,6 +28,8 @@ export default function CommandPalette(props: {
   onToggleTheme: () => void;
   onAppearance: () => void;
   onShortcuts: () => void;
+  onFocusTimer?: () => void;
+  onBreathing?: () => void;
 }) {
   const [query, setQuery] = useState('');
   const [index, setIndex] = useState(0);
@@ -61,6 +63,11 @@ export default function CommandPalette(props: {
       nav('notes', 'Notes', StickyNote),
       nav('journal', 'Journal', BookOpen),
       nav('completed', 'Completed', CheckCircle2),
+      nav('tools', 'Tools', Wrench),
+      nav('timer', 'Focus & Timer (Pomodoro)', Timer),
+      nav('breathing', 'Mindful Breathing', Wind),
+      nav('ai-planner', 'Plan with AI', Sparkles),
+      nav('automation', 'Automation Rules', Zap),
       { id: 'filter-quick-wins', label: 'Go to Quick Wins (≤15m)', Icon: Zap, run: () => { props.onSelect({ kind: 'filter', filterId: 'quick-wins' }); props.onClose(); } },
       { id: 'filter-high-priority', label: 'Go to High Priority (P1)', Icon: Flag, run: () => { props.onSelect({ kind: 'filter', filterId: 'high-priority' }); props.onClose(); } },
       { id: 'filter-blocked', label: 'Go to Blocked Tasks', Icon: AlertCircle, run: () => { props.onSelect({ kind: 'filter', filterId: 'blocked' }); props.onClose(); } },
@@ -158,6 +165,7 @@ export function useGlobalKeys(handlers: {
   onNewTask: () => void;
   onSelect: (s: Selection) => void;
   onHelp?: () => void;
+  onFocusTimer?: () => void;
 }) {
   useEffect(() => {
     const views: Record<string, Selection['kind']> = {
@@ -176,6 +184,7 @@ export function useGlobalKeys(handlers: {
       if (typing || dialog) return;
       if (e.key === '?') { e.preventDefault(); handlers.onHelp?.(); return; }
       if (e.key === 'n') { e.preventDefault(); handlers.onNewTask(); return; }
+      if (e.key.toLowerCase() === 'f' && e.shiftKey) { e.preventDefault(); handlers.onFocusTimer?.(); return; }
       const kind = views[e.key.toLowerCase()];
       if (kind && !e.ctrlKey && !e.metaKey && !e.altKey) handlers.onSelect({ kind } as Selection);
     }

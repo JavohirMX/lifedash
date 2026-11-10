@@ -6,6 +6,7 @@ const GROUPS: { title: string; rows: [string, string][] }[] = [
     rows: [
       ['Ctrl/⌘ K', 'Command palette: search tasks, notes and journal'],
       ['n', 'New task (opens capture without leaving this view)'],
+      ['Shift+F', 'Focus & Pomodoro timer'],
       ['?', 'This help'],
       ['Esc', 'Close the open dialog or task panel'],
     ],

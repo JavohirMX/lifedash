@@ -11,7 +11,6 @@ import {
   getAutocompleteItems,
   applyAutocomplete,
   stripTokenFromText,
-  getQuickSuggestions,
   type AutocompleteItem,
   type CaretToken,
 } from '../quickAddSuggestions';
@@ -193,7 +192,6 @@ export default function QuickAdd(props: {
 
   const [caretPos, setCaretPos] = useState(0);
   const [selectedSuggestionIndex, setSelectedSuggestionIndex] = useState(0);
-  const [selectedPillIndex, setSelectedPillIndex] = useState<number | null>(null);
   const [isAutocompleteDismissed, setIsAutocompleteDismissed] = useState(false);
   const [prevTokenKey, setPrevTokenKey] = useState('');
   const listRef = useRef<HTMLUListElement>(null);
@@ -225,10 +223,6 @@ export default function QuickAdd(props: {
     }
   }, [selectedSuggestionIndex, isAutocompleteOpen]);
 
-  useEffect(() => {
-    setSelectedPillIndex(null);
-  }, [title]);
-
   const applySuggestion = (item: AutocompleteItem, token: CaretToken) => {
     const res = applyAutocomplete(title, [token.start, token.end], item.insertText);
     currentTitle.current = res.text;
@@ -237,19 +231,6 @@ export default function QuickAdd(props: {
     setIsAutocompleteDismissed(false);
     setTimeout(() => {
       inputRef.current?.setSelectionRange(res.newCursor, res.newCursor);
-      inputRef.current?.focus();
-    }, 0);
-  };
-
-  const handleAppendSuggestion = (insertText: string) => {
-    const trimmed = title.trim();
-    const nextTitle = (trimmed ? `${trimmed} ` : '') + `${insertText} `;
-    currentTitle.current = nextTitle;
-    setTitle(nextTitle);
-    setCaretPos(nextTitle.length);
-    setIsAutocompleteDismissed(false);
-    setTimeout(() => {
-      inputRef.current?.setSelectionRange(nextTitle.length, nextTitle.length);
       inputRef.current?.focus();
     }, 0);
   };
@@ -303,49 +284,6 @@ export default function QuickAdd(props: {
         setIsAutocompleteDismissed(true);
         return;
       }
-    } else if (quickSuggestions.length > 0) {
-      if (e.key === 'ArrowDown') {
-        e.preventDefault();
-        setSelectedPillIndex((prev) => (prev === null ? 0 : (prev + 1) % quickSuggestions.length));
-        return;
-      }
-      if (e.key === 'ArrowUp') {
-        if (selectedPillIndex !== null) {
-          e.preventDefault();
-          if (selectedPillIndex === 0) {
-            setSelectedPillIndex(null);
-          } else {
-            setSelectedPillIndex((prev) => (prev! - 1 + quickSuggestions.length) % quickSuggestions.length);
-          }
-          return;
-        }
-      }
-      if (selectedPillIndex !== null) {
-        if (e.key === 'ArrowRight') {
-          e.preventDefault();
-          setSelectedPillIndex((prev) => (prev! + 1) % quickSuggestions.length);
-          return;
-        }
-        if (e.key === 'ArrowLeft') {
-          e.preventDefault();
-          setSelectedPillIndex((prev) => (prev! - 1 + quickSuggestions.length) % quickSuggestions.length);
-          return;
-        }
-        if (e.key === 'Enter' || e.key === 'Tab') {
-          e.preventDefault();
-          const chosen = quickSuggestions[selectedPillIndex];
-          if (chosen) {
-            handleAppendSuggestion(chosen.insertText);
-            setSelectedPillIndex(null);
-          }
-          return;
-        }
-        if (e.key === 'Escape') {
-          e.preventDefault();
-          setSelectedPillIndex(null);
-          return;
-        }
-      }
     }
 
     if (e.key === 'Escape') {
@@ -389,22 +327,6 @@ export default function QuickAdd(props: {
       ? chosenRecurrence
       : natural.recurrence ?? null;
   const finalTags = Array.from(new Set([...parsed.tags, ...extraTags]));
-
-  const quickSuggestions = useMemo(() => {
-    const currentProject = allProjects.find((p) => p.id === effectiveProjectId) ?? null;
-    return getQuickSuggestions(
-      {
-        project: currentProject,
-        dueDate: finalDate,
-        dueTime: finalTime,
-        priority: finalPriority,
-        recurrence: finalRecurrence,
-        tags: finalTags,
-      },
-      allProjects,
-      availableTags,
-    );
-  }, [allProjects, effectiveProjectId, finalDate, finalTime, finalPriority, finalRecurrence, finalTags, availableTags]);
 
   const detectedChips = useMemo(() => {
     const list: Array<{
@@ -538,50 +460,26 @@ export default function QuickAdd(props: {
   };
 
   const renderLiveBar = () => {
-    if (detectedChips.length === 0 && quickSuggestions.length === 0) return null;
+    if (detectedChips.length === 0) return null;
     return (
-      <div className="quick-add-live-bar" aria-label="Detected task attributes and suggestions">
-        {detectedChips.length > 0 && (
-          <div className="quick-add-detected-chips" role="group" aria-label="Detected attributes">
-            {detectedChips.map((chip) => (
-              <span key={chip.id} className="qa-detected-pill">
-                {chip.icon}
-                <span>{chip.label}</span>
-                <button
-                  type="button"
-                  className="qa-remove-btn"
-                  onClick={() => handleRemoveDetected(chip.kind, chip.value)}
-                  aria-label={`Remove ${chip.label}`}
-                  title={`Remove ${chip.label}`}
-                >
-                  <X size={11} strokeWidth={2.4} aria-hidden="true" />
-                </button>
-              </span>
-            ))}
-          </div>
-        )}
-
-        {quickSuggestions.length > 0 && (
-          <div className="quick-add-suggestion-pills" role="group" aria-label="Suggested additions">
-            <span className="qa-suggest-label">Suggest:</span>
-            {quickSuggestions.map((sug, idx) => (
+      <div className="quick-add-live-bar" aria-label="Detected task attributes">
+        <div className="quick-add-detected-chips" role="group" aria-label="Detected attributes">
+          {detectedChips.map((chip) => (
+            <span key={chip.id} className="qa-detected-pill">
+              {chip.icon}
+              <span>{chip.label}</span>
               <button
-                key={sug.id}
                 type="button"
-                className={`qa-suggest-pill${idx === selectedPillIndex ? ' selected' : ''}`}
-                aria-selected={idx === selectedPillIndex}
-                onClick={() => {
-                  handleAppendSuggestion(sug.insertText);
-                  setSelectedPillIndex(null);
-                }}
-                title={`Add ${sug.label} to task`}
+                className="qa-remove-btn"
+                onClick={() => handleRemoveDetected(chip.kind, chip.value)}
+                aria-label={`Remove ${chip.label}`}
+                title={`Remove ${chip.label}`}
               >
-                <Plus size={11} strokeWidth={2.2} aria-hidden="true" />
-                <span>{sug.label}</span>
+                <X size={11} strokeWidth={2.4} aria-hidden="true" />
               </button>
-            ))}
-          </div>
-        )}
+            </span>
+          ))}
+        </div>
       </div>
     );
   };
@@ -592,6 +490,7 @@ export default function QuickAdd(props: {
       <div className="quick-add">
         <form
           className="quick-add-row"
+          autoComplete="off"
           onSubmit={(e) => {
             e.preventDefault();
             submit();
@@ -604,11 +503,16 @@ export default function QuickAdd(props: {
             </label>
             <input
               id={fieldId}
+              name="task-title"
               ref={inputRef}
               value={title}
               placeholder={props.placeholder ?? 'Add a task'}
               aria-describedby={`${fieldId}-hint${error ? ` ${fieldId}-error` : ''}`}
               aria-invalid={error ? true : undefined}
+              autoComplete="off"
+              autoCorrect="off"
+              autoCapitalize="off"
+              spellCheck={false}
               onChange={handleInputChange}
               onSelect={updateCaret}
               onClick={updateCaret}
@@ -664,6 +568,7 @@ export default function QuickAdd(props: {
     <div className="quick-add capture-modal-content">
       <form
         className="capture-form"
+        autoComplete="off"
         onSubmit={(e) => {
           e.preventDefault();
           submit();
@@ -677,12 +582,17 @@ export default function QuickAdd(props: {
             </label>
             <input
               id={fieldId}
+              name="capture-task-title"
               ref={inputRef}
               className="capture-title-input"
               value={title}
               placeholder={props.placeholder ?? 'e.g. Review budget tomorrow 6pm +work #home p1'}
               aria-describedby={`${fieldId}-preview${error ? ` ${fieldId}-error` : ''}`}
               aria-invalid={error ? true : undefined}
+              autoComplete="off"
+              autoCorrect="off"
+              autoCapitalize="off"
+              spellCheck={false}
               onChange={handleInputChange}
               onSelect={updateCaret}
               onClick={updateCaret}
