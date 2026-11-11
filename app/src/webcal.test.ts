@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import {
   normalizeWebcalUrl,
   unfoldIcsLines,
@@ -9,6 +9,15 @@ import {
 } from './webcal';
 
 describe('Webcal and ICS utilities', () => {
+  beforeEach(() => {
+    // Freeze "today" inside the Nov 2026 fixture range so parseIcs windows stay deterministic.
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date(2026, 10, 5, 12, 0, 0));
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
   it('normalizes webcal:// and webcals:// URLs to https://', () => {
     expect(normalizeWebcalUrl('webcal://calendar.google.com/ical/basic.ics')).toBe(
       'https://calendar.google.com/ical/basic.ics'
