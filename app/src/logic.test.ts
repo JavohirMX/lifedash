@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { upcomingTasks, suggestedTask, parseQuickAdd, matchProject, groupCompletedByDay, renamedTags, completeTask, skipOccurrence, searchJournal, blockerCandidates, extractChecklistItems, filterNewChecklistItems, describeRecurrence, recurrenceChoice, isRecurrenceValid, nextOccurrenceDate, makeRecurrence, upNextGroups } from './logic';
+import { upcomingTasks, suggestedTask, sortBacklogTasks, parseQuickAdd, matchProject, groupCompletedByDay, renamedTags, completeTask, skipOccurrence, searchJournal, blockerCandidates, extractChecklistItems, filterNewChecklistItems, describeRecurrence, recurrenceChoice, isRecurrenceValid, nextOccurrenceDate, makeRecurrence, upNextGroups } from './logic';
 import type { Task, Project } from './types';
 
 describe('parseQuickAdd', () => {
@@ -497,13 +497,51 @@ describe('suggestedTask backlog fallback', () => {
     expect(suggestedTask([p3], '2026-10-27', { backlogFallback: true })?.reason).toBe('From Backlog');
   });
 
-  it('sorts backlog tasks by priority, then recency', () => {
-    const olderP1 = task('older-p1', null, { priority: 1, updatedAt: 1000 });
-    const newerP1 = task('newer-p1', null, { priority: 1, updatedAt: 2000 });
-    const lowPriority = task('low', null, { priority: 3, updatedAt: 3000 });
+  it('defaults backlog sorting to priority first, then oldest to newest', () => {
+    const olderP1 = task('older-p1', null, { priority: 1, createdAt: 1000, updatedAt: 1000 });
+    const newerP1 = task('newer-p1', null, { priority: 1, createdAt: 2000, updatedAt: 4000 });
+    const lowPriorityOldest = task('low-oldest', null, { priority: 3, createdAt: 500, updatedAt: 3000 });
 
-    expect(suggestedTask([olderP1, newerP1, lowPriority], '2026-10-27', { backlogFallback: true })?.task.id).toBe('newer-p1');
-    expect(suggestedTask([olderP1, lowPriority], '2026-10-27', { backlogFallback: true })?.task.id).toBe('older-p1');
+    expect(
+      suggestedTask([newerP1, olderP1, lowPriorityOldest], '2026-10-27', { backlogFallback: true })?.task.id,
+    ).toBe('older-p1');
+    expect(
+      sortBacklogTasks([newerP1, lowPriorityOldest, olderP1], 'priority-oldest').map((t) => t.id),
+    ).toEqual(['older-p1', 'newer-p1', 'low-oldest']);
+  });
+
+  it('supports oldest, priority-recent, and recent backlog sort options', () => {
+    const oldestLow = task('oldest-low', null, { priority: 3, createdAt: 100, updatedAt: 100 });
+    const midP1 = task('mid-p1', null, { priority: 1, createdAt: 500, updatedAt: 500 });
+    const newestP2 = task('newest-p2', null, { priority: 2, createdAt: 900, updatedAt: 9000 });
+    const tasks = [midP1, newestP2, oldestLow];
+
+    expect(
+      suggestedTask(tasks, '2026-10-27', { backlogFallback: true, backlogSort: 'oldest' })?.task.id,
+    ).toBe('oldest-low');
+    expect(sortBacklogTasks(tasks, 'oldest').map((t) => t.id)).toEqual([
+      'oldest-low',
+      'mid-p1',
+      'newest-p2',
+    ]);
+
+    expect(
+      suggestedTask(tasks, '2026-10-27', { backlogFallback: true, backlogSort: 'priority-recent' })?.task.id,
+    ).toBe('mid-p1');
+    expect(sortBacklogTasks(tasks, 'priority-recent').map((t) => t.id)).toEqual([
+      'mid-p1',
+      'newest-p2',
+      'oldest-low',
+    ]);
+
+    expect(
+      suggestedTask(tasks, '2026-10-27', { backlogFallback: true, backlogSort: 'recent' })?.task.id,
+    ).toBe('newest-p2');
+    expect(sortBacklogTasks(tasks, 'recent').map((t) => t.id)).toEqual([
+      'newest-p2',
+      'mid-p1',
+      'oldest-low',
+    ]);
   });
 
   it('excludes blocked backlog tasks and subtasks', () => {

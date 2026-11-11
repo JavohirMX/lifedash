@@ -10,8 +10,11 @@ import { projectTree } from '../projects';
 import type { Project } from '../types';
 import { addProject } from '../repo';
 
+export type SettingsCategory = 'all' | 'home' | 'display' | 'sync' | 'ai' | 'data' | 'notifications';
+
 export type Selection =
-  | { kind: 'home' | 'today' | 'upcoming' | 'backlog' | 'completed' | 'habits' | 'planner' | 'week' | 'goals' | 'calendar' | 'settings' | 'tools' | 'timer' | 'breathing' | 'ai-planner' | 'automation' }
+  | { kind: 'home' | 'today' | 'upcoming' | 'backlog' | 'completed' | 'habits' | 'planner' | 'week' | 'goals' | 'calendar' | 'tools' | 'timer' | 'breathing' | 'ai-planner' | 'automation' }
+  | { kind: 'settings'; category?: SettingsCategory }
   | { kind: 'notes'; openId?: string }
   | { kind: 'journal'; date?: string }
   | { kind: 'project'; id: string }

@@ -7,15 +7,15 @@ import { minutes, validDate } from '../planning';
 import { goalsWithoutNextAction } from '../review';
 import CompletionButton from '../components/CompletionButton';
 import { useLiveQuery } from 'dexie-react-hooks';
-import { useEffect, useMemo, useRef, useState } from 'react';
-import { ArrowRight, BookOpen, Calendar, CalendarCheck, CalendarPlus, Check, Clock, ListTodo, Maximize2, PenLine, RotateCcw, SkipForward, SlidersHorizontal, Target, X } from 'lucide-react';
+import { useEffect, useMemo, useState } from 'react';
+import { ArrowRight, BookOpen, Calendar, CalendarCheck, CalendarPlus, Check, Clock, ListTodo, Maximize2, PenLine, RotateCcw, SkipForward, Target, X } from 'lucide-react';
 import QuickAdd from '../components/QuickAdd';
 import { db } from '../db';
-import { saveWidgetVisibility, DEFAULT_HIDDEN_WIDGETS } from '../widgetPreferences';
+import { useHomePreferences } from '../homePreferences';
 import HomeHabitCheck from '../components/HomeHabitCheck';
 import HomeFocusStop from '../components/HomeFocusStop';
 import { runningSession, sessionSeconds, focusTotals, formatClock, formatDuration } from '../focus';
-import { todayTasks, upcomingTasks, suggestedTask, upNextGroups, sortTasks, activeBlockers } from '../logic';
+import { todayTasks, upcomingTasks, suggestedTask, upNextGroups, sortTasks, sortBacklogTasks, activeBlockers } from '../logic';
 import { currentStreak, isScheduledOn, logsByDate, isHabitDone } from '../habits';
 import { todayStr, addDays, friendlyDate, weekdayLabel } from '../dates';
 import { getOrCreateJournalEntry, updateJournalEntry, updateTask } from '../repo';
@@ -38,11 +38,10 @@ export default function HomeView(props: {
   const habits = useLiveQuery(() => db.habits.orderBy('order').toArray(), []);
   const projects = useLiveQuery(() => db.projects.toArray(), []);
   const projectMap = useMemo(() => new Map((projects ?? []).map((p) => [p.id, p])), [projects]);
-  const widgetPref = useLiveQuery(() => db.syncmeta.get('home.widgets'), []);
-  const hidden: string[] = Array.isArray(widgetPref?.value) ? widgetPref.value : [...DEFAULT_HIDDEN_WIDGETS];
+  const homePrefs = useHomePreferences();
+  const hidden = homePrefs.hiddenWidgets;
   const [editingPlan, setEditingPlan] = useState<string | null>(null);
   const [reviewOpen, setReviewOpen] = useState(false);
-  const [customizing, setCustomizing] = useState(false);
   const [drillDate, setDrillDate] = useState<string | null>(null);
   const [skippedIds, setSkippedIds] = useState<string[]>([]);
   const [scheduleError, setScheduleError] = useState<string | null>(null);
@@ -50,17 +49,6 @@ export default function HomeView(props: {
   const [journalDraft, setJournalDraft] = useState('');
   const [journalSaving, setJournalSaving] = useState(false);
   const [journalError, setJournalError] = useState('');
-  const widgetSavingRef = useRef(false);
-  const [widgetSaving, setWidgetSaving] = useState(false);
-  const [widgetSaveFailed, setWidgetSaveFailed] = useState(false);
-  const toggleWidget = async (id: string) => {
-    if (widgetSavingRef.current) return;
-    widgetSavingRef.current = true; setWidgetSaving(true); setWidgetSaveFailed(false);
-    const visible = hidden.includes(id);
-    try { await saveWidgetVisibility(id, visible); }
-    catch { setWidgetSaveFailed(true); }
-    finally { widgetSavingRef.current = false; setWidgetSaving(false); }
-  };
   const logs = useLiveQuery(() => db.habitLogs.toArray(), []);
   const goals = useLiveQuery(() => db.goals.orderBy('order').toArray(), []);
   const today = todayStr();
@@ -89,14 +77,17 @@ export default function HomeView(props: {
   }, [running?.id]);
   const focusedToday = focusSessions ? focusTotals(focusSessions, today, focusNow).todayTotal : 0;
 
-  // Backlog pool sorted by priority, then recency
+  // Backlog pool sorted by the user's configured Home preference
   const unblockedBacklog = useMemo(() => {
-    const list = props.tasks.filter((t) => t.status === 'active' && t.parentId === null && activeBlockers(props.tasks, t).length === 0 && t.dueDate === null);
-    return list.sort((a, b) => {
-      if (a.priority !== b.priority) return (a.priority || 4) - (b.priority || 4);
-      return ((b.updatedAt || b.createdAt) ?? 0) - ((a.updatedAt || a.createdAt) ?? 0);
-    });
-  }, [props.tasks]);
+    const list = props.tasks.filter(
+      (t) =>
+        t.status === 'active' &&
+        t.parentId === null &&
+        activeBlockers(props.tasks, t).length === 0 &&
+        t.dueDate === null,
+    );
+    return sortBacklogTasks(list, homePrefs.backlogSort);
+  }, [props.tasks, homePrefs.backlogSort]);
 
   // Candidate pool for Next Action cycling
   const unblocked = (t: Task) => t.status === 'active' && t.parentId === null && activeBlockers(props.tasks, t).length === 0 && t.dueDate !== null;
@@ -105,11 +96,21 @@ export default function HomeView(props: {
   const pool =
     candidates.length > 0
       ? candidates
-      : unblockedBacklog.length > 0
+      : homePrefs.showBacklog && unblockedBacklog.length > 0
         ? unblockedBacklog
         : props.tasks.filter((t) => unblocked(t) && t.dueDate! === tomorrow);
   const candidateTasks = props.tasks.filter((t) => !skippedIds.includes(t.id));
-  const suggestion = suggestedTask(candidateTasks, today, { tomorrowFallback: true, backlogFallback: true }) ?? suggestedTask(props.tasks, today, { tomorrowFallback: true, backlogFallback: true });
+  const suggestion =
+    suggestedTask(candidateTasks, today, {
+      tomorrowFallback: true,
+      backlogFallback: homePrefs.showBacklog,
+      backlogSort: homePrefs.backlogSort,
+    }) ??
+    suggestedTask(props.tasks, today, {
+      tomorrowFallback: true,
+      backlogFallback: homePrefs.showBacklog,
+      backlogSort: homePrefs.backlogSort,
+    });
   const canCycle = pool.length > 1;
   const skipSuggestion = (id: string) => {
     const next = [...skippedIds, id];
@@ -185,7 +186,7 @@ export default function HomeView(props: {
   const orientation = allDoneToday
     ? 'All clear for today. Every scheduled task and habit is done. Enjoy the quiet.'
     : openToday.length === 0
-      ? (unblockedBacklog.length > 0
+      ? (homePrefs.showBacklog && unblockedBacklog.length > 0
           ? `${unblockedBacklog.length} task${unblockedBacklog.length === 1 ? '' : 's'} in backlog ready to pull forward, or enjoy the quiet.`
           : 'Nothing is due today. Leave room for what matters, or pull one thing forward.')
       : openToday.length === 1
@@ -212,23 +213,12 @@ export default function HomeView(props: {
     <section className="home">
       <header className="home-head">
         <div className="home-heading">
-          <div className="home-title-row">
-            <div>
-              <p className="eyebrow">{weekdayLabel(today)} · {now.toLocaleDateString(undefined, { month: 'long', day: 'numeric' })}</p>
-              <h1>One thing at a time</h1>
-            </div>
-            <button
-              className={`icon-btn home-customize${customizing ? ' active' : ''}`}
-              aria-label="Customize widgets"
-              aria-expanded={customizing}
-              title="Customize widgets"
-              onClick={() => setCustomizing(!customizing)}
-            >
-              <SlidersHorizontal aria-hidden="true" size={18} strokeWidth={1.75} />
-            </button>
-          </div>
-          <p className="home-greeting">{greeting(now.getHours())}. {orientation}</p>
-          {totalCommitments > 0 && (
+          <p className="eyebrow">{weekdayLabel(today)} · {now.toLocaleDateString(undefined, { month: 'long', day: 'numeric' })}</p>
+          <h1>One thing at a time</h1>
+          {homePrefs.showGreeting && (
+            <p className="home-greeting">{greeting(now.getHours())}. {orientation}</p>
+          )}
+          {homePrefs.showProgressBar && totalCommitments > 0 && (
             <div className="home-progress-wrap" role="group" aria-label="Daily progress">
               <div
                 className="home-progress-bar"
@@ -248,43 +238,6 @@ export default function HomeView(props: {
           )}
         </div>
       </header>
-      {customizing && (
-        <div className="widget-settings" role="group" aria-label="Show or hide widgets" aria-busy={widgetSaving}>
-          <div className="widget-settings-head">
-            <div>
-              <p className="widget-settings-title">Customize Home</p>
-              <p className="widget-meta">Show or hide briefing sections</p>
-            </div>
-            <button
-              type="button"
-              className="btn-secondary mini widget-settings-done"
-              onClick={() => setCustomizing(false)}
-            >
-              <Check size={13} strokeWidth={2.2} aria-hidden="true" />
-              Done
-            </button>
-          </div>
-          <div className="widget-settings-grid">
-            {[
-              ['focus', 'Focus'],
-              ['today', "Today's schedule"],
-              ['habits', 'Habits'],
-              ['upnext', 'Needs attention'],
-              ['upcoming', 'Upcoming'],
-              ['journal', 'Journal'],
-              ['week', 'This week'],
-              ['goals', 'Goals'],
-            ].map(([id, label]) => (
-              <label key={id} className="widget-toggle">
-                <input type="checkbox" checked={!hidden.includes(id)} disabled={widgetSaving} onChange={() => void toggleWidget(id)} />
-                <span>{label}</span>
-              </label>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {widgetSaveFailed && <p className="form-save-error" role="alert">Could not save widget visibility. Your previous choices are unchanged. Try the checkbox again.</p>}
 
       <div className="home-capture">
         <QuickAdd projectId="inbox" dueDate={null} placeholder="Capture a task…" />
@@ -563,7 +516,7 @@ export default function HomeView(props: {
                 {openToday.length === 0 ? (
                   <div className="home-backlog-picker-section">
                     <p className="home-empty-copy">Nothing scheduled for today.</p>
-                    {unblockedBacklog.length > 0 ? (
+                    {homePrefs.showBacklog && unblockedBacklog.length > 0 ? (
                       <div className="home-backlog-tray">
                         <div className="home-backlog-tray-head">
                           <span className="eyebrow">Ready from Backlog</span>
@@ -572,7 +525,7 @@ export default function HomeView(props: {
                         <ul className="briefing-list">
                           {unblockedBacklog
                             .filter(t => t.id !== suggestion?.task.id)
-                            .slice(0, 4)
+                            .slice(0, homePrefs.backlogLimit)
                             .map((t) => {
                               const proj = projectMap.get(t.projectId);
                               return (
@@ -637,14 +590,14 @@ export default function HomeView(props: {
                     <button className="home-more-tasks" onClick={() => props.onSelect('today')}>
                       View all {openToday.length} open tasks <ArrowRight size={14} aria-hidden="true" />
                     </button>
-                    {unblockedBacklog.length > 0 && (
+                    {homePrefs.showBacklog && unblockedBacklog.length > 0 && (
                       <details className="home-backlog-accordion">
                         <summary>
                           <span>Pull from Backlog</span>
                           <span className="num">{unblockedBacklog.length} ready</span>
                         </summary>
                         <ul className="briefing-list">
-                          {unblockedBacklog.slice(0, 3).map((t) => {
+                          {unblockedBacklog.slice(0, homePrefs.backlogLimit).map((t) => {
                             const proj = projectMap.get(t.projectId);
                             return (
                               <li key={t.id} className="briefing-task home-backlog-task-row">
@@ -678,7 +631,7 @@ export default function HomeView(props: {
                     )}
                   </>
                 )}
-                {completedTodayTasks.length > 0 && (
+                {homePrefs.showCompletedToday && completedTodayTasks.length > 0 && (
                   <details className="home-completed-today">
                     <summary>
                       <span>Completed today</span>
@@ -868,7 +821,7 @@ export default function HomeView(props: {
 
       <details className="home-extra-widgets">
         <summary>More insights · week and goals</summary>
-        <p className="widget-meta">Optional detail, kept out of your next-action view. Show or hide each widget using Customize widgets.</p>
+        <p className="widget-meta">Optional detail, kept out of your next-action view.</p>
         <div className="home-extra-grid">
           {!hidden.includes('week') && (
             <section className="home-week widget">

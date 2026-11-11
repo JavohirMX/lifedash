@@ -34,6 +34,7 @@ import TVDashboard from './views/TVDashboard';
 import { isTvEnabled, setTvEnabled, TV_PREFERENCE_CHANGED_EVENT } from './tv';
 import SyncDialog from './components/SyncDialog';
 import AppearanceDialog from './components/AppearanceDialog';
+import HomeSettingsDialog from './components/HomeSettingsDialog';
 import AiSettingsDialog from './components/AiSettingsDialog';
 import { useAiSettings } from './ai/aiSettings';
 import GoogleCalendarDialog from './components/GoogleCalendarDialog';
@@ -164,6 +165,7 @@ export default function App() {
   const [aiOpen, setAiOpen] = useState(false);
   const [aiSettingsOpen, setAiSettingsOpen] = useState(false);
   const [appearanceOpen, setAppearanceOpen] = useState(false);
+  const [homeSettingsOpen, setHomeSettingsOpen] = useState(false);
   const [googleCalendarOpen,setGoogleCalendarOpen]=useState(false);
   const [webcalOpen, setWebcalOpen] = useState(false);
   const [focusWorkspaceTaskId, setFocusWorkspaceTaskId] = useState<string | null>(null);
@@ -175,7 +177,7 @@ export default function App() {
   };
   const [agentKeysOpen, setAgentKeysOpen] = useState(false);
   const [dataBackupOpen, setDataBackupOpen] = useState(false);
-  const [settingsChild, setSettingsChild] = useState<'appearance' | 'sync' | null>(null);
+  const [settingsChild, setSettingsChild] = useState<'home' | 'appearance' | 'sync' | null>(null);
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
   const [rules, setRules] = useState<AutomationRules>(loadRules);
   const [userRules, setUserRules] = useState<UserRule[]>(loadUserRules);
@@ -384,6 +386,8 @@ export default function App() {
   if (selection.kind === 'settings') {
     body = (
       <SettingsView
+        initialCategory={selection.category}
+        onHomeSettings={() => { setSettingsChild('home'); setHomeSettingsOpen(true); }}
         onDataBackup={() => setDataBackupOpen(true)}
         onSync={() => { setSettingsChild('sync'); setSyncOpen(true); }}
         onAppearance={() => { setSettingsChild('appearance'); setAppearanceOpen(true); }}
@@ -799,6 +803,7 @@ export default function App() {
       {dataBackupOpen && <DataBackupDialog onClose={() => setDataBackupOpen(false)} />}
       {agentKeysOpen && <AgentKeysDialog onClose={() => setAgentKeysOpen(false)} />}
       {appearanceOpen && <AppearanceDialog onClose={() => setAppearanceOpen(false)} onBack={settingsChild === 'appearance' ? () => setAppearanceOpen(false) : undefined} />}
+      {homeSettingsOpen && <HomeSettingsDialog onClose={() => setHomeSettingsOpen(false)} onBack={settingsChild === 'home' ? () => setHomeSettingsOpen(false) : undefined} />}
       {shortcutsOpen && <ShortcutsDialog onClose={() => setShortcutsOpen(false)} />}
       {freshInstall === true && !syncOpen && (
         <Onboarding

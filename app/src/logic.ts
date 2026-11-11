@@ -480,13 +480,40 @@ export function searchGoals(goals: Goal[], query: string): Goal[] {
   return goals.filter((g) => g.status !== 'archived' && textMatch(`${g.title}\n${g.note}`, query));
 }
 
+export type BacklogSortOrder = 'priority-oldest' | 'oldest' | 'priority-recent' | 'recent';
+
+export function sortBacklogTasks(tasks: Task[], order: BacklogSortOrder = 'priority-oldest'): Task[] {
+  return [...tasks].sort((a, b) => {
+    if (order === 'oldest') {
+      if (a.createdAt !== b.createdAt) return a.createdAt - b.createdAt;
+      if (a.order !== b.order) return a.order - b.order;
+      return a.id.localeCompare(b.id);
+    }
+    if (order === 'recent') {
+      const bTime = (b.updatedAt || b.createdAt) ?? 0;
+      const aTime = (a.updatedAt || a.createdAt) ?? 0;
+      if (bTime !== aTime) return bTime - aTime;
+      return (a.priority || 4) - (b.priority || 4);
+    }
+    if (a.priority !== b.priority) return (a.priority || 4) - (b.priority || 4);
+    if (order === 'priority-recent') {
+      const bTime = (b.updatedAt || b.createdAt) ?? 0;
+      const aTime = (a.updatedAt || a.createdAt) ?? 0;
+      if (bTime !== aTime) return bTime - aTime;
+    }
+    if (a.createdAt !== b.createdAt) return a.createdAt - b.createdAt;
+    if (a.order !== b.order) return a.order - b.order;
+    return a.id.localeCompare(b.id);
+  });
+}
+
 // The one task most worth doing right now: overdue first, then priority,
 // then anything due today with a time, then earliest due. Blocked and
 // subtasks don't qualify.
 export function suggestedTask(
   tasks: Task[],
   today: string,
-  opts?: { tomorrowFallback?: boolean; backlogFallback?: boolean }
+  opts?: { tomorrowFallback?: boolean; backlogFallback?: boolean; backlogSort?: BacklogSortOrder }
 ): { task: Task; reason: string } | null {
   const isUnblocked = (t: Task) => t.status === 'active' && t.parentId === null && activeBlockers(tasks, t).length === 0;
   const candidates = tasks.filter((t) => isUnblocked(t) && t.dueDate !== null && t.dueDate <= today);
@@ -497,7 +524,6 @@ export function suggestedTask(
 
   let pool: Task[] = [];
   let isBacklog = false;
-  let isTomorrow = false;
 
   if (candidates.length > 0) {
     pool = candidates.some((t) => t.dueDate! < today) ? candidates.filter((t) => t.dueDate! < today) : candidates;
@@ -508,24 +534,21 @@ export function suggestedTask(
       isBacklog = true;
     } else if (opts?.tomorrowFallback) {
       pool = tasks.filter((t) => isUnblocked(t) && t.dueDate === tomorrow);
-      isTomorrow = true;
     }
   } else if (opts?.tomorrowFallback) {
     pool = tasks.filter((t) => isUnblocked(t) && t.dueDate === tomorrow);
-    isTomorrow = true;
   }
 
   if (pool.length === 0) return null;
-  pool.sort((a, b) => {
-    if (a.priority !== b.priority) return (a.priority || 4) - (b.priority || 4);
-    if ((a.dueTime ?? '99') !== (b.dueTime ?? '99')) return (a.dueTime ?? '99').localeCompare(b.dueTime ?? '99');
-    if (isBacklog) {
-      const bTime = (b.updatedAt || b.createdAt) ?? 0;
-      const aTime = (a.updatedAt || a.createdAt) ?? 0;
-      if (bTime !== aTime) return bTime - aTime;
-    }
-    return a.createdAt - b.createdAt;
-  });
+  if (isBacklog) {
+    pool = sortBacklogTasks(pool, opts?.backlogSort ?? 'priority-oldest');
+  } else {
+    pool.sort((a, b) => {
+      if (a.priority !== b.priority) return (a.priority || 4) - (b.priority || 4);
+      if ((a.dueTime ?? '99') !== (b.dueTime ?? '99')) return (a.dueTime ?? '99').localeCompare(b.dueTime ?? '99');
+      return a.createdAt - b.createdAt;
+    });
+  }
   const top = pool[0];
   const reason = isBacklog
     ? top.priority === 1

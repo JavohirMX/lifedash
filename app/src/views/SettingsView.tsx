@@ -24,6 +24,7 @@ import {
   Database,
   Loader2,
   Monitor,
+  House,
 } from 'lucide-react';
 import '../components/settings.css';
 import { STYLES, getStyle, getTheme } from '../theme';
@@ -36,11 +37,16 @@ import { todayStr } from '../dates';
 import { useAiSettings, AI_PRESETS } from '../ai/aiSettings';
 import { loadSyncSettings } from '../sync';
 import { getDeviceId, getDeviceLabel } from '../deviceSettings';
-
-type SettingsCategory = 'all' | 'display' | 'sync' | 'ai' | 'data' | 'notifications';
+import {
+  useHomePreferences,
+  HOME_WIDGET_OPTIONS,
+  BACKLOG_SORT_OPTIONS,
+} from '../homePreferences';
+import type { SettingsCategory } from '../components/Sidebar';
 
 const CATEGORIES: { id: SettingsCategory; label: string }[] = [
   { id: 'all', label: 'All' },
+  { id: 'home', label: 'Home Screen' },
   { id: 'display', label: 'Appearance & Display' },
   { id: 'sync', label: 'Sync & Integrations' },
   { id: 'ai', label: 'AI & Automation' },
@@ -49,6 +55,8 @@ const CATEGORIES: { id: SettingsCategory; label: string }[] = [
 ];
 
 export default function SettingsView(props: {
+  initialCategory?: SettingsCategory;
+  onHomeSettings?: () => void;
   onSync: () => void;
   onDataBackup?: () => void;
   onAppearance: () => void;
@@ -91,7 +99,18 @@ export default function SettingsView(props: {
 
   // UI state for search and filtering
   const [searchQuery, setSearchQuery] = useState('');
-  const [activeCategory, setActiveCategory] = useState<SettingsCategory>('all');
+  const [activeCategory, setActiveCategory] = useState<SettingsCategory>(props.initialCategory ?? 'all');
+
+  useEffect(() => {
+    if (props.initialCategory) {
+      setActiveCategory(props.initialCategory);
+    }
+  }, [props.initialCategory]);
+
+  const homePrefs = useHomePreferences();
+  const visibleSectionsCount = HOME_WIDGET_OPTIONS.filter(
+    (widget) => !homePrefs.hiddenWidgets.includes(widget.id),
+  ).length;
 
   // Local storage counts
   const [dbCounts, setDbCounts] = useState<{
@@ -192,6 +211,34 @@ export default function SettingsView(props: {
   };
 
   // Section visibility checks
+  const showHome =
+    (activeCategory === 'all' || activeCategory === 'home') &&
+    matches([
+      'home',
+      'backlog',
+      'order',
+      'sort',
+      'oldest',
+      'newest',
+      'recency',
+      'fifo',
+      'widgets',
+      'sections',
+      'briefing',
+      'focus',
+      'today',
+      'habits',
+      'upnext',
+      'upcoming',
+      'journal',
+      'week',
+      'goals',
+      'progress bar',
+      'greeting',
+      'completed',
+      'limit',
+    ]);
+
   const showDisplay =
     (activeCategory === 'all' || activeCategory === 'display') &&
     matches(['appearance', 'style', 'mode', 'theme', 'font', 'wallpaper', 'dark mode', 'keyboard', 'shortcuts', 'hotkeys', 'tv', 'kiosk', 'dashboard']);
@@ -216,13 +263,14 @@ export default function SettingsView(props: {
     activeCategory === 'all' &&
     matches(['device', 'storage', 'privacy', 'indexeddb', 'about', 'local-first', 'counts']);
 
-  const hasAnyResults = showDisplay || showSync || showAi || showData || showNotifications || showAbout;
+  const hasAnyResults = showHome || showDisplay || showSync || showAi || showData || showNotifications || showAbout;
+  const activeSortOption = BACKLOG_SORT_OPTIONS.find((o) => o.value === homePrefs.backlogSort) ?? BACKLOG_SORT_OPTIONS[0];
 
   return (
     <section className="settings-page settings-scope" aria-label="Settings">
       <PageHeader
         title="Settings"
-        description="Connection, data, display, intelligence, and notifications for this device."
+        description="Home screen, connection, data, display, intelligence, and notifications for this device."
       />
 
       {/* Quick Search & Category Filters */}
@@ -282,6 +330,36 @@ export default function SettingsView(props: {
         >
           No settings match &ldquo;{searchQuery}&rdquo;.
         </EmptyState>
+      )}
+
+      {/* 0. Home Screen */}
+      {showHome && (
+        <div className="settings-card-group">
+          <div className="settings-card-header">
+            <h3>Home Screen</h3>
+            <span className="settings-card-subtitle">Backlog task order, header options and briefing sections</span>
+          </div>
+          <div className="settings-card">
+            <button className="settings-row" onClick={props.onHomeSettings}>
+              <div className="settings-icon-box" aria-hidden="true">
+                <House size={18} />
+              </div>
+              <span className="settings-row-main">
+                <strong>Home screen</strong>
+                <small>Backlog order: {activeSortOption.label}</small>
+                <small className="settings-current-appearance" aria-hidden="true">
+                  {visibleSectionsCount}/{HOME_WIDGET_OPTIONS.length} sections visible
+                </small>
+              </span>
+              <span className="settings-row-action" aria-hidden="true">
+                <span className="settings-pill-badge">
+                  {visibleSectionsCount}/{HOME_WIDGET_OPTIONS.length} sections
+                </span>
+                <ChevronRight size={16} />
+              </span>
+            </button>
+          </div>
+        </div>
       )}
 
       {/* 1. Appearance & Display */}

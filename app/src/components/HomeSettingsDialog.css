@@ -1,0 +1,65 @@
+.home-settings-panel {
+  width: min(620px, calc(100vw - 32px));
+  max-height: calc(100dvh - 48px);
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.home-settings-summary {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px 12px;
+  padding: 10px 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-control);
+  background: var(--surface-2);
+}
+
+.home-settings-current {
+  margin: 0;
+  color: var(--muted);
+  font-size: var(--fs-small);
+  line-height: 1.45;
+}
+
+.home-settings-current strong {
+  color: var(--text);
+}
+
+.home-settings-reset {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.home-settings-section {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.home-settings-section-title {
+  margin: 0;
+  font-size: var(--fs-small);
+  font-weight: 600;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.home-settings-panel .settings-widget-grid {
+  padding-left: 0;
+}
+
+@media (max-width: 640px) {
+  .home-settings-panel {
+    width: calc(100vw - 20px);
+    max-height: calc(100dvh - 24px);
+    gap: 14px;
+  }
+}

@@ -5,6 +5,7 @@ import SettingsView from './SettingsView';
 
 describe('SettingsView', () => {
   const defaultProps = {
+    onHomeSettings: vi.fn(),
     onSync: vi.fn(),
     onDataBackup: vi.fn(),
     onAppearance: vi.fn(),
@@ -27,6 +28,7 @@ describe('SettingsView', () => {
     const html = renderToStaticMarkup(<SettingsView {...defaultProps} />);
 
     expect(html).toContain('Settings');
+    expect(html).toContain('Home Screen');
     expect(html).toContain('Appearance &amp; Display');
     expect(html).toContain('Sync &amp; Integrations');
     expect(html).toContain('AI &amp; Automation');
@@ -37,8 +39,21 @@ describe('SettingsView', () => {
     // Verify search input and category pills
     expect(html).toContain('placeholder="Filter settings…"');
     expect(html).toContain('role="tablist"');
+    expect(html).toContain('Home Screen</button>');
     expect(html).toContain('Appearance &amp; Display</button>');
     expect(html).toContain('Sync &amp; Integrations</button>');
+  });
+
+  it('renders Home Screen section row matching other Settings dialogs', () => {
+    const html = renderToStaticMarkup(<SettingsView {...defaultProps} initialCategory="home" />);
+
+    expect(html).toContain('<h3>Home Screen</h3>');
+    expect(html).not.toContain('<h3>Appearance &amp; Display</h3>');
+
+    expect(html).toContain('<strong>Home screen</strong>');
+    expect(html).toContain('Backlog order: Priority first, then oldest to newest');
+    expect(html).toContain('5/8 sections');
+    expect(html).not.toContain('aria-label="Backlog task order"');
   });
 
   it('renders key accessible buttons with expected labels and attributes', () => {
